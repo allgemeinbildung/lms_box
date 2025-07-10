@@ -14,7 +14,14 @@ function debounce(func, wait) {
     };
 }
 
-function renderQuill(data, assignmentId, subId) {
+/**
+ * Renders the Quill editor and the solution-unlocking interface.
+ * @param {object} data - The specific sub-assignment data.
+ * @param {string} assignmentId - The ID of the parent assignment.
+ * @param {string} subId - The ID of the sub-assignment.
+ * @param {string[]} [solutionKeys=[]] - The array of valid keys from the parent assignment.
+ */
+function renderQuill(data, assignmentId, subId, solutionKeys = []) {
     const contentRenderer = document.getElementById('content-renderer');
     const solutionUnlockContainer = document.getElementById('solution-unlock-container');
     const solutionDisplayContainer = document.getElementById('solution-display-container');
@@ -56,7 +63,6 @@ function renderQuill(data, assignmentId, subId) {
     };
 
     const setupSolutionUnlockUI = (solutionContent) => {
-        // We only store one key at a time, but we can check if it's the one for this assignment context
         const savedKeyData = JSON.parse(localStorage.getItem(SOLUTION_KEY_STORAGE) || '{}');
         const prefilledKey = savedKeyData.assignmentId === assignmentId ? savedKeyData.key : '';
 
@@ -81,7 +87,6 @@ function renderQuill(data, assignmentId, subId) {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'cors',
-                    // Send assignmentId along with the key for server-side lookup
                     body: JSON.stringify({
                         action: 'verifySolutionKey',
                         assignmentId: assignmentId,
@@ -91,12 +96,10 @@ function renderQuill(data, assignmentId, subId) {
                 const result = await response.json();
 
                 if (result.isValid) {
-                    // Store the key along with its assignment context
                     localStorage.setItem(SOLUTION_KEY_STORAGE, JSON.stringify({ assignmentId, key: enteredKey }));
                     displaySolution(solutionContent);
                 } else {
                     statusEl.textContent = 'Falscher Schlüssel. Bitte erneut versuchen.';
-                    // If the saved key is wrong for this assignment, remove it
                     if (prefilledKey) localStorage.removeItem(SOLUTION_KEY_STORAGE);
                 }
             } catch (error) {
@@ -112,19 +115,27 @@ function renderQuill(data, assignmentId, subId) {
             if (e.key === 'Enter') verifyKey();
         });
 
-        // If a key for this specific assignment is saved, try to unlock automatically
         if (prefilledKey) {
             verifyKey();
         }
     };
 
-    // Check if the fetched assignment data contains keys and a solution
-    if (data.solution_keys && data.solution_keys.length > 0 && data.solution && data.solution.content) {
+    // CORRECTED: Check the passed-in solutionKeys array and the sub-assignment's solution object
+    if (solutionKeys && solutionKeys.length > 0 && data.solution && data.solution.content) {
         setupSolutionUnlockUI(data.solution.content);
     }
 }
 
-export function renderSubAssignment(subAssignmentData, assignmentId, subId) {
+/**
+ * Main rendering router. It now accepts the entire assignment data object.
+ * @param {object} assignmentData - The full data object for the entire assignment.
+ * @param {string} assignmentId - The ID of the assignment.
+ * @param {string} subId - The ID of the specific sub-assignment to render.
+ */
+export function renderSubAssignment(assignmentData, assignmentId, subId) {
+    const subAssignmentData = assignmentData.subAssignments[subId];
+    const solutionKeys = assignmentData.solution_keys; // Extract keys from the top level
+
     document.getElementById('sub-title').textContent = subAssignmentData.title;
     document.getElementById('instructions').innerHTML = subAssignmentData.instructions;
     document.getElementById('content-renderer').innerHTML = '';
@@ -135,7 +146,8 @@ export function renderSubAssignment(subAssignmentData, assignmentId, subId) {
     localStorage.setItem(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`, subAssignmentData.type);
 
     if (subAssignmentData.type === 'quill') {
-        renderQuill(subAssignmentData, assignmentId, subId);
+        // Pass the extracted keys down to the rendering function
+        renderQuill(subAssignmentData, assignmentId, subId, solutionKeys);
     } else {
         document.getElementById('content-renderer').innerHTML = `<p>Unbekannter Aufgabentyp: ${subAssignmentData.type}</p>`;
     }

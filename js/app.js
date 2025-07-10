@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const subAssignmentData = data.subAssignments[subId];
             if (!subAssignmentData) throw new Error(`Teilaufgabe "${subId}" nicht gefunden.`);
             
-            renderSubAssignment(subAssignmentData, assignmentId, subId);
+            renderSubAssignment(data, assignmentId, subId);
         })
         .catch(error => {
             console.error('Fehler beim Laden der Aufgabe:', error);
