@@ -87,6 +87,10 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'cors',
+                    // ✅ FIXED: Added Content-Type header
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
                     body: JSON.stringify({
                         action: 'verifySolutionKey',
                         assignmentId: assignmentId,
@@ -120,7 +124,6 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
         }
     };
 
-    // CORRECTED: Check the passed-in solutionKeys array and the sub-assignment's solution object
     if (solutionKeys && solutionKeys.length > 0 && data.solution && data.solution.content) {
         setupSolutionUnlockUI(data.solution.content);
     }
@@ -146,7 +149,6 @@ export function renderSubAssignment(assignmentData, assignmentId, subId) {
     localStorage.setItem(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`, subAssignmentData.type);
 
     if (subAssignmentData.type === 'quill') {
-        // Pass the extracted keys down to the rendering function
         renderQuill(subAssignmentData, assignmentId, subId, solutionKeys);
     } else {
         document.getElementById('content-renderer').innerHTML = `<p>Unbekannter Aufgabentyp: ${subAssignmentData.type}</p>`;

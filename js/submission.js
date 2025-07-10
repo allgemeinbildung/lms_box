@@ -40,18 +40,21 @@ async function gatherAllDataForSubmission() {
         return null;
     }
 
+    // This is the object that will be sent to the Cloud Function
     return {
         identifier,
-        payload: allDataPayload,
-        createdAt: new Date().toISOString()
+        payload: {
+            assignments: allDataPayload,
+            createdAt: new Date().toISOString()
+        }
     };
 }
 
 export async function submitAllAssignments() {
-    const finalObject = await gatherAllDataForSubmission();
-    if (!finalObject) return;
+    const submissionData = await gatherAllDataForSubmission();
+    if (!submissionData) return;
 
-    if (!SCRIPT_URL || SCRIPT_URL.includes('YOUR_DEPLOYED_GOOGLE_APPS_SCRIPT_URL')) {
+    if (!SCRIPT_URL || SCRIPT_URL.includes('YOUR_CLOUD_FUNCTION_TRIGGER_URL')) {
         alert('Konfigurationsfehler: Die Abgabe-URL ist nicht in js/config.js festgelegt.');
         return;
     }
@@ -69,7 +72,16 @@ export async function submitAllAssignments() {
         const response = await fetch(SCRIPT_URL, {
             method: 'POST',
             mode: 'cors',
-            body: JSON.stringify(finalObject)
+            // ✅ FIXED: Added Content-Type header
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            // ✅ FIXED: Sending data in the format the Cloud Function expects
+            body: JSON.stringify({
+                action: 'submit',
+                identifier: submissionData.identifier,
+                payload: submissionData.payload
+            })
         });
         const result = await response.json();
 
