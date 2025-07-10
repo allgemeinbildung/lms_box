@@ -48,7 +48,7 @@ function renderQuill(data, assignmentId, subId) {
         }
     }, 500));
 
-    // --- Secure Solution Unlock Logic ---
+    // --- Secure, Assignment-Specific Solution Unlock Logic ---
     const displaySolution = (solutionHTML) => {
         solutionDisplayContainer.innerHTML = `<h3>Musterlösung</h3>${solutionHTML}`;
         solutionDisplayContainer.style.display = 'block';
@@ -56,9 +56,12 @@ function renderQuill(data, assignmentId, subId) {
     };
 
     const setupSolutionUnlockUI = (solutionContent) => {
-        const savedKey = localStorage.getItem(SOLUTION_KEY_STORAGE) || '';
+        // We only store one key at a time, but we can check if it's the one for this assignment context
+        const savedKeyData = JSON.parse(localStorage.getItem(SOLUTION_KEY_STORAGE) || '{}');
+        const prefilledKey = savedKeyData.assignmentId === assignmentId ? savedKeyData.key : '';
+
         solutionUnlockContainer.innerHTML = `
-            <input type="text" id="solution-key-input" placeholder="Lösungsschlüssel eingeben..." value="${savedKey}" style="margin-right: 10px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <input type="text" id="solution-key-input" placeholder="Lösungsschlüssel eingeben..." value="${prefilledKey}" style="margin-right: 10px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
             <button id="solution-unlock-btn">Lösung anzeigen</button>
             <p id="solution-status" style="color: #721c24; margin-top: 5px;"></p>
         `;
@@ -78,16 +81,23 @@ function renderQuill(data, assignmentId, subId) {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'cors',
-                    body: JSON.stringify({ action: 'verifySolutionKey', key: enteredKey })
+                    // Send assignmentId along with the key for server-side lookup
+                    body: JSON.stringify({
+                        action: 'verifySolutionKey',
+                        assignmentId: assignmentId,
+                        key: enteredKey
+                    })
                 });
                 const result = await response.json();
 
                 if (result.isValid) {
-                    localStorage.setItem(SOLUTION_KEY_STORAGE, enteredKey);
+                    // Store the key along with its assignment context
+                    localStorage.setItem(SOLUTION_KEY_STORAGE, JSON.stringify({ assignmentId, key: enteredKey }));
                     displaySolution(solutionContent);
                 } else {
                     statusEl.textContent = 'Falscher Schlüssel. Bitte erneut versuchen.';
-                    localStorage.removeItem(SOLUTION_KEY_STORAGE);
+                    // If the saved key is wrong for this assignment, remove it
+                    if (prefilledKey) localStorage.removeItem(SOLUTION_KEY_STORAGE);
                 }
             } catch (error) {
                 statusEl.textContent = 'Fehler bei der Überprüfung des Schlüssels.';
@@ -102,14 +112,14 @@ function renderQuill(data, assignmentId, subId) {
             if (e.key === 'Enter') verifyKey();
         });
 
-        // If a key is already saved, try to unlock automatically
-        if (savedKey) {
+        // If a key for this specific assignment is saved, try to unlock automatically
+        if (prefilledKey) {
             verifyKey();
         }
     };
 
-    // Check if a solution is available and set up the UI if it is
-    if (data.solution && data.solution.available && data.solution.content) {
+    // Check if the fetched assignment data contains keys and a solution
+    if (data.solution_keys && data.solution_keys.length > 0 && data.solution && data.solution.content) {
         setupSolutionUnlockUI(data.solution.content);
     }
 }
