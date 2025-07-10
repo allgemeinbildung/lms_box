@@ -1,0 +1,77 @@
+/* Base & Layout Styles */
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    background-color: #f8f9fa;
+    color: #212529;
+}
+
+#assignment-container {
+    max-width: 900px;
+    margin: 2em auto;
+    padding: 2em;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.07);
+}
+
+#assignment-header h2 {
+    margin-top: 0;
+}
+
+/* Action Buttons */
+#action-container button {
+    padding: 10px 20px;
+    font-size: 1em;
+    border: 1px solid #007bff;
+    border-radius: 5px;
+    background-color: #007bff;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+    margin-right: 10px;
+}
+
+#action-container button:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+}
+
+#action-container button:disabled {
+    background-color: #ced4da;
+    border-color: #ced4da;
+    cursor: not-allowed;
+}
+
+/* Solution Display */
+#solution-display-container {
+    display: none; /* Hidden by default */
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #f0fff4; /* Light green background */
+    border: 1px solid #28a745;
+    border-radius: 8px;
+}
+
+#solution-display-container h3 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #dee2e6;
+    color: #155724; /* Dark green text */
+}
+
+/* Solution Unlock Input */
+#solution-unlock-container button {
+    padding: 8px 16px;
+    font-size: 0.9em;
+    border: 1px solid #6c757d;
+    border-radius: 5px;
+    background-color: transparent;
+    color: #6c757d;
+    cursor: pointer;
+}
+
+#solution-unlock-container button:hover {
+    background-color: #e9ecef;
+}
