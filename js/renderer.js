@@ -112,26 +112,20 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
     }, 500));
 
     // --- Secure, Assignment-Specific Solution Unlock Logic ---
-
-    /**
-     * ✅ CHANGED: This function now builds the solution view from the new JSON structure.
-     * It uses the 'data' object from its parent scope (renderQuill).
-     */
     const displaySolution = () => {
         const solutionData = data.solution;
-        // Create a Map for quick lookup of answers by question ID
         const solutionMap = new Map(solutionData.solutions.map(s => [s.id, s.answer]));
 
         let html = `<h3>Musterlösung (Seite ${solutionData.page})</h3>`;
 
-        // Loop through the original questions to maintain order
         data.questions.forEach((question, index) => {
             const answer = solutionMap.get(question.id) || 'Für diese Frage wurde keine Lösung gefunden.';
             html += `
                 <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
                     <p style="font-weight: bold;">Frage ${index + 1}:</p>
                     <p style="font-style: italic;">${parseMarkdown(question.text)}</p>
-                    <div style="padding: 10px; background-color: #e9f3ff; border-radius: 4px;">${answer}</div>
+                    {/* ✅ CHANGED: Applied markdown parsing to the answer text */}
+                    <div style="padding: 10px; background-color: #e9f3ff; border-radius: 4px;">${parseMarkdown(answer)}</div>
                 </div>
             `;
         });
@@ -177,7 +171,7 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
 
                 if (result.isValid) {
                     localStorage.setItem(SOLUTION_KEY_STORAGE, JSON.stringify({ assignmentId, key: enteredKey }));
-                    displaySolution(); // ✅ CHANGED: Call the new displaySolution function
+                    displaySolution();
                 } else {
                     statusEl.textContent = 'Falscher Schlüssel. Bitte erneut versuchen.';
                     if (prefilledKey) localStorage.removeItem(SOLUTION_KEY_STORAGE);
@@ -200,10 +194,9 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
         }
     };
     
-    // ✅ CHANGED: The condition now checks the new structure for an array of solutions.
     if (solutionKeys && solutionKeys.length > 0 && data.solution && Array.isArray(data.solution.solutions) && data.solution.solutions.length > 0) {
-        solutionSection.style.display = 'block'; // Make the whole dropdown section visible
-        setupSolutionUnlockUI(); // ✅ CHANGED: No longer needs to pass content
+        solutionSection.style.display = 'block';
+        setupSolutionUnlockUI();
     }
 }
 
