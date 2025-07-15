@@ -183,8 +183,8 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
         }
     };
     
-    // Only show the solution section if keys and content exist
-    if (solutionKeys && solutionKeys.length > 0 && data.solution && data.solution.content) {
+    // Only show the solution section if a solution is available and has content
+    if (data.solution && data.solution.available && data.solution.content) {
         solutionSection.style.display = 'block'; // Make the whole dropdown section visible
         setupSolutionUnlockUI(data.solution.content);
     }
@@ -200,12 +200,14 @@ export function renderSubAssignment(assignmentData, assignmentId, subId) {
     const subAssignmentData = assignmentData.subAssignments[subId];
     const solutionKeys = assignmentData.solution_keys;
 
-    document.getElementById('sub-title').textContent = subAssignmentData.title;
+    // ✅ CHANGED: Use the subId (the key) as the title, since the title property was removed.
+    document.getElementById('sub-title').textContent = subId;
     document.getElementById('content-renderer').innerHTML = '';
 
     // Save metadata to localStorage for other modules
     localStorage.setItem(`${QUESTIONS_PREFIX}${assignmentId}_sub_${subId}`, JSON.stringify(subAssignmentData.questions));
-    localStorage.setItem(`${TITLE_PREFIX}${assignmentId}_sub_${subId}`, subAssignmentData.title);
+    // ✅ CHANGED: Save the subId as the title to localStorage.
+    localStorage.setItem(`${TITLE_PREFIX}${assignmentId}_sub_${subId}`, subId);
     localStorage.setItem(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`, subAssignmentData.type);
 
     if (subAssignmentData.type === 'quill') {
