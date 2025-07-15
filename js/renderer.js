@@ -45,6 +45,23 @@ function showTemporaryMessage(message, editorElement) {
     }, 3000);
 }
 
+/**
+ * Parses simple Markdown (bold, italic) into HTML with specific styling.
+ * @param {string} text The text to parse.
+ * @returns {string} The HTML string.
+ */
+function parseMarkdown(text) {
+    const highlightColor = '#007bff'; // Color from action buttons in styles.css
+
+    // Replace bold (**text**) with a styled <strong> tag.
+    let html = text.replace(/\*\*(.*?)\*\*/g, `<strong style="color: ${highlightColor};">$1</strong>`);
+    
+    // Replace italic (*text*) with a styled <em> tag.
+    html = html.replace(/\*(.*?)\*/g, `<em style="color: ${highlightColor};">$1</em>`);
+
+    return html;
+}
+
 
 /**
  * Renders the Quill editor and the solution-unlocking interface.
@@ -61,11 +78,12 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
     const solutionDisplayContainer = document.getElementById('solution-display-container');
     const storageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}`;
 
-    // Render the list of questions
+    // Render the list of questions, now with Markdown parsing
     const questionsList = document.createElement('ol');
     data.questions.forEach(q => {
         const listItem = document.createElement('li');
-        listItem.innerHTML = q.text;
+        // Use the parser to convert markdown to styled HTML
+        listItem.innerHTML = parseMarkdown(q.text);
         questionsList.appendChild(listItem);
     });
     contentRenderer.appendChild(questionsList);
@@ -76,7 +94,7 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
     contentRenderer.appendChild(editorDiv);
     const quill = new Quill('#quill-editor', { theme: 'snow' });
 
-    // 1. DISABLE PASTING
+    // DISABLE PASTING
     quill.root.addEventListener('paste', (e) => {
         e.preventDefault();
         showTemporaryMessage('Einfügen ist deaktiviert, um die Kreativität und das kritische Denken zu fördern.', quill.root);
@@ -165,7 +183,6 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
         }
     };
     
-    // 3. RENDER SOLUTION DROPDOWN
     // Only show the solution section if keys and content exist
     if (solutionKeys && solutionKeys.length > 0 && data.solution && data.solution.content) {
         solutionSection.style.display = 'block'; // Make the whole dropdown section visible
@@ -184,8 +201,6 @@ export function renderSubAssignment(assignmentData, assignmentId, subId) {
     const solutionKeys = assignmentData.solution_keys;
 
     document.getElementById('sub-title').textContent = subAssignmentData.title;
-    // 2. REMOVED INSTRUCTIONS RENDERING
-    // The line populating the #instructions div has been deleted.
     document.getElementById('content-renderer').innerHTML = '';
 
     // Save metadata to localStorage for other modules
