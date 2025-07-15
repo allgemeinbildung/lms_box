@@ -73,7 +73,6 @@ function parseMarkdown(text) {
 function renderQuill(data, assignmentId, subId, solutionKeys = []) {
     const contentRenderer = document.getElementById('content-renderer');
     const solutionSection = document.getElementById('solution-section');
-    const solutionDropdown = document.getElementById('solution-dropdown');
     const solutionUnlockContainer = document.getElementById('solution-unlock-container');
     const solutionDisplayContainer = document.getElementById('solution-display-container');
     const storageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}`;
@@ -82,7 +81,6 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
     const questionsList = document.createElement('ol');
     data.questions.forEach(q => {
         const listItem = document.createElement('li');
-        // Use the parser to convert markdown to styled HTML
         listItem.innerHTML = parseMarkdown(q.text);
         questionsList.appendChild(listItem);
     });
@@ -118,7 +116,7 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
         solutionDisplayContainer.innerHTML = `<h3>Musterlösung</h3>${solutionHTML}`;
         solutionDisplayContainer.style.display = 'block';
         solutionUnlockContainer.style.display = 'none';
-        solutionDropdown.open = true; // Ensure the dropdown is open to show the solution
+        // ✅ REMOVED: The line that forced the dropdown to open has been deleted.
     };
 
     const setupSolutionUnlockUI = (solutionContent) => {
@@ -146,9 +144,7 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'cors',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'verifySolutionKey',
                         assignmentId: assignmentId,
@@ -177,16 +173,15 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
             if (e.key === 'Enter') verifyKey();
         });
 
-        // If a key was already saved, try verifying it immediately
         if (prefilledKey) {
             verifyKey();
         }
     };
     
-    // Only show the solution section if a solution is available and has content
-    if (data.solution && data.solution.available && data.solution.content) {
+    // ✅ CHANGED: The condition to show the solution section now correctly depends on the presence of solution keys.
+    if (solutionKeys && solutionKeys.length > 0 && data.solution) {
         solutionSection.style.display = 'block'; // Make the whole dropdown section visible
-        setupSolutionUnlockUI(data.solution.content);
+        setupSolutionUnlockUI(data.solution.content || "Keine Musterlösung vorhanden.");
     }
 }
 
@@ -200,13 +195,11 @@ export function renderSubAssignment(assignmentData, assignmentId, subId) {
     const subAssignmentData = assignmentData.subAssignments[subId];
     const solutionKeys = assignmentData.solution_keys;
 
-    // ✅ CHANGED: Use the subId (the key) as the title, since the title property was removed.
     document.getElementById('sub-title').textContent = subId;
     document.getElementById('content-renderer').innerHTML = '';
 
     // Save metadata to localStorage for other modules
     localStorage.setItem(`${QUESTIONS_PREFIX}${assignmentId}_sub_${subId}`, JSON.stringify(subAssignmentData.questions));
-    // ✅ CHANGED: Save the subId as the title to localStorage.
     localStorage.setItem(`${TITLE_PREFIX}${assignmentId}_sub_${subId}`, subId);
     localStorage.setItem(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`, subAssignmentData.type);
 
