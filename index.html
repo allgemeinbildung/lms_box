@@ -12,16 +12,19 @@
         <header id="assignment-header">
             <h2 id="main-title">Lade Aufgabe...</h2>
             <h3 id="sub-title"></h3>
-            <div id="instructions"></div>
         </header>
         
         <main id="content-renderer"></main>
         
-        <!-- This container will be populated by the renderer for solution unlocking -->
-        <div id="solution-unlock-container" style="margin-top: 20px;"></div>
+        <div id="solution-section" style="display: none; margin-top: 20px;">
+            <details id="solution-dropdown">
+                <summary>Musterlösung anzeigen</summary>
+                
+                <div id="solution-unlock-container" style="margin-top: 10px;"></div>
 
-        <!-- This container will display the unlocked solution -->
-        <div id="solution-display-container"></div>
+                <div id="solution-display-container"></div>
+            </details>
+        </div>
 
         <div id="action-container" style="margin-top: 20px;">
             <button id="submit-all">Alle Aufträge abgeben</button>

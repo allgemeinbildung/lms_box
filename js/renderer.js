@@ -15,6 +15,38 @@ function debounce(func, wait) {
 }
 
 /**
+ * Creates and shows a temporary message over the editor.
+ * @param {string} message The message to display.
+ * @param {HTMLElement} editorElement The Quill editor element to position the message over.
+ */
+function showTemporaryMessage(message, editorElement) {
+    const msgBox = document.createElement('div');
+    msgBox.textContent = message;
+    msgBox.style.position = 'absolute';
+    msgBox.style.top = '40%';
+    msgBox.style.left = '50%';
+    msgBox.style.transform = 'translate(-50%, -50%)';
+    msgBox.style.backgroundColor = 'rgba(40, 40, 40, 0.85)';
+    msgBox.style.color = 'white';
+    msgBox.style.padding = '15px 25px';
+    msgBox.style.borderRadius = '8px';
+    msgBox.style.zIndex = '100';
+    msgBox.style.textAlign = 'center';
+    msgBox.style.pointerEvents = 'none'; // Allow clicks to pass through
+
+    const editorContainer = editorElement.parentNode;
+    if (editorContainer.style.position === '') {
+        editorContainer.style.position = 'relative';
+    }
+    editorContainer.appendChild(msgBox);
+
+    setTimeout(() => {
+        msgBox.remove();
+    }, 3000);
+}
+
+
+/**
  * Renders the Quill editor and the solution-unlocking interface.
  * @param {object} data - The specific sub-assignment data.
  * @param {string} assignmentId - The ID of the parent assignment.
@@ -23,6 +55,8 @@ function debounce(func, wait) {
  */
 function renderQuill(data, assignmentId, subId, solutionKeys = []) {
     const contentRenderer = document.getElementById('content-renderer');
+    const solutionSection = document.getElementById('solution-section');
+    const solutionDropdown = document.getElementById('solution-dropdown');
     const solutionUnlockContainer = document.getElementById('solution-unlock-container');
     const solutionDisplayContainer = document.getElementById('solution-display-container');
     const storageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}`;
@@ -42,6 +76,12 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
     contentRenderer.appendChild(editorDiv);
     const quill = new Quill('#quill-editor', { theme: 'snow' });
 
+    // 1. DISABLE PASTING
+    quill.root.addEventListener('paste', (e) => {
+        e.preventDefault();
+        showTemporaryMessage('Einfügen ist deaktiviert, um die Kreativität und das kritische Denken zu fördern.', quill.root);
+    });
+
     // Load saved answer from localStorage
     quill.root.innerHTML = localStorage.getItem(storageKey) || '';
 
@@ -60,6 +100,7 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
         solutionDisplayContainer.innerHTML = `<h3>Musterlösung</h3>${solutionHTML}`;
         solutionDisplayContainer.style.display = 'block';
         solutionUnlockContainer.style.display = 'none';
+        solutionDropdown.open = true; // Ensure the dropdown is open to show the solution
     };
 
     const setupSolutionUnlockUI = (solutionContent) => {
@@ -87,7 +128,6 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'cors',
-                    // ✅ FIXED: Added Content-Type header
                     headers: {
                         'Content-Type': 'application/json',
                     },
@@ -119,12 +159,16 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
             if (e.key === 'Enter') verifyKey();
         });
 
+        // If a key was already saved, try verifying it immediately
         if (prefilledKey) {
             verifyKey();
         }
     };
-
+    
+    // 3. RENDER SOLUTION DROPDOWN
+    // Only show the solution section if keys and content exist
     if (solutionKeys && solutionKeys.length > 0 && data.solution && data.solution.content) {
+        solutionSection.style.display = 'block'; // Make the whole dropdown section visible
         setupSolutionUnlockUI(data.solution.content);
     }
 }
@@ -137,10 +181,11 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
  */
 export function renderSubAssignment(assignmentData, assignmentId, subId) {
     const subAssignmentData = assignmentData.subAssignments[subId];
-    const solutionKeys = assignmentData.solution_keys; // Extract keys from the top level
+    const solutionKeys = assignmentData.solution_keys;
 
     document.getElementById('sub-title').textContent = subAssignmentData.title;
-    document.getElementById('instructions').innerHTML = subAssignmentData.instructions;
+    // 2. REMOVED INSTRUCTIONS RENDERING
+    // The line populating the #instructions div has been deleted.
     document.getElementById('content-renderer').innerHTML = '';
 
     // Save metadata to localStorage for other modules
