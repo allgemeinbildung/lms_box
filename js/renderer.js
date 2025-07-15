@@ -124,7 +124,6 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
                 <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
                     <p style="font-weight: bold;">Frage ${index + 1}:</p>
                     <p style="font-style: italic;">${parseMarkdown(question.text)}</p>
-                    {/* ✅ CHANGED: Applied markdown parsing to the answer text */}
                     <div style="padding: 10px; background-color: #e9f3ff; border-radius: 4px;">${parseMarkdown(answer)}</div>
                 </div>
             `;
