@@ -190,7 +190,7 @@ function generatePrintHTML(data) {
             background-color: #ffffff;
         }
         .empty-answer-box::before {
-            content: 'Antworten:';
+            content: '✏';
             position: absolute;
             top: 8px;
             left: 10px;
