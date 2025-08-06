@@ -39,16 +39,28 @@ async function gatherAssignmentData(assignmentId) {
     return { studentIdentifier, assignmentTitle: mainTitle, subAssignments };
 }
 
+function convertMarkdownToHTML(text) {
+    if (!text) return text;
+    
+    // Convert **bold** to <strong>bold</strong>
+    text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Convert *italic* to <em>italic</em> (but avoid converting already processed bold)
+    text = text.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
+    
+    return text;
+}
+
 function generatePrintHTML(data) {
-    let bodyContent = `<h1>${data.assignmentTitle}</h1><p><strong>Schüler/in:</strong> ${data.studentIdentifier}</p><hr>`;
+    let bodyContent = `<h1>${convertMarkdownToHTML(data.assignmentTitle)}</h1><p><strong>Schüler/in:</strong> ${data.studentIdentifier}</p><hr>`;
     const sortedSubIds = Object.keys(data.subAssignments).sort();
 
     for (const subId of sortedSubIds) {
         const subData = data.subAssignments[subId];
-        bodyContent += `<div class="sub-assignment"><h2>${subData.title}</h2>`;
-        const questionsHTML = subData.questions.map(q => `<li>${q.text}</li>`).join('');
+        bodyContent += `<div class="sub-assignment"><h2>${convertMarkdownToHTML(subData.title)}</h2>`;
+        const questionsHTML = subData.questions.map(q => `<li>${convertMarkdownToHTML(q.text)}</li>`).join('');
         bodyContent += `<h3>Fragen:</h3><ol>${questionsHTML}</ol>`;
-        bodyContent += `<h3>Antwort:</h3><div class="answer-box">${subData.answer}</div>`;
+        bodyContent += `<h3>Antwort:</h3><div class="answer-box">${convertMarkdownToHTML(subData.answer)}</div>`;
         bodyContent += `</div>`;
     }
 
