@@ -139,38 +139,74 @@ function convertMarkdownToHTML(text) {
 }
 
 function generatePrintHTML(data) {
-    let bodyContent = `<h1>${convertMarkdownToHTML(data.assignmentTitle)}</h1><p><strong>Schüler/in:</strong> ${data.studentIdentifier}</p><hr>`;
-    const sortedSubIds = Object.keys(data.subAssignments).sort();
+    let bodyContent = `<h1>${convertMarkdownToHTML(data.assignmentTitle)}</h1><p><strong>Schüler/in:</strong> ${data.studentIdentifier}</p><hr>`;
+    const sortedSubIds = Object.keys(data.subAssignments).sort();
 
-    for (const subId of sortedSubIds) {
-        const subData = data.subAssignments[subId];
-        bodyContent += `<div class="sub-assignment"><h2>${convertMarkdownToHTML(subData.title)}</h2>`;
-        
-        if (subData.questions && subData.questions.length > 0) {
-            const questionsHTML = subData.questions.map(q => `<li>${convertMarkdownToHTML(q.text)}</li>`).join('');
-            bodyContent += `<h3>Fragen:</h3><ol>${questionsHTML}</ol>`;
-        }
-        
-        const answerContent = subData.answer ? subData.answer : '<em>Keine Antwort gespeichert</em>';
-        // Note: The student's answer is already HTML from the Quill editor, so we don't convert it from Markdown.
-        bodyContent += `<h3>Antwort:</h3><div class="answer-box">${answerContent}</div>`;
-        bodyContent += `</div>`;
-    }
+    for (const subId of sortedSubIds) {
+        const subData = data.subAssignments[subId];
+        bodyContent += `<div class="sub-assignment"><h2>${convertMarkdownToHTML(subData.title)}</h2>`;
+        
+        if (subData.questions && subData.questions.length > 0) {
+            const questionsHTML = subData.questions.map(q => `<li>${convertMarkdownToHTML(q.text)}</li>`).join('');
+            bodyContent += `<h3>Fragen:</h3><ol>${questionsHTML}</ol>`;
+        }
+        
+        bodyContent += `<h3>Antwort:</h3>`;
 
-    const css = `
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; margin: 2em; }
-        h1, h2 { color: #333; }
-        h1 { font-size: 2em; border-bottom: 2px solid #ccc; padding-bottom: 0.5em; }
-        h2 { font-size: 1.5em; background-color: #f0f0f0; padding: 0.5em; margin-top: 2em; border-left: 5px solid #007bff; }
-        .sub-assignment { page-break-inside: avoid; margin-bottom: 2em; }
-        .answer-box { padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-top: 8px; background-color: #f9f9f9; min-height: 20px; }
+        // Check if the answer from Quill is empty. An empty editor often contains '<p><br></p>'.
+        const isAnswerEmpty = !subData.answer || subData.answer.trim() === '' || subData.answer.trim() === '<p><br></p>';
+
+        if (isAnswerEmpty) {
+            // If no answer is provided, render the empty box for handwriting.
+            bodyContent += `<div class="answer-box empty-answer-box"></div>`;
+        } else {
+            // If an answer exists, display it.
+            bodyContent += `<div class="answer-box">${subData.answer}</div>`;
+        }
+        
+        bodyContent += `</div>`;
+    }
+
+    const css = `
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; margin: 2em; }
+        h1, h2, h3 { color: #333; }
+        h1 { font-size: 2em; border-bottom: 2px solid #ccc; padding-bottom: 0.5em; }
+        h2 { font-size: 1.5em; background-color: #f0f0f0; padding: 0.5em; margin-top: 2em; border-left: 5px solid #007bff; }
+        h3 { font-size: 1.1em; margin-bottom: 0.5em; margin-top: 1.5em; }
+        .sub-assignment { page-break-inside: avoid; margin-bottom: 2em; }
+        .answer-box { 
+            padding: 10px; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            margin-top: 0;
+            background-color: #f9f9f9; 
+        }
         .answer-box p { margin-top: 0; }
-        ol { padding-left: 20px; }
-        hr { border: 0; border-top: 1px solid #ccc; }
-        @media print { h2 { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; } }
-    `;
+        
+        /* Styles for the empty box for handwriting */
+        .empty-answer-box {
+            position: relative;
+            min-height: 9em; /* Approx. 6 lines height (6 * 1.5em line-height) */
+            background-color: #ffffff;
+        }
+        .empty-answer-box::before {
+            content: 'Antworten:';
+            position: absolute;
+            top: 8px;
+            left: 10px;
+            color: #aaa;
+            font-size: 0.9em;
+            font-style: italic;
+        }
 
-    return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Druckansicht: ${data.assignmentTitle}</title><style>${css}</style></head><body>${bodyContent}</body></html>`;
+        ol { padding-left: 20px; }
+        hr { border: 0; border-top: 1px solid #ccc; }
+        @media print { 
+            h2 { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; } 
+        }
+    `;
+
+    return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Druckansicht: ${data.assignmentTitle}</title><style>${css}</style></head><body>${bodyContent}</body></html>`;
 }
 
 export async function printAssignmentAnswers(assignmentId) {
