@@ -7,16 +7,25 @@ async function gatherAssignmentData(assignmentId) {
     const subAssignments = {};
     const keyRegex = new RegExp(`^${ANSWER_PREFIX}${assignmentId}_sub_(.+)$`);
 
-    // Fetch the main assignment title from the server
+    // Fetch the main assignment data from the server
     let mainTitle = `Aufgabe: ${assignmentId}`;
+    let serverSubAssignments = {};
+    
     try {
         const response = await fetch(`${SCRIPT_URL}?assignmentId=${assignmentId}`);
         const data = await response.json();
         if (data.assignmentTitle) mainTitle = data.assignmentTitle;
+        
+        // If the server provides sub-assignments structure, use it
+        if (data.subAssignments && typeof data.subAssignments === 'object') {
+            serverSubAssignments = data.subAssignments;
+        }
     } catch (e) {
-        console.warn("Could not fetch main assignment title for printing.");
+        console.warn("Could not fetch assignment data from server for printing.");
     }
     
+    // First, gather all saved answers from localStorage
+    const savedAnswers = {};
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         const match = key.match(keyRegex);
@@ -27,13 +36,34 @@ async function gatherAssignmentData(assignmentId) {
             const questionsStr = localStorage.getItem(`${QUESTIONS_PREFIX}${assignmentId}_sub_${subId}`);
             const questions = questionsStr ? JSON.parse(questionsStr) : [];
             
-            subAssignments[subId] = { answer, title, questions };
+            savedAnswers[subId] = { answer, title, questions };
         }
     }
+    
+    // Combine server sub-assignments with saved answers
+    const allSubIds = new Set([
+        ...Object.keys(serverSubAssignments),
+        ...Object.keys(savedAnswers)
+    ]);
+    
+    for (const subId of allSubIds) {
+        const serverData = serverSubAssignments[subId] || {};
+        const savedData = savedAnswers[subId] || {};
+        
+        subAssignments[subId] = {
+            answer: savedData.answer || '',
+            title: savedData.title || serverData.title || subId,
+            questions: savedData.questions || serverData.questions || []
+        };
+    }
 
+    // If no sub-assignments found at all, create a minimal structure
     if (Object.keys(subAssignments).length === 0) {
-        alert("Für diese Aufgabe wurden keine gespeicherten Antworten gefunden.");
-        return null;
+        subAssignments['1'] = {
+            answer: '',
+            title: 'Keine Teilaufgaben gefunden',
+            questions: []
+        };
     }
 
     return { studentIdentifier, assignmentTitle: mainTitle, subAssignments };
@@ -58,9 +88,14 @@ function generatePrintHTML(data) {
     for (const subId of sortedSubIds) {
         const subData = data.subAssignments[subId];
         bodyContent += `<div class="sub-assignment"><h2>${convertMarkdownToHTML(subData.title)}</h2>`;
-        const questionsHTML = subData.questions.map(q => `<li>${convertMarkdownToHTML(q.text)}</li>`).join('');
-        bodyContent += `<h3>Fragen:</h3><ol>${questionsHTML}</ol>`;
-        bodyContent += `<h3>Antwort:</h3><div class="answer-box">${convertMarkdownToHTML(subData.answer)}</div>`;
+        
+        if (subData.questions && subData.questions.length > 0) {
+            const questionsHTML = subData.questions.map(q => `<li>${convertMarkdownToHTML(q.text)}</li>`).join('');
+            bodyContent += `<h3>Fragen:</h3><ol>${questionsHTML}</ol>`;
+        }
+        
+        const answerContent = subData.answer ? convertMarkdownToHTML(subData.answer) : '<em>Keine Antwort gespeichert</em>';
+        bodyContent += `<h3>Antwort:</h3><div class="answer-box">${answerContent}</div>`;
         bodyContent += `</div>`;
     }
 
