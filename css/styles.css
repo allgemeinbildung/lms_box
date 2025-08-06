@@ -16,6 +16,20 @@ body {
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.07);
 }
 
+/* Hide main title for compact layout */
+#main-title {
+    display: none;
+}
+
+/* Style subtitle with small margin at top */
+#sub-title {
+    margin-top: 0.5em;
+    margin-bottom: 1em;
+    font-size: 1.2em;
+    font-weight: 600;
+    color: #495057;
+}
+
 #assignment-header h2 {
     margin-top: 0;
 }
