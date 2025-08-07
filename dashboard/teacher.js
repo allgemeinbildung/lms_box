@@ -121,13 +121,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function handleSubAssignmentChange() {
+    // ✅ UPDATED: Now triggers a fetch for the whole assignment
+    async function handleAssignmentChange() {
+        const selectedAssignment = assignmentFilterSelect.value;
         const className = document.getElementById('class-filter').value;
-        const assignmentName = assignmentFilterSelect.value;
-        const subAssignmentName = subAssignmentFilterSelect.value;
+        resetAssignmentFilters(false);
 
-        if (subAssignmentName !== 'Teilaufgabe wählen') {
-            await fetchAndRenderFilteredAnswers(className, assignmentName, subAssignmentName);
+        if (selectedAssignment !== 'Aufgabe wählen') {
+            // Fetch all answers for this assignment
+            await fetchAndRenderFilteredAnswers(className, selectedAssignment);
+            
+            // Populate the next dropdown
+            const subAssignments = masterFilterData[selectedAssignment] || [];
+            updateDropdown(subAssignmentFilterSelect, ['Teilaufgabe wählen (Alle angezeigt)', ...subAssignments]);
+            subAssignmentFilterSelect.disabled = false;
         }
     }
     
@@ -164,26 +171,48 @@ document.addEventListener('DOMContentLoaded', () => {
         submissionList.innerHTML = html;
     }
 
-    async function fetchAndRenderFilteredAnswers(className, assignmentName, subAssignmentName) {
+    // ✅ UPDATED: Can now render two different data structures
+    const fetchAndRenderFilteredAnswers = async (className, assignmentName, subAssignmentName = null) => {
         viewerPlaceholder.style.display = 'none';
-        viewerContent.innerHTML = '<p>Lade gefilterte Antworten...</p>';
+        viewerContent.innerHTML = `<p>Lade Antworten für "${subAssignmentName || assignmentName}"...</p>`;
         try {
             const answers = await fetchApi('getFilteredAnswers', { className, assignmentName, subAssignmentName });
-            let html = `<h1>Antworten für: "${subAssignmentName}"</h1><p style="color: #6c757d; margin-top: -1em;">Klasse: ${className} | Aufgabe: ${assignmentName}</p>`;
-            if (answers.length === 0) {
-                html += '<p>Für diese Auswahl wurden keine Antworten gefunden.</p>';
+            
+            // --- RENDER MULTIPLE SUB-ASSIGNMENTS (ASSIGNMENT-LEVEL VIEW) ---
+            if (answers[0] && answers[0].subAssignments) {
+                viewerContent.innerHTML = `<h1>Alle Antworten für: "${assignmentName}"</h1><p class="subtitle">Klasse: ${className}</p>`;
+                answers.forEach(item => {
+                    let studentHtml = `<div class="assignment-block"><h2>${item.studentName}</h2>`;
+                    if (item.subAssignments) {
+                        for (const subTitle in item.subAssignments) {
+                            const subData = item.subAssignments[subTitle];
+                            studentHtml += `<div class="sub-answer-block">
+                                              <h3>${subTitle}</h3>
+                                              <div class="answer-box"><div class="ql-snow"><div class="ql-editor">${subData.answer}</div></div></div>
+                                            </div>`;
+                        }
+                    } else {
+                        studentHtml += `<p><i>Keine Antworten für diese Aufgabe gefunden.</i></p>`;
+                    }
+                    studentHtml += `</div>`;
+                    viewerContent.innerHTML += studentHtml;
+                });
+            } 
+            // --- RENDER A SINGLE SUB-ASSIGNMENT (SUB-ASSIGNMENT-LEVEL VIEW) ---
+            else {
+                viewerContent.innerHTML = `<h1>Antworten für: "${subAssignmentName}"</h1><p class="subtitle">Klasse: ${className} | Aufgabe: ${assignmentName}</p>`;
+                if (answers.length === 0) viewerContent.innerHTML += '<p>Keine Antworten gefunden.</p>';
+                answers.forEach(item => {
+                    viewerContent.innerHTML += `<div class="assignment-block">
+                                <h2>${item.studentName}</h2>
+                                <div class="answer-box"><div class="ql-snow"><div class="ql-editor">${item.answer}</div></div></div>
+                             </div>`;
+                });
             }
-            answers.forEach(item => {
-                html += `<div class="assignment-block">
-                            <h2>${item.studentName}</h2>
-                            <div class="answer-box"><div class="ql-snow"><div class="ql-editor">${item.answer}</div></div></div>
-                         </div>`;
-            });
-            viewerContent.innerHTML = html;
         } catch (error) {
             handleError(error);
         }
-    }
+    };
     
     async function fetchAndRenderSingleSubmission(path) {
         // This is your previous function for viewing a single file
