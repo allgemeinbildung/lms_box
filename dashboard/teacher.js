@@ -291,4 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         loginOverlay.classList.add('visible');
     }
+
+    // --- STARTUP ---
+    setupInitialState();
 });
