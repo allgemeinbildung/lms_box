@@ -12,7 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginBtn = document.getElementById('login-btn');
     const loginStatus = document.getElementById('login-status');
     
-    const dateFilterInput = document.getElementById('date-filter');
+    const dateFilterToggle = document.getElementById('date-filter-toggle');
+    const dateFilterStart = document.getElementById('date-filter-start');
+    const dateFilterEnd = document.getElementById('date-filter-end');
+    
     const submissionListContainer = document.getElementById('submission-list-container');
     const submissionList = document.getElementById('submission-list');
     const classFilterContainer = document.getElementById('class-filter-container');
@@ -29,15 +32,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- API Helper ---
     const fetchApi = async (action, body) => {
         const teacherKey = sessionStorage.getItem('teacherKey');
-        const selectedDate = dateFilterInput.value;
+        let startDate = null;
+        let endDate = null;
+        
+        if (dateFilterToggle.checked) {
+            startDate = dateFilterStart.value;
+            endDate = dateFilterEnd.value;
+        }
+
         const response = await fetch(SCRIPT_URL, {
             method: 'POST',
             mode: 'cors',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, teacherKey, date: selectedDate, ...body })
+            body: JSON.stringify({ action, teacherKey, startDate, endDate, ...body })
         });
         const data = await response.json();
-        // Use response.ok to check for HTTP errors (like 500)
         if (!response.ok || data.status === 'error') {
             throw new Error(data.message || `Network error: ${response.statusText}`);
         }
@@ -60,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Main Initialization ---
     const initializeDashboard = async () => {
-        viewerPlaceholder.style.display = 'none';
+        viewerPlaceholder.style.display = 'block';
         viewerContent.innerHTML = '';
         submissionList.innerHTML = '<p>Lade Abgaben...</p>';
         try {
@@ -85,10 +94,22 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- Initial Setup (runs once on page load) ---
     function setupInitialState() {
-        const today = new Date().toISOString().split('T')[0];
-        dateFilterInput.value = today;
-        dateFilterInput.max = today;
-        dateFilterInput.addEventListener('change', initializeDashboard);
+        const today = new Date();
+        const oneMonthAgo = new Date(today);
+        oneMonthAgo.setMonth(today.getMonth() - 1);
+
+        dateFilterEnd.value = today.toISOString().split('T')[0];
+        dateFilterStart.value = oneMonthAgo.toISOString().split('T')[0];
+        
+        dateFilterToggle.addEventListener('change', () => {
+            const enabled = dateFilterToggle.checked;
+            dateFilterStart.disabled = !enabled;
+            dateFilterEnd.disabled = !enabled;
+            initializeDashboard();
+        });
+        dateFilterStart.addEventListener('change', initializeDashboard);
+        dateFilterEnd.addEventListener('change', initializeDashboard);
+        
         setupFilterEventListeners();
 
         if (sessionStorage.getItem('teacherKey')) {
@@ -115,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleClassChange() {
-        const selectedClass = document.getElementById('class-filter').value;
+        const selectedClass = document.getElementById('class-filter')?.value || 'Alle Klassen';
         resetAssignmentFilters();
         
         if (selectedClass === 'Alle Klassen') {
