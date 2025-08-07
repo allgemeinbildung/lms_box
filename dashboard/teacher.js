@@ -6,192 +6,249 @@
 import { SCRIPT_URL } from '../js/config.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Element References ---
     const loginOverlay = document.getElementById('login-overlay');
     const keyInput = document.getElementById('teacher-key-input');
     const loginBtn = document.getElementById('login-btn');
     const loginStatus = document.getElementById('login-status');
-    const submissionListContainer = document.getElementById('submission-list');
+    
+    const submissionListContainer = document.getElementById('submission-list-container');
+    const submissionList = document.getElementById('submission-list');
     const classFilterContainer = document.getElementById('class-filter-container');
+    const assignmentFilterSelect = document.getElementById('assignment-filter');
+    const subAssignmentFilterSelect = document.getElementById('sub-assignment-filter');
+    
     const viewerContent = document.getElementById('viewer-content');
     const viewerPlaceholder = document.getElementById('viewer-placeholder');
 
-    // --- Authentication ---
-    const checkAuth = () => {
-        const key = sessionStorage.getItem('teacherKey');
-        if (key) {
-            loginOverlay.classList.remove('visible');
-            fetchSubmissionsList(key);
-        } else {
-            loginOverlay.classList.add('visible');
-        }
+    // --- App State ---
+    let masterFilterData = {}; // Stores the { assignment: [subA, subB] } hierarchy
+    let masterSubmissionData = {}; // Stores the { class: { student: [files] } } hierarchy
+
+    // --- API Helper ---
+    const fetchApi = async (action, body) => {
+        const teacherKey = sessionStorage.getItem('teacherKey');
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, teacherKey, ...body })
+        });
+        if (!response.ok) throw new Error(`Network error: ${response.statusText}`);
+        const data = await response.json();
+        if (data.status === 'error') throw new Error(data.message);
+        return data;
     };
 
-    const attemptLogin = () => {
+    // --- Authentication ---
+    const attemptLogin = async () => {
         const key = keyInput.value.trim();
         if (!key) {
             loginStatus.textContent = 'Bitte einen Schlüssel eingeben.';
             return;
         }
+        loginStatus.textContent = 'Prüfe Schlüssel...';
         sessionStorage.setItem('teacherKey', key);
-        loginStatus.textContent = '';
-        checkAuth();
+        await initializeDashboard();
     };
-
     loginBtn.addEventListener('click', attemptLogin);
-    keyInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') attemptLogin();
-    });
+    keyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptLogin(); });
 
-    // --- Data Fetching and Rendering ---
-    const fetchSubmissionsList = async (teacherKey) => {
+    // --- Main Initialization ---
+    const initializeDashboard = async () => {
         try {
-            const response = await fetch(SCRIPT_URL, {
-                method: 'POST',
-                mode: 'cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'listSubmissions', teacherKey })
-            });
-            const data = await response.json();
-            if (data.status === 'error') throw new Error(data.message);
-            // ✅ UPDATED: Call new rendering functions
-            renderClassFilter(Object.keys(data));
-            renderSubmissionsList(data);
+            const [submissions, filterData] = await Promise.all([
+                fetchApi('listSubmissions'),
+                fetchApi('getFilterData')
+            ]);
+            
+            masterSubmissionData = submissions;
+            masterFilterData = filterData;
+            
+            loginOverlay.classList.remove('visible');
+            loginStatus.textContent = '';
+            
+            populateClassFilter(Object.keys(masterSubmissionData));
+            renderSubmissionsByFile(masterSubmissionData); // Render initial file list
+            setupFilterEventListeners();
+
         } catch (error) {
-            submissionListContainer.innerHTML = `<p style="color: red;">Fehler: ${error.message}</p>`;
-            if (error.message.includes('Invalid teacher key')) {
-                sessionStorage.removeItem('teacherKey');
-                checkAuth();
-            }
+            handleError(error);
         }
     };
+    
+    // --- Filter Population & Event Handling ---
+    function populateClassFilter(classes) {
+        const classFilterSelect = document.createElement('select');
+        classFilterSelect.id = 'class-filter';
+        updateDropdown(classFilterSelect, ['Alle Klassen', ...classes.sort()]);
+        classFilterContainer.innerHTML = '';
+        classFilterContainer.appendChild(classFilterSelect);
+        
+        classFilterSelect.addEventListener('change', handleClassChange);
+    }
 
-    /**
-     * ✅ NEW: Renders the class filter dropdown.
-     * @param {string[]} classes - An array of class names.
-     */
-    const renderClassFilter = (classes) => {
-        if (classes.length === 0) {
-            classFilterContainer.innerHTML = '';
-            return;
+    function setupFilterEventListeners() {
+        assignmentFilterSelect.addEventListener('change', handleAssignmentChange);
+        subAssignmentFilterSelect.addEventListener('change', handleSubAssignmentChange);
+    }
+
+    function handleClassChange(e) {
+        const selectedClass = e.target.value;
+        resetAssignmentFilters();
+        
+        if (selectedClass === 'Alle Klassen') {
+            submissionListContainer.style.display = 'block';
+            viewerPlaceholder.style.display = 'block';
+            viewerContent.innerHTML = '';
+            renderSubmissionsByFile(masterSubmissionData);
+        } else {
+            submissionListContainer.style.display = 'none'; // Hide file view
+            const filteredSubmissions = { [selectedClass]: masterSubmissionData[selectedClass] };
+            renderSubmissionsByFile(filteredSubmissions); // Show only selected class files in background
+            assignmentFilterSelect.disabled = false;
+            updateDropdown(assignmentFilterSelect, ['Aufgabe wählen', ...Object.keys(masterFilterData).sort()]);
         }
-        let options = '<option value="all">Alle Klassen anzeigen</option>';
-        classes.sort().forEach(klasse => {
-            options += `<option value="${klasse}">${klasse}</option>`;
-        });
-        classFilterContainer.innerHTML = `<select id="class-filter">${options}</select>`;
+    }
+    
+    function handleAssignmentChange() {
+        const selectedAssignment = assignmentFilterSelect.value;
+        resetAssignmentFilters(false);
+        if (selectedAssignment !== 'Aufgabe wählen') {
+            const subAssignments = masterFilterData[selectedAssignment] || [];
+            updateDropdown(subAssignmentFilterSelect, ['Teilaufgabe wählen', ...subAssignments]);
+            subAssignmentFilterSelect.disabled = false;
+        }
+    }
 
-        document.getElementById('class-filter').addEventListener('change', (e) => {
-            const selectedClass = e.target.value;
-            const allClassGroups = document.querySelectorAll('.class-group');
-            allClassGroups.forEach(group => {
-                if (selectedClass === 'all' || group.dataset.className === selectedClass) {
-                    group.style.display = 'block';
-                } else {
-                    group.style.display = 'none';
-                }
-            });
-        });
-    };
+    async function handleSubAssignmentChange() {
+        const className = document.getElementById('class-filter').value;
+        const assignmentName = assignmentFilterSelect.value;
+        const subAssignmentName = subAssignmentFilterSelect.value;
 
-    /**
-     * ✅ UPDATED: Renders submissions and adds "bad faith" flags.
-     */
-    const renderSubmissionsList = (submissionMap) => {
+        if (subAssignmentName !== 'Teilaufgabe wählen') {
+            await fetchAndRenderFilteredAnswers(className, assignmentName, subAssignmentName);
+        }
+    }
+    
+    // --- Rendering Functions ---
+    function renderSubmissionsByFile(submissionMap) {
+        // This is your previous rendering function, slightly adapted
         if (Object.keys(submissionMap).length === 0) {
-            submissionListContainer.innerHTML = '<p>Noch keine Abgaben vorhanden.</p>';
+            submissionList.innerHTML = '<p>Noch keine Abgaben vorhanden.</p>';
             return;
         }
         let html = '';
         const sortedClasses = Object.keys(submissionMap).sort();
-
         for (const klasse of sortedClasses) {
-            html += `<div class="class-group" data-class-name="${klasse}">
-                        <div class="class-name">${klasse}</div>`;
+            html += `<div class="class-group" data-class-name="${klasse}"><div class="class-name">${klasse}</div>`;
             const students = submissionMap[klasse];
             const sortedStudents = Object.keys(students).sort();
-
             for (const studentName of sortedStudents) {
-                html += `<div class="student-group">
-                            <div class="student-name">${studentName}</div>`;
-                
+                html += `<div class="student-group"><div class="student-name">${studentName}</div>`;
                 students[studentName].forEach(file => {
-                    let indicator = '';
-                    let title = '';
-
-                    // ✅ NEW: Logic to check for low similarity
+                    let indicator = '', title = '';
                     if (file.changeData && file.changeData.similarityScore !== null) {
                         const score = file.changeData.similarityScore;
-                        title = `Similarity to previous submission: ${(score * 100).toFixed(0)}%`;
-                        
-                        // Flag if similarity is below 30%
-                        if (score < 0.3) {
-                            indicator = '🚩'; 
-                        }
+                        title = `Similarity: ${(score * 100).toFixed(0)}%`;
+                        if (score < 0.3) indicator = '🚩';
                     } else {
-                        title = 'First submission for this student.';
+                        title = 'First submission';
                     }
-                    
-                    html += `<a class="submission-file" data-path="${file.path}">
-                                ${file.name} 
-                                <span class="change-indicator" title="${title}">${indicator}</span>
-                             </a>`;
+                    html += `<a class="submission-file" data-path="${file.path}"><span class="file-name">${file.name}</span><span class="change-indicator" title="${title}">${indicator}</span></a>`;
                 });
                 html += `</div>`;
             }
             html += `</div>`;
         }
-        submissionListContainer.innerHTML = html;
-    };
+        submissionList.innerHTML = html;
+    }
 
-
-    const fetchAndRenderSubmission = async (path) => {
+    async function fetchAndRenderFilteredAnswers(className, assignmentName, subAssignmentName) {
+        viewerPlaceholder.style.display = 'none';
+        viewerContent.innerHTML = '<p>Lade gefilterte Antworten...</p>';
+        try {
+            const answers = await fetchApi('getFilteredAnswers', { className, assignmentName, subAssignmentName });
+            let html = `<h1>Antworten für: "${subAssignmentName}"</h1><p style="color: #6c757d; margin-top: -1em;">Klasse: ${className} | Aufgabe: ${assignmentName}</p>`;
+            if (answers.length === 0) {
+                html += '<p>Für diese Auswahl wurden keine Antworten gefunden.</p>';
+            }
+            answers.forEach(item => {
+                html += `<div class="assignment-block">
+                            <h2>${item.studentName}</h2>
+                            <div class="answer-box"><div class="ql-snow"><div class="ql-editor">${item.answer}</div></div></div>
+                         </div>`;
+            });
+            viewerContent.innerHTML = html;
+        } catch (error) {
+            handleError(error);
+        }
+    }
+    
+    async function fetchAndRenderSingleSubmission(path) {
+        // This is your previous function for viewing a single file
         viewerPlaceholder.style.display = 'none';
         viewerContent.innerHTML = '<p>Lade Inhalt...</p>';
         try {
-            const teacherKey = sessionStorage.getItem('teacherKey');
-            const response = await fetch(SCRIPT_URL, {
-                method: 'POST',
-                mode: 'cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getSubmission', teacherKey, submissionPath: path })
-            });
-            const data = await response.json();
-            if (data.status === 'error') throw new Error(data.message);
-            
+            const data = await fetchApi('getSubmission', { submissionPath: path });
             let contentHtml = `<h1>Abgabe vom ${new Date(data.createdAt).toLocaleString('de-CH')}</h1>`;
             for (const assignmentId in data.assignments) {
                 for (const subId in data.assignments[assignmentId]) {
                     const subData = data.assignments[assignmentId][subId];
-                    contentHtml += `<div class="assignment-block">
-                                        <h2>${subData.title}</h2>
-                                        <div class="answer-box"><div class="ql-snow"><div class="ql-editor">${subData.answer}</div></div></div>
-                                    </div>`;
+                    contentHtml += `<div class="assignment-block"><h2>${subData.title}</h2><div class="answer-box"><div class="ql-snow"><div class="ql-editor">${subData.answer}</div></div></div></div>`;
                 }
             }
             viewerContent.innerHTML = contentHtml;
-
         } catch (error) {
-            viewerContent.innerHTML = `<p style="color: red;">Fehler beim Laden der Abgabe: ${error.message}</p>`;
+            handleError(error);
         }
-    };
+    }
 
-    // --- Event Delegation for Clicks ---
-    submissionListContainer.addEventListener('click', (e) => {
-        if (e.target.classList.contains('submission-file')) {
-            const currentActive = submissionListContainer.querySelector('.active');
-            if (currentActive) currentActive.classList.remove('active');
-            e.target.classList.add('active');
-            const path = e.target.dataset.path;
-            fetchAndRenderSubmission(path);
+    // --- Utility & Event Delegation ---
+    function updateDropdown(selectElement, options, firstOptionText = '') {
+        selectElement.innerHTML = options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
+    }
+
+    function resetAssignmentFilters(resetBoth = true) {
+        if (resetBoth) {
+            updateDropdown(assignmentFilterSelect, ['Zuerst Klasse wählen']);
+            assignmentFilterSelect.disabled = true;
         }
-        // ✅ NEW: Toggle student list visibility
+        updateDropdown(subAssignmentFilterSelect, ['Zuerst Aufgabe wählen']);
+        subAssignmentFilterSelect.disabled = true;
+        viewerPlaceholder.style.display = 'block';
+        viewerContent.innerHTML = '';
+    }
+    
+    function handleError(error) {
+        console.error('Dashboard Error:', error);
+        viewerContent.innerHTML = `<p style="color: red;">Fehler: ${error.message}</p>`;
+        if (error.message.includes('Invalid teacher key')) {
+            sessionStorage.removeItem('teacherKey');
+            loginStatus.textContent = "Schlüssel ungültig.";
+            loginOverlay.classList.add('visible');
+        }
+    }
+
+    submissionList.addEventListener('click', (e) => {
+        const fileLink = e.target.closest('.submission-file');
+        if (fileLink) {
+            const currentActive = submissionList.querySelector('.active');
+            if (currentActive) currentActive.classList.remove('active');
+            fileLink.classList.add('active');
+            fetchAndRenderSingleSubmission(fileLink.dataset.path);
+        }
         if(e.target.classList.contains('class-name')) {
             const studentGroups = e.target.parentElement.querySelectorAll('.student-group');
-            studentGroups.forEach(group => {
-                group.style.display = group.style.display === 'none' ? 'block' : 'none';
-            });
+            studentGroups.forEach(group => group.style.display = group.style.display === 'none' ? 'block' : 'none');
         }
     });
-
-    checkAuth();
+    
+    // --- Initial Check on Page Load ---
+    if (sessionStorage.getItem('teacherKey')) {
+        loginOverlay.classList.remove('visible');
+        initializeDashboard();
+    } else {
+        loginOverlay.classList.add('visible');
+    }
 });

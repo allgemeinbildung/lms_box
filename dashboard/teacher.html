@@ -21,9 +21,24 @@
     <div id="dashboard-container">
         <aside id="sidebar">
             <h1>Abgaben</h1>
-            <div id="class-filter-container"></div> 
-            <div id="submission-list">
-                <p>Lade Abgaben...</p>
+            <div id="filter-controls">
+                <div id="class-filter-container"></div>
+                <hr>
+                <div id="assignment-filter-container">
+                    <label for="assignment-filter">Nach Aufgabe filtern:</label>
+                    <select id="assignment-filter" disabled><option>Zuerst Klasse wählen</option></select>
+                </div>
+                <div id="sub-assignment-filter-container">
+                    <label for="sub-assignment-filter">Nach Teilaufgabe filtern:</label>
+                    <select id="sub-assignment-filter" disabled><option>Zuerst Aufgabe wählen</option></select>
+                </div>
+            </div>
+            <hr>
+            <div id="submission-list-container">
+                <h2>Abgaben nach Datei</h2>
+                <div id="submission-list">
+                    <p>Lade Abgaben...</p>
+                </div>
             </div>
         </aside>
         <main id="content-viewer">
