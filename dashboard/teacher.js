@@ -36,9 +36,11 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action, teacherKey, date: selectedDate, ...body })
         });
-        if (!response.ok) throw new Error(`Network error: ${response.statusText}`);
         const data = await response.json();
-        if (data.status === 'error') throw new Error(data.message);
+        // Use response.ok to check for HTTP errors (like 500)
+        if (!response.ok || data.status === 'error') {
+            throw new Error(data.message || `Network error: ${response.statusText}`);
+        }
         return data;
     };
 
@@ -58,6 +60,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Main Initialization ---
     const initializeDashboard = async () => {
+        viewerPlaceholder.style.display = 'none';
+        viewerContent.innerHTML = '';
+        submissionList.innerHTML = '<p>Lade Abgaben...</p>';
         try {
             const [submissions, filterData] = await Promise.all([
                 fetchApi('listSubmissions'),
@@ -70,9 +75,8 @@ document.addEventListener('DOMContentLoaded', () => {
             loginOverlay.classList.remove('visible');
             loginStatus.textContent = '';
             
-            // Repopulate all filters and views
             populateClassFilter(Object.keys(masterSubmissionData));
-            handleClassChange(); // Trigger a change to respect the current dropdown value
+            handleClassChange();
             
         } catch (error) {
             handleError(error);
@@ -148,7 +152,6 @@ document.addEventListener('DOMContentLoaded', () => {
             await fetchAndRenderFilteredAnswers(className, assignmentName, subAssignmentName);
         }
     }
-
     
     // --- Rendering Functions ---
     function renderSubmissionsByFile(submissionMap) {
@@ -188,7 +191,6 @@ document.addEventListener('DOMContentLoaded', () => {
         viewerContent.innerHTML = `<p>Lade Antworten für "${subAssignmentName || assignmentName}"...</p>`;
         try {
             const answers = await fetchApi('getFilteredAnswers', { className, assignmentName, subAssignmentName });
-            
             if (answers.length > 0 && answers[0].subAssignments) {
                 let fullHtml = `<h1>Alle Antworten für: "${assignmentName}"</h1><p class="subtitle">Klasse: ${className}</p>`;
                 answers.forEach(item => {
@@ -284,14 +286,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // --- Initial Check on Page Load ---
-    if (sessionStorage.getItem('teacherKey')) {
-        loginOverlay.classList.remove('visible');
-        initializeDashboard();
-    } else {
-        loginOverlay.classList.add('visible');
-    }
-
     // --- STARTUP ---
     setupInitialState();
 });
