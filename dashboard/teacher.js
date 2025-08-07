@@ -99,49 +99,46 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (selectedClass === 'Alle Klassen') {
             submissionListContainer.style.display = 'block';
-            viewerPlaceholder.style.display = 'block';
-            viewerContent.innerHTML = '';
             renderSubmissionsByFile(masterSubmissionData);
         } else {
             submissionListContainer.style.display = 'none'; // Hide file view
-            const filteredSubmissions = { [selectedClass]: masterSubmissionData[selectedClass] };
-            renderSubmissionsByFile(filteredSubmissions); // Show only selected class files in background
-            assignmentFilterSelect.disabled = false;
             updateDropdown(assignmentFilterSelect, ['Aufgabe wählen', ...Object.keys(masterFilterData).sort()]);
+            assignmentFilterSelect.disabled = false;
         }
     }
     
-    function handleAssignmentChange() {
-        const selectedAssignment = assignmentFilterSelect.value;
-        resetAssignmentFilters(false);
-        if (selectedAssignment !== 'Aufgabe wählen') {
-            const subAssignments = masterFilterData[selectedAssignment] || [];
-            updateDropdown(subAssignmentFilterSelect, ['Teilaufgabe wählen', ...subAssignments]);
-            subAssignmentFilterSelect.disabled = false;
-        }
-    }
-
-    // ✅ UPDATED: Now triggers a fetch for the whole assignment
+    // ✅ FIXED: This function is now correctly defined only once.
     async function handleAssignmentChange() {
         const selectedAssignment = assignmentFilterSelect.value;
         const className = document.getElementById('class-filter').value;
         resetAssignmentFilters(false);
 
         if (selectedAssignment !== 'Aufgabe wählen') {
-            // Fetch all answers for this assignment
+            // Fetch all answers for this assignment immediately
             await fetchAndRenderFilteredAnswers(className, selectedAssignment);
             
-            // Populate the next dropdown
+            // Populate the next dropdown to allow for deeper filtering
             const subAssignments = masterFilterData[selectedAssignment] || [];
             updateDropdown(subAssignmentFilterSelect, ['Teilaufgabe wählen (Alle angezeigt)', ...subAssignments]);
             subAssignmentFilterSelect.disabled = false;
         }
     }
     
+    async function handleSubAssignmentChange() {
+        const className = document.getElementById('class-filter').value;
+        const assignmentName = assignmentFilterSelect.value;
+        const subAssignmentName = subAssignmentFilterSelect.value;
+
+        if (subAssignmentName === 'Teilaufgabe wählen (Alle angezeigt)') {
+            await fetchAndRenderFilteredAnswers(className, assignmentName);
+        } else {
+            await fetchAndRenderFilteredAnswers(className, assignmentName, subAssignmentName);
+        }
+    }
+    
     // --- Rendering Functions ---
     function renderSubmissionsByFile(submissionMap) {
-        // This is your previous rendering function, slightly adapted
-        if (Object.keys(submissionMap).length === 0) {
+        if (!submissionMap || Object.keys(submissionMap).length === 0) {
             submissionList.innerHTML = '<p>Noch keine Abgaben vorhanden.</p>';
             return;
         }
@@ -171,16 +168,15 @@ document.addEventListener('DOMContentLoaded', () => {
         submissionList.innerHTML = html;
     }
 
-    // ✅ UPDATED: Can now render two different data structures
-    const fetchAndRenderFilteredAnswers = async (className, assignmentName, subAssignmentName = null) => {
+    async function fetchAndRenderFilteredAnswers(className, assignmentName, subAssignmentName = null) {
         viewerPlaceholder.style.display = 'none';
         viewerContent.innerHTML = `<p>Lade Antworten für "${subAssignmentName || assignmentName}"...</p>`;
         try {
             const answers = await fetchApi('getFilteredAnswers', { className, assignmentName, subAssignmentName });
             
             // --- RENDER MULTIPLE SUB-ASSIGNMENTS (ASSIGNMENT-LEVEL VIEW) ---
-            if (answers[0] && answers[0].subAssignments) {
-                viewerContent.innerHTML = `<h1>Alle Antworten für: "${assignmentName}"</h1><p class="subtitle">Klasse: ${className}</p>`;
+            if (answers.length > 0 && answers[0].subAssignments) {
+                let fullHtml = `<h1>Alle Antworten für: "${assignmentName}"</h1><p class="subtitle">Klasse: ${className}</p>`;
                 answers.forEach(item => {
                     let studentHtml = `<div class="assignment-block"><h2>${item.studentName}</h2>`;
                     if (item.subAssignments) {
@@ -195,27 +191,28 @@ document.addEventListener('DOMContentLoaded', () => {
                         studentHtml += `<p><i>Keine Antworten für diese Aufgabe gefunden.</i></p>`;
                     }
                     studentHtml += `</div>`;
-                    viewerContent.innerHTML += studentHtml;
+                    fullHtml += studentHtml;
                 });
+                viewerContent.innerHTML = fullHtml;
             } 
             // --- RENDER A SINGLE SUB-ASSIGNMENT (SUB-ASSIGNMENT-LEVEL VIEW) ---
             else {
-                viewerContent.innerHTML = `<h1>Antworten für: "${subAssignmentName}"</h1><p class="subtitle">Klasse: ${className} | Aufgabe: ${assignmentName}</p>`;
-                if (answers.length === 0) viewerContent.innerHTML += '<p>Keine Antworten gefunden.</p>';
+                let fullHtml = `<h1>Antworten für: "${subAssignmentName}"</h1><p class="subtitle">Klasse: ${className} | Aufgabe: ${assignmentName}</p>`;
+                if (answers.length === 0) fullHtml += '<p>Keine Antworten gefunden.</p>';
                 answers.forEach(item => {
-                    viewerContent.innerHTML += `<div class="assignment-block">
+                    fullHtml += `<div class="assignment-block">
                                 <h2>${item.studentName}</h2>
                                 <div class="answer-box"><div class="ql-snow"><div class="ql-editor">${item.answer}</div></div></div>
                              </div>`;
                 });
+                viewerContent.innerHTML = fullHtml;
             }
         } catch (error) {
             handleError(error);
         }
-    };
+    }
     
     async function fetchAndRenderSingleSubmission(path) {
-        // This is your previous function for viewing a single file
         viewerPlaceholder.style.display = 'none';
         viewerContent.innerHTML = '<p>Lade Inhalt...</p>';
         try {
@@ -234,12 +231,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Utility & Event Delegation ---
-    function updateDropdown(selectElement, options, firstOptionText = '') {
+    function updateDropdown(selectElement, options) {
         selectElement.innerHTML = options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
     }
 
-    function resetAssignmentFilters(resetBoth = true) {
-        if (resetBoth) {
+    function resetAssignmentFilters(resetSubAssignmentOnly = false) {
+        if (!resetSubAssignmentOnly) {
             updateDropdown(assignmentFilterSelect, ['Zuerst Klasse wählen']);
             assignmentFilterSelect.disabled = true;
         }
@@ -267,8 +264,9 @@ document.addEventListener('DOMContentLoaded', () => {
             fileLink.classList.add('active');
             fetchAndRenderSingleSubmission(fileLink.dataset.path);
         }
-        if(e.target.classList.contains('class-name')) {
-            const studentGroups = e.target.parentElement.querySelectorAll('.student-group');
+        const classNameElement = e.target.closest('.class-name');
+        if(classNameElement) {
+            const studentGroups = classNameElement.parentElement.querySelectorAll('.student-group');
             studentGroups.forEach(group => group.style.display = group.style.display === 'none' ? 'block' : 'none');
         }
     });
