@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loginStatus.textContent = '';
             
             populateClassFilter(Object.keys(masterSubmissionData));
-            renderSubmissionsByFile(masterSubmissionData); // Render initial file list
+            renderSubmissionsByFile(masterSubmissionData);
             setupFilterEventListeners();
 
         } catch (error) {
@@ -101,26 +101,33 @@ document.addEventListener('DOMContentLoaded', () => {
             submissionListContainer.style.display = 'block';
             renderSubmissionsByFile(masterSubmissionData);
         } else {
-            submissionListContainer.style.display = 'none'; // Hide file view
+            submissionListContainer.style.display = 'none';
             updateDropdown(assignmentFilterSelect, ['Aufgabe wählen', ...Object.keys(masterFilterData).sort()]);
             assignmentFilterSelect.disabled = false;
         }
     }
     
-    // ✅ FIXED: This function is now correctly defined only once.
+    // ✅ FIXED: Separated the population of the sub-assignment dropdown
+    // from the data fetching to prevent unintended re-triggers.
     async function handleAssignmentChange() {
         const selectedAssignment = assignmentFilterSelect.value;
         const className = document.getElementById('class-filter').value;
-        resetAssignmentFilters(false);
+        
+        // First, update the next dropdown
+        updateDropdown(subAssignmentFilterSelect, ['Zuerst Aufgabe wählen']);
+        subAssignmentFilterSelect.disabled = true;
 
         if (selectedAssignment !== 'Aufgabe wählen') {
-            // Fetch all answers for this assignment immediately
-            await fetchAndRenderFilteredAnswers(className, selectedAssignment);
-            
-            // Populate the next dropdown to allow for deeper filtering
+            // Populate the sub-assignment dropdown
             const subAssignments = masterFilterData[selectedAssignment] || [];
-            updateDropdown(subAssignmentFilterSelect, ['Teilaufgabe wählen (Alle angezeigt)', ...subAssignments]);
+            updateDropdown(subAssignmentFilterSelect, ['Alle Teilaufgaben anzeigen', ...subAssignments]);
             subAssignmentFilterSelect.disabled = false;
+            
+            // Fetch and render the full assignment view
+            await fetchAndRenderFilteredAnswers(className, selectedAssignment);
+        } else {
+             // If user goes back to "Aufgabe wählen", clear the view
+            resetAssignmentFilters(false);
         }
     }
     
@@ -129,9 +136,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const assignmentName = assignmentFilterSelect.value;
         const subAssignmentName = subAssignmentFilterSelect.value;
 
-        if (subAssignmentName === 'Teilaufgabe wählen (Alle angezeigt)') {
+        if (subAssignmentName === 'Alle Teilaufgaben anzeigen') {
             await fetchAndRenderFilteredAnswers(className, assignmentName);
-        } else {
+        } else if (subAssignmentName !== 'Teilaufgabe wählen') {
             await fetchAndRenderFilteredAnswers(className, assignmentName, subAssignmentName);
         }
     }
@@ -174,7 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const answers = await fetchApi('getFilteredAnswers', { className, assignmentName, subAssignmentName });
             
-            // --- RENDER MULTIPLE SUB-ASSIGNMENTS (ASSIGNMENT-LEVEL VIEW) ---
             if (answers.length > 0 && answers[0].subAssignments) {
                 let fullHtml = `<h1>Alle Antworten für: "${assignmentName}"</h1><p class="subtitle">Klasse: ${className}</p>`;
                 answers.forEach(item => {
@@ -195,7 +201,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 viewerContent.innerHTML = fullHtml;
             } 
-            // --- RENDER A SINGLE SUB-ASSIGNMENT (SUB-ASSIGNMENT-LEVEL VIEW) ---
             else {
                 let fullHtml = `<h1>Antworten für: "${subAssignmentName}"</h1><p class="subtitle">Klasse: ${className} | Aufgabe: ${assignmentName}</p>`;
                 if (answers.length === 0) fullHtml += '<p>Keine Antworten gefunden.</p>';
