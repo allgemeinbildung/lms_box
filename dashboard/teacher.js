@@ -94,8 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /**
-     * ✅ UPDATED: Renders submissions grouped by class.
-     * @param {object} submissionMap - The nested object from the backend.
+     * ✅ UPDATED: Renders submissions and adds "bad faith" flags.
      */
     const renderSubmissionsList = (submissionMap) => {
         if (Object.keys(submissionMap).length === 0) {
@@ -114,8 +113,28 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const studentName of sortedStudents) {
                 html += `<div class="student-group">
                             <div class="student-name">${studentName}</div>`;
+                
                 students[studentName].forEach(file => {
-                    html += `<a class="submission-file" data-path="${file.path}">${file.name}</a>`;
+                    let indicator = '';
+                    let title = '';
+
+                    // ✅ NEW: Logic to check for low similarity
+                    if (file.changeData && file.changeData.similarityScore !== null) {
+                        const score = file.changeData.similarityScore;
+                        title = `Similarity to previous submission: ${(score * 100).toFixed(0)}%`;
+                        
+                        // Flag if similarity is below 30%
+                        if (score < 0.3) {
+                            indicator = '🚩'; 
+                        }
+                    } else {
+                        title = 'First submission for this student.';
+                    }
+                    
+                    html += `<a class="submission-file" data-path="${file.path}">
+                                ${file.name} 
+                                <span class="change-indicator" title="${title}">${indicator}</span>
+                             </a>`;
                 });
                 html += `</div>`;
             }
@@ -123,6 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         submissionListContainer.innerHTML = html;
     };
+
 
     const fetchAndRenderSubmission = async (path) => {
         viewerPlaceholder.style.display = 'none';
