@@ -22,8 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewerPlaceholder = document.getElementById('viewer-placeholder');
 
     // --- App State ---
-    let masterFilterData = {}; // Stores the { assignment: [subA, subB] } hierarchy
-    let masterSubmissionData = {}; // Stores the { class: { student: [files] } } hierarchy
+    let masterFilterData = {};
+    let masterSubmissionData = {};
 
     // --- API Helper ---
     const fetchApi = async (action, body) => {
@@ -93,41 +93,38 @@ document.addEventListener('DOMContentLoaded', () => {
         subAssignmentFilterSelect.addEventListener('change', handleSubAssignmentChange);
     }
 
+    /**
+     * ✅ UPDATED: This function no longer hides the file list. Instead, it filters it.
+     */
     function handleClassChange(e) {
         const selectedClass = e.target.value;
         resetAssignmentFilters();
         
         if (selectedClass === 'Alle Klassen') {
-            submissionListContainer.style.display = 'block';
+            // If "All Classes" is selected, show the full file list
             renderSubmissionsByFile(masterSubmissionData);
         } else {
-            submissionListContainer.style.display = 'none';
+            // If a specific class is selected, filter the file list to show only that class
+            const filteredSubmissions = { [selectedClass]: masterSubmissionData[selectedClass] };
+            renderSubmissionsByFile(filteredSubmissions);
+            
+            // And enable the next filter level
             updateDropdown(assignmentFilterSelect, ['Aufgabe wählen', ...Object.keys(masterFilterData).sort()]);
             assignmentFilterSelect.disabled = false;
         }
     }
     
-    // ✅ FIXED: Separated the population of the sub-assignment dropdown
-    // from the data fetching to prevent unintended re-triggers.
     async function handleAssignmentChange() {
         const selectedAssignment = assignmentFilterSelect.value;
         const className = document.getElementById('class-filter').value;
         
-        // First, update the next dropdown
-        updateDropdown(subAssignmentFilterSelect, ['Zuerst Aufgabe wählen']);
-        subAssignmentFilterSelect.disabled = true;
+        resetAssignmentFilters(false);
 
         if (selectedAssignment !== 'Aufgabe wählen') {
-            // Populate the sub-assignment dropdown
+            await fetchAndRenderFilteredAnswers(className, selectedAssignment);
             const subAssignments = masterFilterData[selectedAssignment] || [];
             updateDropdown(subAssignmentFilterSelect, ['Alle Teilaufgaben anzeigen', ...subAssignments]);
             subAssignmentFilterSelect.disabled = false;
-            
-            // Fetch and render the full assignment view
-            await fetchAndRenderFilteredAnswers(className, selectedAssignment);
-        } else {
-             // If user goes back to "Aufgabe wählen", clear the view
-            resetAssignmentFilters(false);
         }
     }
     
@@ -146,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Rendering Functions ---
     function renderSubmissionsByFile(submissionMap) {
         if (!submissionMap || Object.keys(submissionMap).length === 0) {
-            submissionList.innerHTML = '<p>Noch keine Abgaben vorhanden.</p>';
+            submissionList.innerHTML = '<p>Für diese Auswahl keine Abgaben vorhanden.</p>';
             return;
         }
         let html = '';
@@ -154,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const klasse of sortedClasses) {
             html += `<div class="class-group" data-class-name="${klasse}"><div class="class-name">${klasse}</div>`;
             const students = submissionMap[klasse];
+            if (!students) continue;
             const sortedStudents = Object.keys(students).sort();
             for (const studentName of sortedStudents) {
                 html += `<div class="student-group"><div class="student-name">${studentName}</div>`;
@@ -176,6 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchAndRenderFilteredAnswers(className, assignmentName, subAssignmentName = null) {
+        // ... this function remains unchanged ...
         viewerPlaceholder.style.display = 'none';
         viewerContent.innerHTML = `<p>Lade Antworten für "${subAssignmentName || assignmentName}"...</p>`;
         try {
@@ -218,6 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function fetchAndRenderSingleSubmission(path) {
+        // ... this function remains unchanged ...
         viewerPlaceholder.style.display = 'none';
         viewerContent.innerHTML = '<p>Lade Inhalt...</p>';
         try {
@@ -252,6 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleError(error) {
+        // ... this function remains unchanged ...
         console.error('Dashboard Error:', error);
         viewerContent.innerHTML = `<p style="color: red;">Fehler: ${error.message}</p>`;
         if (error.message.includes('Invalid teacher key')) {
@@ -262,6 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     submissionList.addEventListener('click', (e) => {
+        // ... this function remains unchanged ...
         const fileLink = e.target.closest('.submission-file');
         if (fileLink) {
             const currentActive = submissionList.querySelector('.active');
