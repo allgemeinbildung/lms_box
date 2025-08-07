@@ -1,3 +1,8 @@
+//
+// ────────────────────────────────────────────────────────────────
+//   :::::: F I L E :   d a s h b o a r d / t e a c h e r . j s ::::::
+// ────────────────────────────────────────────────────────────────
+//
 import { SCRIPT_URL } from '../js/config.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -6,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginBtn = document.getElementById('login-btn');
     const loginStatus = document.getElementById('login-status');
     const submissionListContainer = document.getElementById('submission-list');
+    const classFilterContainer = document.getElementById('class-filter-container');
     const viewerContent = document.getElementById('viewer-content');
     const viewerPlaceholder = document.getElementById('viewer-placeholder');
 
@@ -47,10 +53,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             if (data.status === 'error') throw new Error(data.message);
+            // ✅ UPDATED: Call new rendering functions
+            renderClassFilter(Object.keys(data));
             renderSubmissionsList(data);
         } catch (error) {
             submissionListContainer.innerHTML = `<p style="color: red;">Fehler: ${error.message}</p>`;
-            // If the key was wrong, force re-login
             if (error.message.includes('Invalid teacher key')) {
                 sessionStorage.removeItem('teacherKey');
                 checkAuth();
@@ -58,18 +65,60 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    /**
+     * ✅ NEW: Renders the class filter dropdown.
+     * @param {string[]} classes - An array of class names.
+     */
+    const renderClassFilter = (classes) => {
+        if (classes.length === 0) {
+            classFilterContainer.innerHTML = '';
+            return;
+        }
+        let options = '<option value="all">Alle Klassen anzeigen</option>';
+        classes.sort().forEach(klasse => {
+            options += `<option value="${klasse}">${klasse}</option>`;
+        });
+        classFilterContainer.innerHTML = `<select id="class-filter">${options}</select>`;
+
+        document.getElementById('class-filter').addEventListener('change', (e) => {
+            const selectedClass = e.target.value;
+            const allClassGroups = document.querySelectorAll('.class-group');
+            allClassGroups.forEach(group => {
+                if (selectedClass === 'all' || group.dataset.className === selectedClass) {
+                    group.style.display = 'block';
+                } else {
+                    group.style.display = 'none';
+                }
+            });
+        });
+    };
+
+    /**
+     * ✅ UPDATED: Renders submissions grouped by class.
+     * @param {object} submissionMap - The nested object from the backend.
+     */
     const renderSubmissionsList = (submissionMap) => {
         if (Object.keys(submissionMap).length === 0) {
             submissionListContainer.innerHTML = '<p>Noch keine Abgaben vorhanden.</p>';
             return;
         }
         let html = '';
-        for (const studentId in submissionMap) {
-            html += `<div class="student-group">
-                        <div class="student-name">${studentId}</div>`;
-            submissionMap[studentId].forEach(file => {
-                html += `<a class="submission-file" data-path="${file.path}">${file.name}</a>`;
-            });
+        const sortedClasses = Object.keys(submissionMap).sort();
+
+        for (const klasse of sortedClasses) {
+            html += `<div class="class-group" data-class-name="${klasse}">
+                        <div class="class-name">${klasse}</div>`;
+            const students = submissionMap[klasse];
+            const sortedStudents = Object.keys(students).sort();
+
+            for (const studentName of sortedStudents) {
+                html += `<div class="student-group">
+                            <div class="student-name">${studentName}</div>`;
+                students[studentName].forEach(file => {
+                    html += `<a class="submission-file" data-path="${file.path}">${file.name}</a>`;
+                });
+                html += `</div>`;
+            }
             html += `</div>`;
         }
         submissionListContainer.innerHTML = html;
@@ -109,16 +158,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Event Delegation for Clicks ---
     submissionListContainer.addEventListener('click', (e) => {
         if (e.target.classList.contains('submission-file')) {
-            // Remove active class from any previously active link
             const currentActive = submissionListContainer.querySelector('.active');
             if (currentActive) currentActive.classList.remove('active');
-            // Add active class to the clicked link
             e.target.classList.add('active');
             const path = e.target.dataset.path;
             fetchAndRenderSubmission(path);
         }
+        // ✅ NEW: Toggle student list visibility
+        if(e.target.classList.contains('class-name')) {
+            const studentGroups = e.target.parentElement.querySelectorAll('.student-group');
+            studentGroups.forEach(group => {
+                group.style.display = group.style.display === 'none' ? 'block' : 'none';
+            });
+        }
     });
 
-    // Initial check on page load
     checkAuth();
 });

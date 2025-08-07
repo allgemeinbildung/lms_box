@@ -1,3 +1,8 @@
+/*
+// ──────────────────────────────────────────────────────────────────
+//   :::::: F I L E :   d a s h b o a r d / t e a c h e r . c s s ::::::
+// ──────────────────────────────────────────────────────────────────
+*/
 /* General Styles */
 body {
     margin: 0;
@@ -76,9 +81,32 @@ body {
     overflow-y: auto;
 }
 
-/* Submission List Styling */
-.student-group {
+/* ✅ NEW: Class Filter Styles */
+#class-filter-container {
     margin-bottom: 1.5em;
+}
+#class-filter {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+}
+
+/* ✅ UPDATED: Submission List Styling */
+.class-group {
+    margin-bottom: 1.5em;
+}
+.class-name {
+    font-weight: bold;
+    font-size: 1.2em;
+    padding: 0.5em;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.student-group {
+    margin-top: 0.5em;
+    padding-left: 1em;
 }
 .student-name {
     font-weight: bold;

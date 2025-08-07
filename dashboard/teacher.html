@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="teacher.css">
 </head>
 <body>
-    <!-- Login Overlay -->
     <div id="login-overlay" class="visible">
         <div id="login-box">
             <h2>Dashboard-Zugang</h2>
@@ -19,10 +18,10 @@
         </div>
     </div>
 
-    <!-- Main Dashboard -->
     <div id="dashboard-container">
         <aside id="sidebar">
             <h1>Abgaben</h1>
+            <div id="class-filter-container"></div> 
             <div id="submission-list">
                 <p>Lade Abgaben...</p>
             </div>
@@ -36,8 +35,7 @@
     </div>
 
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
-    <!-- IMPORTANT: Note the relative path to config.js -->
-    <script src="../js/config.js" type="module"></script> 
+    <script src="../js/config.js" type="module"></script>  
     <script src="teacher.js" type="module"></script>
 </body>
 </html>
