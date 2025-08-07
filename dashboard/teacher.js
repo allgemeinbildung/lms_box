@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginBtn = document.getElementById('login-btn');
     const loginStatus = document.getElementById('login-status');
     
+    const dateFilterInput = document.getElementById('date-filter');
     const submissionListContainer = document.getElementById('submission-list-container');
     const submissionList = document.getElementById('submission-list');
     const classFilterContainer = document.getElementById('class-filter-container');
@@ -28,11 +29,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- API Helper ---
     const fetchApi = async (action, body) => {
         const teacherKey = sessionStorage.getItem('teacherKey');
+        const selectedDate = dateFilterInput.value;
         const response = await fetch(SCRIPT_URL, {
             method: 'POST',
             mode: 'cors',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, teacherKey, ...body })
+            body: JSON.stringify({ action, teacherKey, date: selectedDate, ...body })
         });
         if (!response.ok) throw new Error(`Network error: ${response.statusText}`);
         const data = await response.json();
@@ -68,15 +70,31 @@ document.addEventListener('DOMContentLoaded', () => {
             loginOverlay.classList.remove('visible');
             loginStatus.textContent = '';
             
+            // Repopulate all filters and views
             populateClassFilter(Object.keys(masterSubmissionData));
-            renderSubmissionsByFile(masterSubmissionData);
-            setupFilterEventListeners();
-
+            handleClassChange(); // Trigger a change to respect the current dropdown value
+            
         } catch (error) {
             handleError(error);
         }
     };
     
+    // --- Initial Setup (runs once on page load) ---
+    function setupInitialState() {
+        const today = new Date().toISOString().split('T')[0];
+        dateFilterInput.value = today;
+        dateFilterInput.max = today;
+        dateFilterInput.addEventListener('change', initializeDashboard);
+        setupFilterEventListeners();
+
+        if (sessionStorage.getItem('teacherKey')) {
+            loginOverlay.classList.remove('visible');
+            initializeDashboard();
+        } else {
+            loginOverlay.classList.add('visible');
+        }
+    }
+
     // --- Filter Population & Event Handling ---
     function populateClassFilter(classes) {
         const classFilterSelect = document.createElement('select');
@@ -84,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDropdown(classFilterSelect, ['Alle Klassen', ...classes.sort()]);
         classFilterContainer.innerHTML = '';
         classFilterContainer.appendChild(classFilterSelect);
-        
         classFilterSelect.addEventListener('change', handleClassChange);
     }
 
@@ -93,8 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
         subAssignmentFilterSelect.addEventListener('change', handleSubAssignmentChange);
     }
 
-    function handleClassChange(e) {
-        const selectedClass = e.target.value;
+    function handleClassChange() {
+        const selectedClass = document.getElementById('class-filter').value;
         resetAssignmentFilters();
         
         if (selectedClass === 'Alle Klassen') {
@@ -110,15 +127,12 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleAssignmentChange() {
         const selectedAssignment = assignmentFilterSelect.value;
         const className = document.getElementById('class-filter').value;
-        
-        // Only reset the sub-assignment filter, not the main one
         resetAssignmentFilters(true);
 
         if (selectedAssignment !== 'Aufgabe wählen') {
             const subAssignments = masterFilterData[selectedAssignment] || [];
             updateDropdown(subAssignmentFilterSelect, ['Alle Teilaufgaben anzeigen', ...subAssignments]);
             subAssignmentFilterSelect.disabled = false;
-            
             await fetchAndRenderFilteredAnswers(className, selectedAssignment);
         }
     }
@@ -134,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await fetchAndRenderFilteredAnswers(className, assignmentName, subAssignmentName);
         }
     }
+
     
     // --- Rendering Functions ---
     function renderSubmissionsByFile(submissionMap) {
