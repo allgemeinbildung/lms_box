@@ -173,7 +173,8 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
                     displaySolution();
                 } else {
                     statusEl.textContent = 'Falscher Schlüssel. Bitte erneut versuchen.';
-                    if (prefilledKey) localStorage.removeItem(SOLUTION_KEY_STORAGE);
+                    // ✅ FIX: The problematic line that deleted the key has been removed.
+                    // if (prefilledKey) localStorage.removeItem(SOLUTION_KEY_STORAGE);
                 }
             } catch (error) {
                 statusEl.textContent = 'Fehler bei der Überprüfung des Schlüssels.';
