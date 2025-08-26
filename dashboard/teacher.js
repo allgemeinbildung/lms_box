@@ -53,9 +53,30 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             if (data.status === 'error') throw new Error(data.message);
-            // ✅ UPDATED: Call new rendering functions
-            renderClassFilter(Object.keys(data));
-            renderSubmissionsList(data);
+
+            // ✅ NEU: Normalisierungslogik für Klassennamen
+            // Wir erstellen eine neue Map, um Klassen unabhängig von der Gross-/Kleinschreibung zu gruppieren.
+            const rawSubmissionMap = data;
+            const normalizedSubmissionMap = {};
+
+            for (const className in rawSubmissionMap) {
+                // Erstelle einen normalisierten Namen, z.B. "pk25a" -> "PK25A"
+                const normalizedClassName = className.toUpperCase();
+
+                // Wenn die normalisierte Klasse (z.B. "PK25A") noch nicht existiert, initialisiere sie.
+                if (!normalizedSubmissionMap[normalizedClassName]) {
+                    normalizedSubmissionMap[normalizedClassName] = {};
+                }
+
+                // Führe die Schülerdaten aus der Originalklasse (z.B. "pk25a")
+                // mit der normalisierten Gruppe ("PK25A") zusammen.
+                Object.assign(normalizedSubmissionMap[normalizedClassName], rawSubmissionMap[className]);
+            }
+            
+            // ✅ AKTUALISIERT: Übergebe die normalisierten Daten an die Render-Funktionen.
+            renderClassFilter(Object.keys(normalizedSubmissionMap));
+            renderSubmissionsList(normalizedSubmissionMap);
+
         } catch (error) {
             submissionListContainer.innerHTML = `<p style="color: red;">Fehler: ${error.message}</p>`;
             if (error.message.includes('Invalid teacher key')) {
@@ -66,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /**
-     * ✅ NEW: Renders the class filter dropdown.
+     * Renders the class filter dropdown.
      * @param {string[]} classes - An array of class names.
      */
     const renderClassFilter = (classes) => {
@@ -75,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         let options = '<option value="all">Alle Klassen anzeigen</option>';
+        // Sortiere die normalisierten Klassennamen alphabetisch für die Anzeige.
         classes.sort().forEach(klasse => {
             options += `<option value="${klasse}">${klasse}</option>`;
         });
@@ -94,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /**
-     * ✅ UPDATED: Renders submissions grouped by class.
+     * Renders submissions grouped by class.
      * @param {object} submissionMap - The nested object from the backend.
      */
     const renderSubmissionsList = (submissionMap) => {
@@ -106,6 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const sortedClasses = Object.keys(submissionMap).sort();
 
         for (const klasse of sortedClasses) {
+            // Der `data-class-name` und der angezeigte Name sind jetzt konsistent grossgeschrieben.
             html += `<div class="class-group" data-class-name="${klasse}">
                         <div class="class-name">${klasse}</div>`;
             const students = submissionMap[klasse];
@@ -164,7 +187,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const path = e.target.dataset.path;
             fetchAndRenderSubmission(path);
         }
-        // ✅ NEW: Toggle student list visibility
         if(e.target.classList.contains('class-name')) {
             const studentGroups = e.target.parentElement.querySelectorAll('.student-group');
             studentGroups.forEach(group => {
