@@ -16,13 +16,19 @@
         
         <main id="content-renderer"></main>
         
+        <!-- ✅ AKTUALISIERT: Diese Sektion wird nun immer angezeigt, wenn eine Lösung existiert. -->
+        <!-- Das <details>-Element ist standardmässig geschlossen. -->
         <div id="solution-section" style="display: none; margin-top: 20px;">
             <details id="solution-dropdown">
                 <summary>Musterlösung anzeigen</summary>
                 
-                <div id="solution-unlock-container" style="margin-top: 10px;"></div>
+                <div id="solution-unlock-container" style="margin-top: 10px;">
+                    <!-- Das Eingabefeld wird von renderer.js hier eingefügt -->
+                </div>
 
-                <div id="solution-display-container"></div>
+                <div id="solution-display-container" style="display: none;">
+                    <!-- Die freigeschaltete Lösung wird von renderer.js hier eingefügt -->
+                </div>
             </details>
         </div>
 

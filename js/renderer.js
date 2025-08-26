@@ -1,12 +1,9 @@
-// js/renderer.js
-
 import { SCRIPT_URL } from './config.js';
 
 const ANSWER_PREFIX = 'modular-answer_';
 const QUESTIONS_PREFIX = 'modular-questions_';
 const TITLE_PREFIX = 'title_';
 const TYPE_PREFIX = 'type_';
-// ✅ NEW: The key now points to a storage object for ALL assignment keys.
 const SOLUTION_KEYS_STORE = 'modular-assignment-keys-store';
 
 function debounce(func, wait) {
@@ -71,9 +68,8 @@ function parseMarkdown(text) {
  * @param {object} data - The specific sub-assignment data.
  * @param {string} assignmentId - The ID of the parent assignment.
  * @param {string} subId - The ID of the sub-assignment.
- * @param {string[]} [solutionKeys=[]] - The array of valid keys from the parent assignment.
  */
-function renderQuill(data, assignmentId, subId, solutionKeys = []) {
+function renderQuill(data, assignmentId, subId) {
     const contentRenderer = document.getElementById('content-renderer');
     const solutionSection = document.getElementById('solution-section');
     const solutionUnlockContainer = document.getElementById('solution-unlock-container');
@@ -138,9 +134,7 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
     };
 
     const setupSolutionUnlockUI = () => {
-        // ✅ UPDATED: Load the entire key store object.
         const allKeys = JSON.parse(localStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
-        // ✅ UPDATED: Get the specific key for THIS assignmentId.
         const prefilledKey = allKeys[assignmentId] || '';
 
         solutionUnlockContainer.innerHTML = `
@@ -160,12 +154,6 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
             statusEl.textContent = 'Prüfe Schlüssel...';
             unlockBtn.disabled = true;
 
-            // --- START DEBUG LOGGING ---
-            console.log(`[DEBUG] 1. Starting verification.`);
-            console.log(`[DEBUG]    - Assignment ID: "${assignmentId}"`);
-            console.log(`[DEBUG]    - Key to Verify: "${enteredKey}"`);
-            // --- END DEBUG LOGGING ---
-
             try {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
@@ -177,25 +165,14 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
                         key: enteredKey
                     })
                 });
-
-                // --- START DEBUG LOGGING ---
-                console.log(`[DEBUG] 2. Received response from backend with status: ${response.status}`);
-                // --- END DEBUG LOGGING ---
-
                 const result = await response.json();
 
-                // --- START DEBUG LOGGING ---
-                console.log('[DEBUG] 3. Parsed backend response JSON:', result);
-                // --- END DEBUG LOGGING ---
-
                 if (result.isValid) {
-                    console.log('[DEBUG] 4. Key was VALID. Unlocking solution.');
                     const currentKeys = JSON.parse(localStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
                     currentKeys[assignmentId] = enteredKey;
                     localStorage.setItem(SOLUTION_KEYS_STORE, JSON.stringify(currentKeys));
                     displaySolution();
                 } else {
-                    console.log('[DEBUG] 4. Key was INVALID. Showing error.');
                     statusEl.textContent = 'Falscher Schlüssel. Bitte erneut versuchen.';
                     const currentKeys = JSON.parse(localStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
                     if (currentKeys[assignmentId]) {
@@ -204,13 +181,11 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
                     }
                 }
             } catch (error) {
-                console.error('[DEBUG] 5. An ERROR occurred during the fetch process:', error);
                 statusEl.textContent = 'Fehler bei der Überprüfung des Schlüssels.';
             } finally {
                 unlockBtn.disabled = false;
             }
         };
-
 
         unlockBtn.addEventListener('click', verifyKey);
         keyInput.addEventListener('keydown', (e) => {
@@ -223,7 +198,10 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
         }
     };
     
-    if (solutionKeys && solutionKeys.length > 0 && data.solution && Array.isArray(data.solution.solutions) && data.solution.solutions.length > 0) {
+    // ✅ AKTUALISIERT: Die Bedingung wurde vereinfacht.
+    // Zeige die Lösungssektion immer an, wenn im JSON eine Lösung (`data.solution`) definiert ist.
+    // Dies ermöglicht die Nutzung des Lehrer-Master-Schlüssels, auch wenn keine Schülerschlüssel vorhanden sind.
+    if (data.solution && Array.isArray(data.solution.solutions) && data.solution.solutions.length > 0) {
         solutionSection.style.display = 'block';
         setupSolutionUnlockUI();
     }
@@ -237,7 +215,6 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
  */
 export function renderSubAssignment(assignmentData, assignmentId, subId) {
     const subAssignmentData = assignmentData.subAssignments[subId];
-    const solutionKeys = assignmentData.solution_keys;
 
     document.getElementById('sub-title').textContent = subId;
     document.getElementById('content-renderer').innerHTML = '';
@@ -248,7 +225,8 @@ export function renderSubAssignment(assignmentData, assignmentId, subId) {
     localStorage.setItem(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`, subAssignmentData.type);
 
     if (subAssignmentData.type === 'quill') {
-        renderQuill(subAssignmentData, assignmentId, subId, solutionKeys);
+        // ✅ AKTUALISIERT: `solutionKeys` wird nicht mehr an renderQuill übergeben, da es nicht mehr benötigt wird.
+        renderQuill(subAssignmentData, assignmentId, subId);
     } else {
         document.getElementById('content-renderer').innerHTML = `<p>Unbekannter Aufgabentyp: ${subAssignmentData.type}</p>`;
     }
