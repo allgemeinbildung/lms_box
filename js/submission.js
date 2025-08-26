@@ -45,6 +45,7 @@ async function getStudentInfo() {
     return studentInfo;
 }
 
+// ✅ REMOVED: The getSubmissionToken function is no longer needed.
 
 async function gatherAllDataForSubmission(studentInfo) {
     if (!studentInfo) return null;
@@ -172,6 +173,7 @@ export async function submitAllAssignments() {
                 action: 'submit',
                 identifier: submissionData.identifier,
                 payload: submissionData.payload
+                // ✅ REMOVED: submissionToken is no longer sent
             })
         });
         const result = await response.json();
