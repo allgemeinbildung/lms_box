@@ -51,13 +51,15 @@ function showTemporaryMessage(message, editorElement) {
  * @returns {string} The HTML string.
  */
 function parseMarkdown(text) {
+    if (!text) return '';
     const highlightColor = '#007bff'; // Color from action buttons in styles.css
 
     // Replace bold (**text**) with a styled <strong> tag.
     let html = text.replace(/\*\*(.*?)\*\*/g, `<strong style="color: ${highlightColor};">$1</strong>`);
     
-    // Replace italic (*text*) with a styled <em> tag.
-    html = html.replace(/\*(.*?)\*/g, `<em style="color: ${highlightColor};">$1</em>`);
+    // Replace italic (_text_ or *text*) with a styled <em> tag.
+    // This regex handles both _ and * as italic markers.
+    html = html.replace(/([_*])(.*?)\1/g, `<em style="color: ${highlightColor};">$2</em>`);
 
     return html;
 }
@@ -122,8 +124,12 @@ function renderQuill(data, assignmentId, subId) {
             html += `
                 <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
                     <p style="font-weight: bold;">Frage ${index + 1}:</p>
+                    
+                    <!-- ✅ KORREKTUR: Markdown-Parsing für den Fragetext wiederhergestellt -->
                     <p style="font-style: italic;">${parseMarkdown(question.text)}</p>
-                    <div style="padding: 10px; background-color: #e9f3ff; border-radius: 4px;">${parseMarkdown(answer)}</div>
+                    
+                    <!-- ✅ KORREKTUR: Die Antwort (HTML) wird direkt eingefügt, ohne Parsing -->
+                    <div style="padding: 10px; background-color: #e9f3ff; border-radius: 4px;">${answer}</div>
                 </div>
             `;
         });
@@ -198,9 +204,6 @@ function renderQuill(data, assignmentId, subId) {
         }
     };
     
-    // ✅ AKTUALISIERT: Die Bedingung wurde vereinfacht.
-    // Zeige die Lösungssektion immer an, wenn im JSON eine Lösung (`data.solution`) definiert ist.
-    // Dies ermöglicht die Nutzung des Lehrer-Master-Schlüssels, auch wenn keine Schülerschlüssel vorhanden sind.
     if (data.solution && Array.isArray(data.solution.solutions) && data.solution.solutions.length > 0) {
         solutionSection.style.display = 'block';
         setupSolutionUnlockUI();
@@ -225,7 +228,6 @@ export function renderSubAssignment(assignmentData, assignmentId, subId) {
     localStorage.setItem(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`, subAssignmentData.type);
 
     if (subAssignmentData.type === 'quill') {
-        // ✅ AKTUALISIERT: `solutionKeys` wird nicht mehr an renderQuill übergeben, da es nicht mehr benötigt wird.
         renderQuill(subAssignmentData, assignmentId, subId);
     } else {
         document.getElementById('content-renderer').innerHTML = `<p>Unbekannter Aufgabentyp: ${subAssignmentData.type}</p>`;
