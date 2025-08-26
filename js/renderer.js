@@ -1,3 +1,5 @@
+// js/renderer.js
+
 import { SCRIPT_URL } from './config.js';
 
 const ANSWER_PREFIX = 'modular-answer_';
@@ -173,8 +175,11 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
                     displaySolution();
                 } else {
                     statusEl.textContent = 'Falscher Schlüssel. Bitte erneut versuchen.';
-                    // ✅ FIX: The problematic line that deleted the key has been removed.
-                    // if (prefilledKey) localStorage.removeItem(SOLUTION_KEY_STORAGE);
+                    // ✅ FIX: If the saved key is invalid, remove it so the user isn't stuck.
+                    const savedKeyData = JSON.parse(localStorage.getItem(SOLUTION_KEY_STORAGE) || '{}');
+                    if (savedKeyData.assignmentId === assignmentId) {
+                        localStorage.removeItem(SOLUTION_KEY_STORAGE);
+                    }
                 }
             } catch (error) {
                 statusEl.textContent = 'Fehler bei der Überprüfung des Schlüssels.';
