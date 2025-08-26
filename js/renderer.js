@@ -160,6 +160,12 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
             statusEl.textContent = 'Prüfe Schlüssel...';
             unlockBtn.disabled = true;
 
+            // --- START DEBUG LOGGING ---
+            console.log(`[DEBUG] 1. Starting verification.`);
+            console.log(`[DEBUG]    - Assignment ID: "${assignmentId}"`);
+            console.log(`[DEBUG]    - Key to Verify: "${enteredKey}"`);
+            // --- END DEBUG LOGGING ---
+
             try {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
@@ -171,17 +177,26 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
                         key: enteredKey
                     })
                 });
+
+                // --- START DEBUG LOGGING ---
+                console.log(`[DEBUG] 2. Received response from backend with status: ${response.status}`);
+                // --- END DEBUG LOGGING ---
+
                 const result = await response.json();
 
+                // --- START DEBUG LOGGING ---
+                console.log('[DEBUG] 3. Parsed backend response JSON:', result);
+                // --- END DEBUG LOGGING ---
+
                 if (result.isValid) {
-                    // ✅ UPDATED: On success, update the key store object and save it back.
+                    console.log('[DEBUG] 4. Key was VALID. Unlocking solution.');
                     const currentKeys = JSON.parse(localStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
                     currentKeys[assignmentId] = enteredKey;
                     localStorage.setItem(SOLUTION_KEYS_STORE, JSON.stringify(currentKeys));
                     displaySolution();
                 } else {
+                    console.log('[DEBUG] 4. Key was INVALID. Showing error.');
                     statusEl.textContent = 'Falscher Schlüssel. Bitte erneut versuchen.';
-                    // ✅ UPDATED: On failure, remove only the invalid key for this specific assignment.
                     const currentKeys = JSON.parse(localStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
                     if (currentKeys[assignmentId]) {
                         delete currentKeys[assignmentId];
@@ -189,11 +204,13 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
                     }
                 }
             } catch (error) {
+                console.error('[DEBUG] 5. An ERROR occurred during the fetch process:', error);
                 statusEl.textContent = 'Fehler bei der Überprüfung des Schlüssels.';
             } finally {
                 unlockBtn.disabled = false;
             }
         };
+
 
         unlockBtn.addEventListener('click', verifyKey);
         keyInput.addEventListener('keydown', (e) => {
