@@ -6,7 +6,8 @@ const ANSWER_PREFIX = 'modular-answer_';
 const QUESTIONS_PREFIX = 'modular-questions_';
 const TITLE_PREFIX = 'title_';
 const TYPE_PREFIX = 'type_';
-const SOLUTION_KEY_STORAGE = 'modular-assignment-solution-key';
+// ✅ NEW: The key now points to a storage object for ALL assignment keys.
+const SOLUTION_KEYS_STORE = 'modular-assignment-keys-store';
 
 function debounce(func, wait) {
     let timeout;
@@ -137,8 +138,10 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
     };
 
     const setupSolutionUnlockUI = () => {
-        const savedKeyData = JSON.parse(localStorage.getItem(SOLUTION_KEY_STORAGE) || '{}');
-        const prefilledKey = savedKeyData.assignmentId === assignmentId ? savedKeyData.key : '';
+        // ✅ UPDATED: Load the entire key store object.
+        const allKeys = JSON.parse(localStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
+        // ✅ UPDATED: Get the specific key for THIS assignmentId.
+        const prefilledKey = allKeys[assignmentId] || '';
 
         solutionUnlockContainer.innerHTML = `
             <input type="text" id="solution-key-input" placeholder="Lösungsschlüssel eingeben..." value="${prefilledKey}" style="margin-right: 10px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
@@ -171,14 +174,18 @@ function renderQuill(data, assignmentId, subId, solutionKeys = []) {
                 const result = await response.json();
 
                 if (result.isValid) {
-                    localStorage.setItem(SOLUTION_KEY_STORAGE, JSON.stringify({ assignmentId, key: enteredKey }));
+                    // ✅ UPDATED: On success, update the key store object and save it back.
+                    const currentKeys = JSON.parse(localStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
+                    currentKeys[assignmentId] = enteredKey;
+                    localStorage.setItem(SOLUTION_KEYS_STORE, JSON.stringify(currentKeys));
                     displaySolution();
                 } else {
                     statusEl.textContent = 'Falscher Schlüssel. Bitte erneut versuchen.';
-                    // ✅ FIX: If the saved key is invalid, remove it so the user isn't stuck.
-                    const savedKeyData = JSON.parse(localStorage.getItem(SOLUTION_KEY_STORAGE) || '{}');
-                    if (savedKeyData.assignmentId === assignmentId) {
-                        localStorage.removeItem(SOLUTION_KEY_STORAGE);
+                    // ✅ UPDATED: On failure, remove only the invalid key for this specific assignment.
+                    const currentKeys = JSON.parse(localStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
+                    if (currentKeys[assignmentId]) {
+                        delete currentKeys[assignmentId];
+                        localStorage.setItem(SOLUTION_KEYS_STORE, JSON.stringify(currentKeys));
                     }
                 }
             } catch (error) {
