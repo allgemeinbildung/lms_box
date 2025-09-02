@@ -1,6 +1,6 @@
 //
 // ────────────────────────────────────────────────────────────────
-//   :::::: F I L E :   d a s h b o a r d / t e a c h e r . j s ::::::
+//  :::::: F I L E :   d a s h b o a r d / t e a c h e r . j s ::::::
 // ────────────────────────────────────────────────────────────────
 //
 import { SCRIPT_URL } from '../js/config.js';
@@ -14,6 +14,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const classFilterContainer = document.getElementById('class-filter-container');
     const viewerContent = document.getElementById('viewer-content');
     const viewerPlaceholder = document.getElementById('viewer-placeholder');
+    const downloadBtn = document.getElementById('download-btn'); // ✅ NEU
+    const downloadBtnText = document.getElementById('download-btn-text'); // ✅ NEU
+    const downloadStatus = document.getElementById('download-status'); // ✅ NEU
+
+    let fullSubmissionData = {}; // Store the complete submission map
 
     // --- Authentication ---
     const checkAuth = () => {
@@ -53,27 +58,19 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             if (data.status === 'error') throw new Error(data.message);
-
-            // ✅ NEU: Normalisierungslogik für Klassennamen
-            // Wir erstellen eine neue Map, um Klassen unabhängig von der Gross-/Kleinschreibung zu gruppieren.
+            
             const rawSubmissionMap = data;
             const normalizedSubmissionMap = {};
 
             for (const className in rawSubmissionMap) {
-                // Erstelle einen normalisierten Namen, z.B. "pk25a" -> "PK25A"
                 const normalizedClassName = className.toUpperCase();
-
-                // Wenn die normalisierte Klasse (z.B. "PK25A") noch nicht existiert, initialisiere sie.
                 if (!normalizedSubmissionMap[normalizedClassName]) {
                     normalizedSubmissionMap[normalizedClassName] = {};
                 }
-
-                // Führe die Schülerdaten aus der Originalklasse (z.B. "pk25a")
-                // mit der normalisierten Gruppe ("PK25A") zusammen.
                 Object.assign(normalizedSubmissionMap[normalizedClassName], rawSubmissionMap[className]);
             }
             
-            // ✅ AKTUALISIERT: Übergebe die normalisierten Daten an die Render-Funktionen.
+            fullSubmissionData = normalizedSubmissionMap; // ✅ NEU: Globale Daten speichern
             renderClassFilter(Object.keys(normalizedSubmissionMap));
             renderSubmissionsList(normalizedSubmissionMap);
 
@@ -86,17 +83,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    /**
-     * Renders the class filter dropdown.
-     * @param {string[]} classes - An array of class names.
-     */
     const renderClassFilter = (classes) => {
         if (classes.length === 0) {
             classFilterContainer.innerHTML = '';
             return;
         }
         let options = '<option value="all">Alle Klassen anzeigen</option>';
-        // Sortiere die normalisierten Klassennamen alphabetisch für die Anzeige.
         classes.sort().forEach(klasse => {
             options += `<option value="${klasse}">${klasse}</option>`;
         });
@@ -114,11 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     };
-
-    /**
-     * Renders submissions grouped by class.
-     * @param {object} submissionMap - The nested object from the backend.
-     */
+    
     const renderSubmissionsList = (submissionMap) => {
         if (Object.keys(submissionMap).length === 0) {
             submissionListContainer.innerHTML = '<p>Noch keine Abgaben vorhanden.</p>';
@@ -128,15 +116,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const sortedClasses = Object.keys(submissionMap).sort();
 
         for (const klasse of sortedClasses) {
-            // Der `data-class-name` und der angezeigte Name sind jetzt konsistent grossgeschrieben.
             html += `<div class="class-group" data-class-name="${klasse}">
-                        <div class="class-name">${klasse}</div>`;
+                         <div class="class-name">${klasse}</div>`;
             const students = submissionMap[klasse];
             const sortedStudents = Object.keys(students).sort();
 
             for (const studentName of sortedStudents) {
                 html += `<div class="student-group">
-                            <div class="student-name">${studentName}</div>`;
+                             <div class="student-name">${studentName}</div>`;
                 students[studentName].forEach(file => {
                     html += `<a class="submission-file" data-path="${file.path}">${file.name}</a>`;
                 });
@@ -147,9 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
         submissionListContainer.innerHTML = html;
     };
 
-    const fetchAndRenderSubmission = async (path) => {
-        viewerPlaceholder.style.display = 'none';
-        viewerContent.innerHTML = '<p>Lade Inhalt...</p>';
+    const fetchSubmissionContent = async (path) => {
         try {
             const teacherKey = sessionStorage.getItem('teacherKey');
             const response = await fetch(SCRIPT_URL, {
@@ -160,23 +145,114 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             if (data.status === 'error') throw new Error(data.message);
-            
-            let contentHtml = `<h1>Abgabe vom ${new Date(data.createdAt).toLocaleString('de-CH')}</h1>`;
-            for (const assignmentId in data.assignments) {
-                for (const subId in data.assignments[assignmentId]) {
-                    const subData = data.assignments[assignmentId][subId];
-                    contentHtml += `<div class="assignment-block">
-                                        <h2>${subData.title}</h2>
-                                        <div class="answer-box"><div class="ql-snow"><div class="ql-editor">${subData.answer}</div></div></div>
-                                    </div>`;
-                }
-            }
-            viewerContent.innerHTML = contentHtml;
-
+            return data;
         } catch (error) {
-            viewerContent.innerHTML = `<p style="color: red;">Fehler beim Laden der Abgabe: ${error.message}</p>`;
+            console.error(`Fehler beim Laden der Abgabe [${path}]:`, error);
+            return null; // Return null on error
         }
     };
+
+    const fetchAndRenderSubmission = async (path) => {
+        viewerPlaceholder.style.display = 'none';
+        viewerContent.innerHTML = '<p>Lade Inhalt...</p>';
+        
+        const data = await fetchSubmissionContent(path);
+        
+        if (!data) {
+             viewerContent.innerHTML = `<p style="color: red;">Fehler beim Laden der Abgabe.</p>`;
+             return;
+        }
+
+        let contentHtml = `<h1>Abgabe vom ${new Date(data.createdAt).toLocaleString('de-CH')}</h1>`;
+        for (const assignmentId in data.assignments) {
+            for (const subId in data.assignments[assignmentId]) {
+                const subData = data.assignments[assignmentId][subId];
+                contentHtml += `<div class="assignment-block">
+                                    <h2>${subData.title}</h2>
+                                    <div class="answer-box"><div class="ql-snow"><div class="ql-editor">${subData.answer}</div></div></div>
+                                </div>`;
+            }
+        }
+        viewerContent.innerHTML = contentHtml;
+    };
+    
+    // --- ✅ NEU: Download & Sync Logic ---
+    const downloadSubmissions = async () => {
+        if (!window.showDirectoryPicker) {
+            alert("Dein Browser unterstützt diese Funktion nicht. Bitte nutze einen aktuellen Browser wie Chrome oder Edge.");
+            return;
+        }
+
+        // 1. Get selected classes
+        const selectedClass = document.getElementById('class-filter').value;
+        const classesToDownload = selectedClass === 'all' 
+            ? Object.keys(fullSubmissionData)
+            : [selectedClass];
+
+        if (classesToDownload.length === 0) {
+            alert("Keine Klassen zum Herunterladen gefunden.");
+            return;
+        }
+        
+        let dirHandle;
+        try {
+            dirHandle = await window.showDirectoryPicker();
+        } catch(err) {
+            console.log("Auswahl des Verzeichnisses abgebrochen.");
+            return;
+        }
+
+        downloadBtn.disabled = true;
+        downloadBtnText.textContent = "Lade herunter...";
+
+        let filesToDownload = [];
+        for (const className of classesToDownload) {
+            for (const studentName in fullSubmissionData[className]) {
+                fullSubmissionData[className][studentName].forEach(file => {
+                    filesToDownload.push({ className, studentName, file });
+                });
+            }
+        }
+
+        let processedCount = 0;
+        for (const item of filesToDownload) {
+            processedCount++;
+            downloadStatus.textContent = `(${processedCount}/${filesToDownload.length})`;
+
+            const classHandle = await dirHandle.getDirectoryHandle(item.className, { create: true });
+            const studentHandle = await classHandle.getDirectoryHandle(item.studentName, { create: true });
+            
+            const fileName = `${item.file.name}.json`;
+            
+            const submissionContent = await fetchSubmissionContent(item.file.path);
+            if (submissionContent) {
+                try {
+                     const fileHandle = await studentHandle.getFileHandle(fileName, { create: false });
+                     // Sync-Check: Wenn die Datei existiert, vergleichen wir den Inhalt.
+                     const existingFile = await fileHandle.getFile();
+                     const existingText = await existingFile.text();
+                     if (existingText === JSON.stringify(submissionContent, null, 2)) {
+                         console.log(`Datei ${fileName} ist aktuell. Überspringe.`);
+                         continue; // Skip to next file
+                     }
+                } catch (e) {
+                    // File does not exist, which is fine. We'll create it.
+                }
+                
+                // Write or overwrite the file
+                const writable = await (await studentHandle.getFileHandle(fileName, { create: true })).createWritable();
+                await writable.write(JSON.stringify(submissionContent, null, 2));
+                await writable.close();
+            }
+        }
+        
+        downloadBtnText.textContent = "Abgaben herunterladen";
+        downloadStatus.textContent = `(Fertig!)`;
+        downloadBtn.disabled = false;
+        setTimeout(() => { downloadStatus.textContent = ''; }, 4000);
+    };
+
+    downloadBtn.addEventListener('click', downloadSubmissions);
 
     // --- Event Delegation for Clicks ---
     submissionListContainer.addEventListener('click', (e) => {
