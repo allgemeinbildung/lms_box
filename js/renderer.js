@@ -77,6 +77,34 @@ function renderQuill(data, assignmentId, subId) {
     const solutionUnlockContainer = document.getElementById('solution-unlock-container');
     const solutionDisplayContainer = document.getElementById('solution-display-container');
 
+    // --- ONE-TIME MIGRATION SCRIPT START ---
+    // This code will migrate a single, old answer into the first new answer box.
+    try {
+        const oldStorageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}`;
+        const oldAnswerContent = localStorage.getItem(oldStorageKey);
+
+        // Check if an old answer exists and there are questions to migrate it to.
+        if (oldAnswerContent && data.questions && data.questions.length > 0) {
+            const firstQuestionId = data.questions[0].id;
+            const newStorageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}_q_${firstQuestionId}`;
+
+            // Only migrate if the new destination is empty, to avoid overwriting new work.
+            if (!localStorage.getItem(newStorageKey)) {
+                // Add a helpful note for the student.
+                const migrationNote = `<p><em><strong>Hinweis:</strong> Dein gesamter bisheriger Text wurde hierher verschoben. Bitte verteile die Antworten auf die richtigen Fragen.</em></p><hr>`;
+                localStorage.setItem(newStorageKey, migrationNote + oldAnswerContent);
+            }
+            
+            // Clean up by removing the old key so this doesn't run again.
+            localStorage.removeItem(oldStorageKey);
+            console.log(`Successfully migrated old answer for ${subId}.`);
+        }
+    } catch (e) {
+        console.error('Could not perform answer migration:', e);
+    }
+    // --- ONE-TIME MIGRATION SCRIPT END ---
+
+
     // Loop through each question and create a dedicated block for it.
     data.questions.forEach((question, index) => {
         const questionBlock = document.createElement('div');
