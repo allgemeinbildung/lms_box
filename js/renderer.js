@@ -66,7 +66,7 @@ function parseMarkdown(text) {
 
 
 /**
- * 🔄 UPDATED: Renders a Quill editor for each question.
+ * Renders a Quill editor for each question, ensuring valid HTML IDs.
  * @param {object} data - The specific sub-assignment data.
  * @param {string} assignmentId - The ID of the parent assignment.
  * @param {string} subId - The ID of the sub-assignment.
@@ -77,7 +77,7 @@ function renderQuill(data, assignmentId, subId) {
     const solutionUnlockContainer = document.getElementById('solution-unlock-container');
     const solutionDisplayContainer = document.getElementById('solution-display-container');
 
-    // 🔄 Loop through each question and create a dedicated block for it.
+    // Loop through each question and create a dedicated block for it.
     data.questions.forEach((question, index) => {
         const questionBlock = document.createElement('div');
         questionBlock.className = 'question-block';
@@ -88,9 +88,13 @@ function renderQuill(data, assignmentId, subId) {
         questionText.style.fontSize = '1.1em';
         questionBlock.appendChild(questionText);
 
-        // Create a unique editor div for this question
+        // ✅ FIX: Sanitize the question.id to create a valid CSS selector.
+        // This replaces characters like '.' with '-' for the HTML element's ID.
+        const sanitizedQuestionId = String(question.id).replace(/[^a-zA-Z0-9-_]/g, '-');
+        
+        // Create a unique editor div for this question using the sanitized ID
         const editorDiv = document.createElement('div');
-        const editorId = `quill-editor-${question.id}`;
+        const editorId = `quill-editor-${sanitizedQuestionId}`;
         editorDiv.id = editorId;
         questionBlock.appendChild(editorDiv);
         
@@ -99,7 +103,7 @@ function renderQuill(data, assignmentId, subId) {
         // Initialize Quill on the unique editor div
         const quill = new Quill(`#${editorId}`, { theme: 'snow' });
 
-        // ✅ NEW: Use a more specific storage key that includes the question ID.
+        // IMPORTANT: Use the ORIGINAL question.id for the storage key to maintain data integrity.
         const storageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}_q_${question.id}`;
 
         // DISABLE PASTING
@@ -123,7 +127,7 @@ function renderQuill(data, assignmentId, subId) {
     });
 
 
-    // --- Secure, Assignment-Specific Solution Unlock Logic (No changes needed here) ---
+    // --- Secure, Assignment-Specific Solution Unlock Logic ---
     const displaySolution = () => {
         const solutionData = data.solution;
         const solutionMap = new Map(solutionData.solutions.map(s => [s.id, s.answer]));
