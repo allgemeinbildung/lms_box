@@ -66,7 +66,7 @@ function parseMarkdown(text) {
 
 
 /**
- * Renders the Quill editor and the solution-unlocking interface.
+ * 🔄 UPDATED: Renders a Quill editor for each question.
  * @param {object} data - The specific sub-assignment data.
  * @param {string} assignmentId - The ID of the parent assignment.
  * @param {string} subId - The ID of the sub-assignment.
@@ -76,43 +76,54 @@ function renderQuill(data, assignmentId, subId) {
     const solutionSection = document.getElementById('solution-section');
     const solutionUnlockContainer = document.getElementById('solution-unlock-container');
     const solutionDisplayContainer = document.getElementById('solution-display-container');
-    const storageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}`;
 
-    // Render the list of questions, now with Markdown parsing
-    const questionsList = document.createElement('ol');
-    data.questions.forEach(q => {
-        const listItem = document.createElement('li');
-        listItem.innerHTML = parseMarkdown(q.text);
-        questionsList.appendChild(listItem);
+    // 🔄 Loop through each question and create a dedicated block for it.
+    data.questions.forEach((question, index) => {
+        const questionBlock = document.createElement('div');
+        questionBlock.className = 'question-block';
+        questionBlock.style.marginBottom = '2.5em';
+
+        const questionText = document.createElement('p');
+        questionText.innerHTML = `<strong>${index + 1}.</strong> ${parseMarkdown(question.text)}`;
+        questionText.style.fontSize = '1.1em';
+        questionBlock.appendChild(questionText);
+
+        // Create a unique editor div for this question
+        const editorDiv = document.createElement('div');
+        const editorId = `quill-editor-${question.id}`;
+        editorDiv.id = editorId;
+        questionBlock.appendChild(editorDiv);
+        
+        contentRenderer.appendChild(questionBlock);
+
+        // Initialize Quill on the unique editor div
+        const quill = new Quill(`#${editorId}`, { theme: 'snow' });
+
+        // ✅ NEW: Use a more specific storage key that includes the question ID.
+        const storageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}_q_${question.id}`;
+
+        // DISABLE PASTING
+        quill.root.addEventListener('paste', (e) => {
+            e.preventDefault();
+            showTemporaryMessage('Einfügen ist deaktiviert, um die Kreativität und das kritische Denken zu fördern.', quill.root);
+        });
+
+        // Load saved answer from localStorage
+        quill.root.innerHTML = localStorage.getItem(storageKey) || '';
+
+        // Save content to localStorage on change
+        quill.on('text-change', debounce(() => {
+            const htmlContent = quill.root.innerHTML;
+            if (htmlContent && htmlContent !== '<p><br></p>') {
+                localStorage.setItem(storageKey, htmlContent);
+            } else {
+                localStorage.removeItem(storageKey);
+            }
+        }, 500));
     });
-    contentRenderer.appendChild(questionsList);
 
-    // Initialize Quill editor
-    const editorDiv = document.createElement('div');
-    editorDiv.id = 'quill-editor';
-    contentRenderer.appendChild(editorDiv);
-    const quill = new Quill('#quill-editor', { theme: 'snow' });
 
-    // DISABLE PASTING
-    quill.root.addEventListener('paste', (e) => {
-        e.preventDefault();
-        showTemporaryMessage('Einfügen ist deaktiviert, um die Kreativität und das kritische Denken zu fördern.', quill.root);
-    });
-
-    // Load saved answer from localStorage
-    quill.root.innerHTML = localStorage.getItem(storageKey) || '';
-
-    // Save content to localStorage on change
-    quill.on('text-change', debounce(() => {
-        const htmlContent = quill.root.innerHTML;
-        if (htmlContent && htmlContent !== '<p><br></p>') {
-            localStorage.setItem(storageKey, htmlContent);
-        } else {
-            localStorage.removeItem(storageKey);
-        }
-    }, 500));
-
-    // --- Secure, Assignment-Specific Solution Unlock Logic ---
+    // --- Secure, Assignment-Specific Solution Unlock Logic (No changes needed here) ---
     const displaySolution = () => {
         const solutionData = data.solution;
         const solutionMap = new Map(solutionData.solutions.map(s => [s.id, s.answer]));
@@ -124,11 +135,7 @@ function renderQuill(data, assignmentId, subId) {
             html += `
                 <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
                     <p style="font-weight: bold;">Frage ${index + 1}:</p>
-                    
-                    <!-- ✅ KORREKTUR: Markdown-Parsing für den Fragetext wiederhergestellt -->
                     <p style="font-style: italic;">${parseMarkdown(question.text)}</p>
-                    
-                    <!-- ✅ KORREKTUR: Die Antwort (HTML) wird direkt eingefügt, ohne Parsing -->
                     <div style="padding: 10px; background-color: #e9f3ff; border-radius: 4px;">${answer}</div>
                 </div>
             `;

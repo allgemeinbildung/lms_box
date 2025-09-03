@@ -10,11 +10,10 @@ const QUESTIONS_PREFIX = 'modular-questions_';
 const TITLE_PREFIX = 'title_';
 const TYPE_PREFIX = 'type_';
 
-// ✅ NEW: Key for storing student info as an object
 const STUDENT_INFO_KEY = 'studentInfo'; 
 
 /**
- * ✅ UPDATED: Gathers student info (Klasse and Name).
+ * Gathers student info (Klasse and Name).
  * Prompts the user if the info is not already in localStorage.
  * @returns {object|null} An object with {klasse, name} or null if aborted.
  */
@@ -45,27 +44,48 @@ async function getStudentInfo() {
     return studentInfo;
 }
 
-// ✅ REMOVED: The getSubmissionToken function is no longer needed.
 
+/**
+ * 🔄 UPDATED: Gathers all individual question answers from localStorage.
+ * The payload for each sub-assignment will now contain an 'answers' array.
+ * @param {object} studentInfo - The student's class and name.
+ * @returns {object|null} The complete data payload for submission or null.
+ */
 async function gatherAllDataForSubmission(studentInfo) {
     if (!studentInfo) return null;
 
     const allDataPayload = {};
-    const answerRegex = new RegExp(`^${ANSWER_PREFIX}(.+)_sub_(.+)$`);
+    
+    // 🔄 Regex now captures assignmentId, subId, AND questionId from the key.
+    const answerRegex = new RegExp(`^${ANSWER_PREFIX}(.+)_sub_(.+)_q_(.+)$`);
 
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         const match = key.match(answerRegex);
         if (match) {
-            const [, assignmentId, subId] = match;
-            if (!allDataPayload[assignmentId]) allDataPayload[assignmentId] = {};
+            const [, assignmentId, subId, questionId] = match;
             
-            allDataPayload[assignmentId][subId] = {
-                answer: localStorage.getItem(key) || '',
-                title: localStorage.getItem(`${TITLE_PREFIX}${assignmentId}_sub_${subId}`) || '',
-                type: localStorage.getItem(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`) || '',
-                questions: JSON.parse(localStorage.getItem(`${QUESTIONS_PREFIX}${assignmentId}_sub_${subId}`) || '[]')
-            };
+            // Initialize assignment container if it's the first time we see it
+            if (!allDataPayload[assignmentId]) {
+                allDataPayload[assignmentId] = {};
+            }
+            
+            // Initialize sub-assignment container
+            if (!allDataPayload[assignmentId][subId]) {
+                allDataPayload[assignmentId][subId] = {
+                    // Get metadata for this sub-assignment
+                    title: localStorage.getItem(`${TITLE_PREFIX}${assignmentId}_sub_${subId}`) || subId,
+                    type: localStorage.getItem(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`) || 'quill',
+                    questions: JSON.parse(localStorage.getItem(`${QUESTIONS_PREFIX}${assignmentId}_sub_${subId}`) || '[]'),
+                    answers: [] // ✅ NEW: Use an array for answers
+                };
+            }
+            
+            // Add the specific question's answer to the array
+            allDataPayload[assignmentId][subId].answers.push({
+                questionId: questionId,
+                answer: localStorage.getItem(key) || ''
+            });
         }
     }
 
@@ -74,7 +94,6 @@ async function gatherAllDataForSubmission(studentInfo) {
         return null;
     }
 
-    // ✅ UPDATED: Identifier is now a combination of class and name.
     const identifier = `${studentInfo.klasse}_${studentInfo.name}`;
 
     return {
@@ -88,7 +107,7 @@ async function gatherAllDataForSubmission(studentInfo) {
 
 
 /**
- * ✅ NEW: Creates and shows a custom confirmation dialog.
+ * Creates and shows a custom confirmation dialog.
  * @param {object} studentInfo - The student's {klasse, name}.
  * @returns {Promise<boolean>} A promise that resolves to true if confirmed, false if canceled.
  */
@@ -143,7 +162,6 @@ export async function submitAllAssignments() {
     const studentInfo = await getStudentInfo();
     if (!studentInfo) return; // Aborted during info gathering
     
-    // ✅ UPDATED: Show custom confirmation dialog instead of generic confirm()
     const isConfirmed = await showConfirmationDialog(studentInfo);
     if (!isConfirmed) {
         alert("Aktion abgebrochen.");
@@ -173,7 +191,6 @@ export async function submitAllAssignments() {
                 action: 'submit',
                 identifier: submissionData.identifier,
                 payload: submissionData.payload
-                // ✅ REMOVED: submissionToken is no longer sent
             })
         });
         const result = await response.json();

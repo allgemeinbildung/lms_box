@@ -14,11 +14,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const classFilterContainer = document.getElementById('class-filter-container');
     const viewerContent = document.getElementById('viewer-content');
     const viewerPlaceholder = document.getElementById('viewer-placeholder');
-    const downloadBtn = document.getElementById('download-btn'); // ✅ NEU
-    const downloadBtnText = document.getElementById('download-btn-text'); // ✅ NEU
-    const downloadStatus = document.getElementById('download-status'); // ✅ NEU
+    const downloadBtn = document.getElementById('download-btn');
+    const downloadBtnText = document.getElementById('download-btn-text');
+    const downloadStatus = document.getElementById('download-status');
 
-    let fullSubmissionData = {}; // Store the complete submission map
+    let fullSubmissionData = {};
 
     // --- Authentication ---
     const checkAuth = () => {
@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 Object.assign(normalizedSubmissionMap[normalizedClassName], rawSubmissionMap[className]);
             }
             
-            fullSubmissionData = normalizedSubmissionMap; // ✅ NEU: Globale Daten speichern
+            fullSubmissionData = normalizedSubmissionMap;
             renderClassFilter(Object.keys(normalizedSubmissionMap));
             renderSubmissionsList(normalizedSubmissionMap);
 
@@ -148,10 +148,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return data;
         } catch (error) {
             console.error(`Fehler beim Laden der Abgabe [${path}]:`, error);
-            return null; // Return null on error
+            return null;
         }
     };
 
+    /**
+     * 🔄 UPDATED: Renders the submission content, pairing questions with their answers.
+     * @param {string} path - The path to the submission file.
+     */
     const fetchAndRenderSubmission = async (path) => {
         viewerPlaceholder.style.display = 'none';
         viewerContent.innerHTML = '<p>Lade Inhalt...</p>';
@@ -168,22 +172,40 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const subId in data.assignments[assignmentId]) {
                 const subData = data.assignments[assignmentId][subId];
                 contentHtml += `<div class="assignment-block">
-                                    <h2>${subData.title}</h2>
-                                    <div class="answer-box"><div class="ql-snow"><div class="ql-editor">${subData.answer}</div></div></div>
-                                </div>`;
+                                    <h2>${subData.title}</h2>`;
+
+                // 🔄 Check for the new 'answers' array structure
+                if (subData.answers && Array.isArray(subData.answers)) {
+                    const answerMap = new Map(subData.answers.map(a => [a.questionId, a.answer]));
+                    
+                    // Loop through the original questions to maintain order
+                    subData.questions.forEach((question, index) => {
+                        const answer = answerMap.get(question.id) || '<p><i>Keine Antwort abgegeben.</i></p>';
+                        contentHtml += `
+                            <div style="margin-top: 1.5em;">
+                                <p style="font-weight: bold; margin-bottom: 0.5em;">Frage ${index + 1}: ${question.text}</p>
+                                <div class="answer-box"><div class="ql-snow"><div class="ql-editor">${answer}</div></div></div>
+                            </div>
+                        `;
+                    });
+
+                } else if (subData.answer) { // Fallback for old data structure
+                    contentHtml += `<div class="answer-box"><div class="ql-snow"><div class="ql-editor">${subData.answer}</div></div></div>`;
+                }
+
+                contentHtml += `</div>`;
             }
         }
         viewerContent.innerHTML = contentHtml;
     };
     
-    // --- ✅ NEU: Download & Sync Logic ---
+    // --- Download & Sync Logic (No changes needed here) ---
     const downloadSubmissions = async () => {
         if (!window.showDirectoryPicker) {
             alert("Dein Browser unterstützt diese Funktion nicht. Bitte nutze einen aktuellen Browser wie Chrome oder Edge.");
             return;
         }
 
-        // 1. Get selected classes
         const selectedClass = document.getElementById('class-filter').value;
         const classesToDownload = selectedClass === 'all' 
             ? Object.keys(fullSubmissionData)
@@ -228,18 +250,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (submissionContent) {
                 try {
                      const fileHandle = await studentHandle.getFileHandle(fileName, { create: false });
-                     // Sync-Check: Wenn die Datei existiert, vergleichen wir den Inhalt.
                      const existingFile = await fileHandle.getFile();
                      const existingText = await existingFile.text();
                      if (existingText === JSON.stringify(submissionContent, null, 2)) {
                          console.log(`Datei ${fileName} ist aktuell. Überspringe.`);
-                         continue; // Skip to next file
+                         continue;
                      }
                 } catch (e) {
                     // File does not exist, which is fine. We'll create it.
                 }
                 
-                // Write or overwrite the file
                 const writable = await (await studentHandle.getFileHandle(fileName, { create: true })).createWritable();
                 await writable.write(JSON.stringify(submissionContent, null, 2));
                 await writable.close();
