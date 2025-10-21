@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────────
 //
 import { SCRIPT_URL } from './config.js';
+import * as storage from './storage.js';
 
 const ANSWER_PREFIX = 'modular-answer_';
 const QUESTIONS_PREFIX = 'modular-questions_';
@@ -14,15 +15,12 @@ const STUDENT_INFO_KEY = 'studentInfo';
 const STUDENT_INFO_VERSION_KEY = 'studentInfoVersion';
 const CURRENT_INFO_VERSION = 2;
 
-
-// ✅ NEU: Aktualisierte und kompakte Klassenliste
 const PREDEFINED_CLASSES = ['PK25a', 'PG24c', 'AB23a', 'PR23a', 'FFKI25'];
 
-
 /**
- * ✅ AKTUALISIERT: Der Dialog ist jetzt kleiner und kompakter.
- * @param {object|null} existingInfo - Vorhandene Schülerinformationen zum Vorausfüllen.
- * @returns {Promise<object|null>} Ein Promise, das mit {klasse, name} aufgelöst wird oder null, wenn abgebrochen.
+ * Creates and shows a compact dialog for student info input.
+ * @param {object|null} existingInfo - Existing student info to pre-fill.
+ * @returns {Promise<object|null>} A promise that resolves with {klasse, name} or null if canceled.
  */
 function showStudentInfoDialog(existingInfo = null) {
     return new Promise((resolve) => {
@@ -43,7 +41,6 @@ function showStudentInfoDialog(existingInfo = null) {
 
         const prefilledName = existingInfo ? existingInfo.name : '';
 
-        // ✅ Kompaktere HTML-Struktur mit reduzierten Abständen und Schriftgrössen
         dialog.innerHTML = `
             <div style="background: white; padding: 1.5em 2em; border-radius: 10px; max-width: 480px; width: 90%; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
                 <h3 style="margin-top: 0; margin-bottom: 0.5em; font-size: 1.2em; text-align: center;">Daten für die Abgabe</h3>
@@ -125,16 +122,12 @@ function showStudentInfoDialog(existingInfo = null) {
 
 
 /**
- * Erzwingt eine Neueingabe, wenn die gespeicherten Daten veraltet sind.
+ * Gathers student info, using IndexedDB and forcing re-entry if data is outdated.
  * @returns {object|null} An object with {klasse, name} or null if aborted.
  */
 async function getStudentInfo() {
-    let storedInfo = null;
-    try {
-        storedInfo = JSON.parse(localStorage.getItem(STUDENT_INFO_KEY));
-    } catch (e) { /* Ignorieren, wenn die Daten ungültig sind */ }
-
-    const infoVersion = localStorage.getItem(STUDENT_INFO_VERSION_KEY);
+    const storedInfo = await storage.get(STUDENT_INFO_KEY);
+    const infoVersion = await storage.get(STUDENT_INFO_VERSION_KEY);
 
     if (storedInfo && parseInt(infoVersion) === CURRENT_INFO_VERSION) {
         return storedInfo;
@@ -146,14 +139,14 @@ async function getStudentInfo() {
         return null;
     }
 
-    localStorage.setItem(STUDENT_INFO_KEY, JSON.stringify(studentInfo));
-    localStorage.setItem(STUDENT_INFO_VERSION_KEY, CURRENT_INFO_VERSION);
+    await storage.set(STUDENT_INFO_KEY, studentInfo);
+    await storage.set(STUDENT_INFO_VERSION_KEY, CURRENT_INFO_VERSION);
     return studentInfo;
 }
 
 
 /**
- * Gathers all individual question answers from localStorage.
+ * Gathers all individual question answers from IndexedDB for submission.
  * @param {object} studentInfo - The student's class and name.
  * @returns {object|null} The complete data payload for submission or null.
  */
@@ -163,8 +156,10 @@ async function gatherAllDataForSubmission(studentInfo) {
     const allDataPayload = {};
     const answerRegex = new RegExp(`^${ANSWER_PREFIX}(.+)_sub_(.+)_q_(.+)$`);
 
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
+    const allStoredData = await storage.getAll();
+    const dataMap = new Map(allStoredData.map(item => [item.key, item.value]));
+
+    for (const [key, value] of dataMap.entries()) {
         const match = key.match(answerRegex);
         if (match) {
             const [, assignmentId, subId, questionId] = match;
@@ -174,17 +169,22 @@ async function gatherAllDataForSubmission(studentInfo) {
             }
             
             if (!allDataPayload[assignmentId][subId]) {
+                const title = dataMap.get(`${TITLE_PREFIX}${assignmentId}_sub_${subId}`) || subId;
+                const type = dataMap.get(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`) || 'quill';
+                const questionsStr = dataMap.get(`${QUESTIONS_PREFIX}${assignmentId}_sub_${subId}`);
+                const questions = questionsStr ? JSON.parse(questionsStr) : [];
+
                 allDataPayload[assignmentId][subId] = {
-                    title: localStorage.getItem(`${TITLE_PREFIX}${assignmentId}_sub_${subId}`) || subId,
-                    type: localStorage.getItem(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`) || 'quill',
-                    questions: JSON.parse(localStorage.getItem(`${QUESTIONS_PREFIX}${assignmentId}_sub_${subId}`) || '[]'),
+                    title,
+                    type,
+                    questions,
                     answers: []
                 };
             }
             
             allDataPayload[assignmentId][subId].answers.push({
                 questionId: questionId,
-                answer: localStorage.getItem(key) || ''
+                answer: value || ''
             });
         }
     }
@@ -243,9 +243,9 @@ function showConfirmationDialog(studentInfo) {
             dialog.remove();
             resolve(true);
         };
-        document.getElementById('confirm-edit').onclick = () => {
-            localStorage.removeItem(STUDENT_INFO_KEY);
-            localStorage.removeItem(STUDENT_INFO_VERSION_KEY);
+        document.getElementById('confirm-edit').onclick = async () => {
+            await storage.remove(STUDENT_INFO_KEY);
+            await storage.remove(STUDENT_INFO_VERSION_KEY);
             dialog.remove();
             submitAllAssignments();
             resolve(false);

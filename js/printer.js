@@ -1,16 +1,18 @@
 import { SCRIPT_URL } from './config.js';
+import * as storage from './storage.js';
 
 const ANSWER_PREFIX = 'modular-answer_';
 const QUESTIONS_PREFIX = 'modular-questions_';
 const TITLE_PREFIX = 'title_';
 
 /**
- * 🔄 UPDATED: Gathers all data for printing, including individual answers for each question.
+ * Gathers all data for printing from IndexedDB and the server.
  * @param {string} assignmentId The ID of the assignment to gather data for.
  * @returns {Promise<object>} An object containing the assignment title, student identifier, and all sub-assignments.
  */
 async function gatherAssignmentData(assignmentId) {
-    const studentIdentifier = localStorage.getItem('studentIdentifier') || 'Unbekannter Schüler';
+    const studentInfo = await storage.get('studentInfo');
+    const studentIdentifier = studentInfo ? studentInfo.name : 'Unbekannter Schüler';
     let mainTitle = `Aufgabe: ${assignmentId}`;
     let serverSubAssignments = {};
 
@@ -26,15 +28,15 @@ async function gatherAssignmentData(assignmentId) {
             serverSubAssignments = data.subAssignments;
         }
     } catch (e) {
-        console.warn(`Could not fetch full assignment data from server for printing. Falling back to localStorage data only. Reason: ${e.message}`);
+        console.warn(`Could not fetch full assignment data from server for printing. Falling back to local data only. Reason: ${e.message}`);
     }
 
-    // 2. Secondary Source: A thorough scan of localStorage for all relevant data
+    // 2. Secondary Source: A thorough scan of IndexedDB for all relevant data
     const localSubAssignments = {};
+    const allStoredData = await storage.getAll();
+    const dataMap = new Map(allStoredData.map(item => [item.key, item.value]));
     
-    // Find all sub-assignments that have been worked on by looking for their titles
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
+    for (const [key, value] of dataMap.entries()) {
         if (key.startsWith(TITLE_PREFIX)) {
             const keyContent = key.substring(TITLE_PREFIX.length);
             const expectedStart = `${assignmentId}_sub_`;
@@ -42,20 +44,20 @@ async function gatherAssignmentData(assignmentId) {
                 const subId = keyContent.substring(expectedStart.length);
 
                 if (!localSubAssignments[subId]) {
-                    const questions = JSON.parse(localStorage.getItem(`${QUESTIONS_PREFIX}${assignmentId}_sub_${subId}`) || '[]');
+                    const questionsStr = dataMap.get(`${QUESTIONS_PREFIX}${assignmentId}_sub_${subId}`);
+                    const questions = questionsStr ? JSON.parse(questionsStr) : [];
                     const answers = [];
 
-                    // For each question, find its corresponding answer in localStorage
                     questions.forEach(q => {
                         const answerKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}_q_${q.id}`;
-                        const answer = localStorage.getItem(answerKey) || '';
+                        const answer = dataMap.get(answerKey) || '';
                         answers.push({ questionId: q.id, answer });
                     });
 
                     localSubAssignments[subId] = {
-                        title: localStorage.getItem(key) || subId,
+                        title: value || subId,
                         questions: questions,
-                        answers: answers // ✅ NEW: Store answers in an array
+                        answers: answers
                     };
                 }
             }
@@ -74,13 +76,10 @@ async function gatherAssignmentData(assignmentId) {
         const localData = localSubAssignments[subId] || {};
 
         finalSubAssignments[subId] = {
-            // Prefer the official server title, fall back to local, then to the subId itself.
             title: serverData.title || localData.title || subId,
-            // Prefer official server questions, fall back to what was saved locally.
             questions: (serverData.questions && serverData.questions.length > 0) 
                        ? serverData.questions 
                        : (localData.questions || []),
-            // User's answers are always from local storage.
             answers: localData.answers || []
         };
     }
@@ -104,7 +103,7 @@ function convertMarkdownToHTML(text) {
 }
 
 /**
- * 🔄 UPDATED: Generates HTML that displays each question followed by its answer.
+ * Generates HTML that displays each question followed by its answer.
  * @param {object} data - The prepared data for printing.
  * @returns {string} The complete HTML for the print window.
  */
@@ -116,7 +115,6 @@ function generatePrintHTML(data) {
         const subData = data.subAssignments[subId];
         bodyContent += `<div class="sub-assignment"><h2>${convertMarkdownToHTML(subData.title)}</h2>`;
         
-        // 🔄 Loop through questions to pair them with their answers
         if (subData.questions && subData.questions.length > 0) {
             const answerMap = new Map(subData.answers.map(a => [a.questionId, a.answer]));
 

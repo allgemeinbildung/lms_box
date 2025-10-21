@@ -1,4 +1,5 @@
 import { SCRIPT_URL } from './config.js';
+import * as storage from './storage.js';
 
 const ANSWER_PREFIX = 'modular-answer_';
 const QUESTIONS_PREFIX = 'modular-questions_';
@@ -116,11 +117,8 @@ function renderQuill(data, assignmentId, subId) {
         questionText.style.fontSize = '1.1em';
         questionBlock.appendChild(questionText);
 
-        // ✅ FIX: Sanitize the question.id to create a valid CSS selector.
-        // This replaces characters like '.' with '-' for the HTML element's ID.
         const sanitizedQuestionId = String(question.id).replace(/[^a-zA-Z0-9-_]/g, '-');
         
-        // Create a unique editor div for this question using the sanitized ID
         const editorDiv = document.createElement('div');
         const editorId = `quill-editor-${sanitizedQuestionId}`;
         editorDiv.id = editorId;
@@ -128,34 +126,42 @@ function renderQuill(data, assignmentId, subId) {
         
         contentRenderer.appendChild(questionBlock);
 
-        // Initialize Quill on the unique editor div
         const quill = new Quill(`#${editorId}`, { theme: 'snow' });
-
-        // IMPORTANT: Use the ORIGINAL question.id for the storage key to maintain data integrity.
         const storageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}_q_${question.id}`;
 
-        // DISABLE PASTING
         quill.root.addEventListener('paste', (e) => {
             e.preventDefault();
             showTemporaryMessage('Einfügen ist deaktiviert, um die Kreativität und das kritische Denken zu fördern.', quill.root);
         });
 
-        // Load saved answer from localStorage
-        quill.root.innerHTML = localStorage.getItem(storageKey) || '';
+        // Load saved answer from IndexedDB (with fallback to localStorage for migration)
+        storage.get(storageKey).then(savedAnswer => {
+            const localAnswer = localStorage.getItem(storageKey);
+            if (savedAnswer) {
+                quill.root.innerHTML = savedAnswer;
+            } else if (localAnswer) {
+                // If found in localStorage, display it, save to IndexedDB, and clean up
+                quill.root.innerHTML = localAnswer;
+                storage.set(storageKey, localAnswer).then(() => {
+                    localStorage.removeItem(storageKey);
+                });
+            }
+        });
 
-        // Save content to localStorage on change
-        quill.on('text-change', debounce(() => {
+        // Save content to IndexedDB on change
+        quill.on('text-change', debounce(async () => {
             const htmlContent = quill.root.innerHTML;
             if (htmlContent && htmlContent !== '<p><br></p>') {
-                localStorage.setItem(storageKey, htmlContent);
+                await storage.set(storageKey, htmlContent);
             } else {
-                localStorage.removeItem(storageKey);
+                await storage.remove(storageKey);
             }
         }, 500));
     });
 
 
     // --- Secure, Assignment-Specific Solution Unlock Logic ---
+    // This uses localStorage for non-critical data, which is fine.
     const displaySolution = () => {
         const solutionData = data.solution;
         const solutionMap = new Map(solutionData.solutions.map(s => [s.id, s.answer]));
@@ -255,16 +261,16 @@ function renderQuill(data, assignmentId, subId) {
  * @param {string} assignmentId - The ID of the assignment.
  * @param {string} subId - The ID of the specific sub-assignment to render.
  */
-export function renderSubAssignment(assignmentData, assignmentId, subId) {
+export async function renderSubAssignment(assignmentData, assignmentId, subId) {
     const subAssignmentData = assignmentData.subAssignments[subId];
 
     document.getElementById('sub-title').textContent = subId;
     document.getElementById('content-renderer').innerHTML = '';
 
-    // Save metadata to localStorage for other modules
-    localStorage.setItem(`${QUESTIONS_PREFIX}${assignmentId}_sub_${subId}`, JSON.stringify(subAssignmentData.questions));
-    localStorage.setItem(`${TITLE_PREFIX}${assignmentId}_sub_${subId}`, subId);
-    localStorage.setItem(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`, subAssignmentData.type);
+    // Save metadata to IndexedDB for other modules
+    await storage.set(`${QUESTIONS_PREFIX}${assignmentId}_sub_${subId}`, JSON.stringify(subAssignmentData.questions));
+    await storage.set(`${TITLE_PREFIX}${assignmentId}_sub_${subId}`, subId);
+    await storage.set(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`, subAssignmentData.type);
 
     if (subAssignmentData.type === 'quill') {
         renderQuill(subAssignmentData, assignmentId, subId);
