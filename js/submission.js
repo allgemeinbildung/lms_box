@@ -11,19 +11,16 @@ const TITLE_PREFIX = 'title_';
 const TYPE_PREFIX = 'type_';
 
 const STUDENT_INFO_KEY = 'studentInfo';
-// ✅ NEU: Schlüssel für die Versionierung der gespeicherten Daten.
-// Dies zwingt alte Benutzer, ihre Klasse einmalig neu auszuwählen.
 const STUDENT_INFO_VERSION_KEY = 'studentInfoVersion';
-const CURRENT_INFO_VERSION = 2; // Erhöhen Sie diese Zahl, um eine erneute Eingabe in der Zukunft zu erzwingen.
+const CURRENT_INFO_VERSION = 2;
 
 
-// ✅ NEU: Konfiguration für vordefinierte Klassen
-// Passen Sie diese Liste an Ihre Bedürfnisse an.
-const PREDEFINED_CLASSES = ['BG22a', 'BG22b', 'BG23a', 'BG23b', 'FMS22', 'FMS23'];
+// ✅ NEU: Aktualisierte und kompakte Klassenliste
+const PREDEFINED_CLASSES = ['PK25a', 'PG24c', 'AB23a', 'PR23a', 'FFKI25'];
 
 
 /**
- * ✅ AKTUALISIERT: Der Dialog kann nun vorhandene Daten (den Namen) vorausfüllen.
+ * ✅ AKTUALISIERT: Der Dialog ist jetzt kleiner und kompakter.
  * @param {object|null} existingInfo - Vorhandene Schülerinformationen zum Vorausfüllen.
  * @returns {Promise<object|null>} Ein Promise, das mit {klasse, name} aufgelöst wird oder null, wenn abgebrochen.
  */
@@ -44,37 +41,37 @@ function showStudentInfoDialog(existingInfo = null) {
             `<button type="button" class="class-btn" data-klasse="${cls}">${cls}</button>`
         ).join('');
 
-        // ✅ Füllt den Namen des Schülers voraus, falls vorhanden.
         const prefilledName = existingInfo ? existingInfo.name : '';
 
+        // ✅ Kompaktere HTML-Struktur mit reduzierten Abständen und Schriftgrössen
         dialog.innerHTML = `
-            <div style="background: white; padding: 2em 2.5em; border-radius: 12px; max-width: 500px; width: 90%; box-shadow: 0 5px 20px rgba(0,0,0,0.2);">
-                <h3 style="margin-top: 0; font-size: 1.4em; text-align: center;">Daten für die Abgabe</h3>
-                <p style="text-align: center; color: #555;">Bitte wähle deine Klasse aus und gib deinen Namen ein.</p>
+            <div style="background: white; padding: 1.5em 2em; border-radius: 10px; max-width: 480px; width: 90%; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                <h3 style="margin-top: 0; margin-bottom: 0.5em; font-size: 1.2em; text-align: center;">Daten für die Abgabe</h3>
+                <p style="text-align: center; color: #555; font-size: 0.9em; margin-top: 0; margin-bottom: 1.2em;">Bitte wähle deine Klasse und gib deinen Namen ein.</p>
                 
-                <div style="margin-bottom: 1.5em;">
-                    <label style="display: block; font-weight: bold; margin-bottom: 0.5em;">Klasse:</label>
-                    <div id="class-selection-container" style="display: flex; flex-wrap: wrap; gap: 10px;">
+                <div style="margin-bottom: 1em;">
+                    <label style="display: block; font-weight: bold; margin-bottom: 0.4em; font-size: 0.9em;">Klasse:</label>
+                    <div id="class-selection-container" style="display: flex; flex-wrap: wrap; gap: 8px;">
                         ${classButtonsHTML}
                         <button type="button" class="class-btn" data-klasse="other">Andere...</button>
                     </div>
-                    <input type="text" id="custom-class-input" placeholder="Eigene Klasse eingeben..." style="display: none; width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box;">
+                    <input type="text" id="custom-class-input" placeholder="Eigene Klasse eingeben..." style="display: none; width: 100%; padding: 8px; margin-top: 8px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 0.9em;">
                 </div>
 
-                <div style="margin-bottom: 2em;">
-                    <label for="student-name-input" style="display: block; font-weight: bold; margin-bottom: 0.5em;">Name:</label>
-                    <input type="text" id="student-name-input" placeholder="Vorname Nachname" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box;" value="${prefilledName}">
+                <div style="margin-bottom: 1.2em;">
+                    <label for="student-name-input" style="display: block; font-weight: bold; margin-bottom: 0.4em; font-size: 0.9em;">Name:</label>
+                    <input type="text" id="student-name-input" placeholder="Vorname Nachname" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 0.9em;" value="${prefilledName}">
                 </div>
                 
-                <p id="info-dialog-error" style="color: #d9534f; text-align: center; min-height: 1.2em; margin-top: -1em; margin-bottom: 1em;"></p>
+                <p id="info-dialog-error" style="color: #d9534f; text-align: center; min-height: 1.2em; margin-top: -0.5em; margin-bottom: 0.8em; font-size: 0.85em;"></p>
 
-                <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                    <button id="info-cancel-btn" style="padding: 10px 20px; border: 1px solid #6c757d; background-color: transparent; color: #6c757d; border-radius: 5px; cursor: pointer;">Abbrechen</button>
-                    <button id="info-save-btn" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">Speichern & Weiter</button>
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button id="info-cancel-btn" style="padding: 8px 16px; border: 1px solid #6c757d; background-color: transparent; color: #6c757d; border-radius: 5px; cursor: pointer; font-size: 0.9em;">Abbrechen</button>
+                    <button id="info-save-btn" style="padding: 8px 16px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 0.9em;">Speichern & Weiter</button>
                 </div>
             </div>
             <style>
-                .class-btn { padding: 10px 15px; border: 1px solid #ccc; background-color: #f0f0f0; color: #333; border-radius: 5px; cursor: pointer; transition: background-color 0.2s, border-color 0.2s; }
+                .class-btn { padding: 8px 12px; border: 1px solid #ccc; background-color: #f0f0f0; color: #333; border-radius: 5px; cursor: pointer; transition: background-color 0.2s, border-color 0.2s; font-size: 0.9em; }
                 .class-btn:hover { background-color: #e0e0e0; }
                 .class-btn.active { background-color: #007bff; color: white; border-color: #007bff; font-weight: bold; }
             </style>
@@ -128,7 +125,7 @@ function showStudentInfoDialog(existingInfo = null) {
 
 
 /**
- * ✅ AKTUALISIERT: Erzwingt eine Neueingabe, wenn die gespeicherten Daten veraltet sind.
+ * Erzwingt eine Neueingabe, wenn die gespeicherten Daten veraltet sind.
  * @returns {object|null} An object with {klasse, name} or null if aborted.
  */
 async function getStudentInfo() {
@@ -139,20 +136,16 @@ async function getStudentInfo() {
 
     const infoVersion = localStorage.getItem(STUDENT_INFO_VERSION_KEY);
 
-    // ✅ Wenn Daten vorhanden und die Version aktuell ist, direkt verwenden.
     if (storedInfo && parseInt(infoVersion) === CURRENT_INFO_VERSION) {
         return storedInfo;
     }
 
-    // ✅ Andernfalls (neuer Benutzer oder alte Version), den Dialog anzeigen.
-    // 'storedInfo' wird übergeben, um das Namensfeld vorauszufüllen.
     const studentInfo = await showStudentInfoDialog(storedInfo);
     if (!studentInfo) {
         alert('Aktion abgebrochen.');
         return null;
     }
 
-    // ✅ Speichert die neuen Daten UND die aktuelle Versionsnummer.
     localStorage.setItem(STUDENT_INFO_KEY, JSON.stringify(studentInfo));
     localStorage.setItem(STUDENT_INFO_VERSION_KEY, CURRENT_INFO_VERSION);
     return studentInfo;
@@ -251,7 +244,6 @@ function showConfirmationDialog(studentInfo) {
             resolve(true);
         };
         document.getElementById('confirm-edit').onclick = () => {
-            // ✅ Löscht jetzt BEIDE Schlüssel, um eine saubere Neueingabe zu gewährleisten.
             localStorage.removeItem(STUDENT_INFO_KEY);
             localStorage.removeItem(STUDENT_INFO_VERSION_KEY);
             dialog.remove();
