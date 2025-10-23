@@ -1,9 +1,14 @@
-// Import the backend URL
+//
+// ────────────────────────────────────────────────────────────────
+//  :::::: F I L E :   d a s h b o a r d / l i v e v i e w . j s ::::::
+// ────────────────────────────────────────────────────────────────
+//
 import { SCRIPT_URL } from '../js/config.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     
     // --- 1. Authentication (Copied from teacher.js) ---
+    // These are the only DOM elements needed for login
     const loginOverlay = document.getElementById('login-overlay');
     const keyInput = document.getElementById('teacher-key-input');
     const loginBtn = document.getElementById('login-btn');
@@ -13,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const key = sessionStorage.getItem('teacherKey');
         if (key) {
             loginOverlay.classList.remove('visible');
-            // If authenticated, start loading the assignment
+            // ✅ HIER ÄNDERN: Rufe die neue Funktion für diese Seite auf
             loadLiveAssignment(key); 
         } else {
             loginOverlay.classList.add('visible');
@@ -36,8 +41,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Enter') attemptLogin();
     });
 
-    // --- 2. Main Application Logic ---
+    // --- 2. Main Application Logic (NEU) ---
+
+    /**
+     * Lädt und rendert die Live-Ansicht für eine bestimmte Aufgabe
+     */
     const loadLiveAssignment = async (teacherKey) => {
+        // Get elements from liveview.html
         const contentRenderer = document.getElementById('live-content-renderer');
         const loadingStatus = document.getElementById('loading-status');
 
@@ -52,10 +62,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            // --- 3. Fetch All Submissions (Multi-step process) ---
+            // --- 3. Alle Abgaben abrufen (Multi-Schritt-Prozess) ---
 
-            // Step 3a: Get the list of all submission files
-            [span_0](start_span)// (This logic is from fetchSubmissionsList in teacher.js[span_0](end_span))
+            // Schritt 3a: Hole die LISTE aller Abgabedateien
+            [span_0](start_span)// (Diese Logik ist von fetchSubmissionsList in teacher.js [cite: 65-71])
             const listResponse = await fetch(SCRIPT_URL, {
                 method: 'POST',
                 mode: 'cors',
@@ -65,12 +75,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const submissionMap = await listResponse.json();
             if (submissionMap.status === 'error') throw new Error(submissionMap.message);
 
-            // Step 3b: Create a flat list of all student files to fetch
+            // Schritt 3b: Erstelle eine flache Liste aller zu holenden Studentendateien
             const filesToFetch = [];
             for (const className in submissionMap) {
                 for (const studentName in submissionMap[className]) {
-                    // Find the latest submission file for each student
-                    const latestFile = submissionMap[className][studentName].sort((a, b) => b.name.localeCompare(a.name))[0];
+                    // Finde die NEUESTE Abgabedatei für jeden Schüler
+                    const latestFile = submissionMap[className][studentName]
+                        .sort((a, b) => b.name.localeCompare(a.name))[0];
+                    
                     if (latestFile) {
                         filesToFetch.push({ studentName, path: latestFile.path });
                     }
@@ -82,21 +94,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Step 3c: Fetch the *content* of every single file in parallel
+            // Schritt 3c: Hole den INHALT jeder einzelnen Datei
             loadingStatus.textContent = `Lade ${filesToFetch.length} Abgaben...`;
             
             const fetchPromises = filesToFetch.map(fileInfo => 
                 fetchSubmissionContent(teacherKey, fileInfo.path)
+                    // Hänge die Studentendaten an die Antwort an
                     .then(data => ({ ...fileInfo, submissionData: data }))
             );
             
             const allSubmissions = await Promise.all(fetchPromises);
 
-            // --- 4. Render the Content ---
+            // --- 4. Inhalte rendern ---
             renderAllAnswers(allSubmissions, assignmentId, subId);
 
         } catch (error) {
             contentRenderer.innerHTML = `<p style="color: red;">Fehler beim Laden der Abgaben: ${error.message}</p>`;
+            // Wichtig: Wenn der Schlüssel falsch ist, zeige das Login erneut an
             if (error.message.includes('Invalid teacher key')) {
                 sessionStorage.removeItem('teacherKey');
                 checkAuth();
@@ -105,8 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /**
-     * Fetches a single submission's content
-     * [span_1](start_span)(Based on fetchSubmissionContent in teacher.js [cite: 87-91])
+     * Holt den Inhalt einer einzelnen Abgabe vom Backend
+     * [cite_start](Basiert auf fetchSubmissionContent in teacher.js [cite: 87-91])
      */
     const fetchSubmissionContent = async (teacherKey, path) => {
         try {
@@ -121,23 +135,22 @@ document.addEventListener('DOMContentLoaded', () => {
             return data;
         } catch (error) {
             console.error(`Fehler beim Laden von ${path}:`, error);
-            return null; // Continue even if one file fails
+            return null; // Überspringe, wenn eine Datei fehlschlägt
         }
     };
 
     /**
-     * Renders all answers for the specific assignment
+     * Rendert alle Antworten für die spezifische Aufgabe
      */
     const renderAllAnswers = (allSubmissions, assignmentId, subId) => {
         const contentRenderer = document.getElementById('live-content-renderer');
-        contentRenderer.innerHTML = ''; // Clear loading message
+        contentRenderer.innerHTML = ''; // Lade-Meldung löschen
 
         let subAssignmentTitle = '';
         let questions = [];
-
-        // Filter submissions to get only the relevant ones
         const relevantAnswers = [];
         
+        // Filtere alle Abgaben, um nur die relevanten Antworten zu finden
         for (const submission of allSubmissions) {
             if (!submission.submissionData || !submission.submissionData.assignments) continue;
 
@@ -147,18 +160,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const subAssignment = assignment[subId];
             if (!subAssignment) continue;
             
-            // Save title and questions from the first student we find
+            // Speichere Titel und Fragenstruktur (wir brauchen sie nur einmal)
             if (!subAssignmentTitle) {
                 subAssignmentTitle = subAssignment.title;
                 questions = subAssignment.questions || [];
-                // Update page titles
-                document.getElementById('main-title').textContent = submission.submissionData.assignments[assignmentId]?.title || assignmentId;
+                // Seitentitel aktualisieren
+                document.getElementById('main-title').textContent = assignmentId;
                 document.getElementById('sub-title').textContent = subAssignmentTitle;
             }
             
             relevantAnswers.push({
                 studentName: submission.studentName,
-                [cite_start]answers: subAssignment.answers || [] // New structure[span_1](end_span)
+                [cite_start]answers: subAssignment.answers || [] //[span_0](end_span)
             });
         }
         
@@ -167,23 +180,26 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Loop through each QUESTION and display all student answers for it
+        // Gehe durch jede FRAGE und zeige alle Schülerantworten dafür an
         let html = '';
         questions.forEach((question, index) => {
-            [span_2](start_span)// Use 'assignment-block' style from teacher.css[span_2](end_span)
+            [span_1](start_span)// Verwende 'assignment-block' Stil von teacher.css[span_1](end_span)
             html += `<div class="assignment-block">`;
             html += `<h2>Frage ${index + 1}: ${question.text}</h2>`;
 
-            // Now loop through all students
+            // Sortiere Schüler alphabetisch
+            relevantAnswers.sort((a, b) => a.studentName.localeCompare(b.studentName));
+
+            // Gehe nun alle Schüler durch
             relevantAnswers.forEach(student => {
                 const answerMap = new Map(student.answers.map(a => [a.questionId, a.answer]));
                 const answer = answerMap.get(question.id) || '<p><i>Keine Antwort abgegeben.</i></p>';
 
                 html += `<div style="margin-top: 1.5em;">`;
-                // This is the requirement: "The name of the student is set above the answer"
+                // Deine Anforderung: "Der Name des Schülers steht über der Antwort"
                 html += `<p style="font-weight: bold; margin-bottom: 0.5em;">${student.studentName}</p>`;
                 
-                [span_3](start_span)[span_4](start_span)// Use 'answer-box' styles from teacher.css[span_3](end_span)[span_4](end_span)
+                [span_2](start_span)// Verwende 'answer-box' Stile von teacher.css[span_2](end_span)
                 html += `<div class="answer-box"><div class="ql-snow"><div class="ql-editor">${answer}</div></div></div>`;
                 html += `</div>`;
             });
@@ -194,6 +210,6 @@ document.addEventListener('DOMContentLoaded', () => {
         contentRenderer.innerHTML = html;
     };
 
-    // --- Initial Load ---
+    // --- Initialer Ladevorgang ---
     checkAuth();
 });
