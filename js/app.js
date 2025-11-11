@@ -7,7 +7,7 @@ import { authenticate } from './auth.js';
 document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const assignmentId = urlParams.get('assignmentId');
-    const subId = urlParams.get('subId');
+    const subId = url_params.get('subId');
     const mode = urlParams.get('mode') === 'test' ? 'test' : 'live';
 
     if (!assignmentId || !subId) {
@@ -24,8 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { key: studentKey, studentInfo } = authData;
     console.log(`Authenticated as ${studentInfo.name} in ${mode} mode.`);
 
-    // ✅ FIX IS HERE: Pass studentInfo to the submit function
-    document.getElementById('submit-all').addEventListener('click', () => submitAllAssignments(studentKey, studentInfo, mode));
+    // The line that referenced 'submit-all' has been removed.
     document.getElementById('print-answers').addEventListener('click', () => printAssignmentAnswers(assignmentId));
 
     try {
