@@ -7,7 +7,7 @@ import { authenticate } from './auth.js';
 document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const assignmentId = urlParams.get('assignmentId');
-    const subId = url_params.get('subId');
+    const subId = urlParams.get('subId'); // ✅ FIX: Corrected 'url_params' to 'urlParams'
     const mode = urlParams.get('mode') === 'test' ? 'test' : 'live';
 
     if (!assignmentId || !subId) {
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { key: studentKey, studentInfo } = authData;
     console.log(`Authenticated as ${studentInfo.name} in ${mode} mode.`);
 
-    // The line that referenced 'submit-all' has been removed.
+    // ✅ FIX: The line referencing 'submit-all' is correctly removed.
     document.getElementById('print-answers').addEventListener('click', () => printAssignmentAnswers(assignmentId));
 
     try {
