@@ -20,12 +20,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let fullSubmissionData = {};
 
-    // --- Authentication (No changes needed) ---
+    // --- Authentication (No changes) ---
     const checkAuth = () => {
         const key = sessionStorage.getItem('teacherKey');
         if (key) {
             loginOverlay.classList.remove('visible');
-            // ✅ UPDATED: Call the new function to fetch drafts
             fetchDraftsList(key);
         } else {
             loginOverlay.classList.add('visible');
@@ -50,23 +49,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Data Fetching and Rendering ---
 
-    /**
-     * ✅ UPDATED: Fetches the list of all available student drafts from the backend.
-     * @param {string} teacherKey - The authentication key for the teacher.
-     */
     const fetchDraftsList = async (teacherKey) => {
         try {
             const response = await fetch(SCRIPT_URL, {
                 method: 'POST',
                 mode: 'cors',
                 headers: { 'Content-Type': 'application/json' },
-                // ✅ UPDATED: The action now requests 'listDrafts'
                 body: JSON.stringify({ action: 'listDrafts', teacherKey })
             });
             const data = await response.json();
             if (data.status === 'error') throw new Error(data.message);
             
-            // The normalization logic for class names remains useful
             const rawDraftMap = data;
             const normalizedDraftMap = {};
 
@@ -117,8 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     /**
-     * ✅ UPDATED: Renders the list of students and a single link to their latest draft.
-     * @param {object} submissionMap - The map of classes, students, and their draft info.
+     * ✅ UPDATED: Renders a list of draft links for each student.
      */
     const renderSubmissionsList = (submissionMap) => {
         if (Object.keys(submissionMap).length === 0) {
@@ -135,11 +127,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const sortedStudents = Object.keys(students).sort();
 
             for (const studentName of sortedStudents) {
-                const draftInfo = students[studentName]; // This is now an object, not an array
                 html += `<div class="student-group">
                              <div class="student-name">${studentName}</div>`;
-                // ✅ UPDATED: Display a single link for the latest draft
-                html += `<a class="submission-file" data-path="${draftInfo.path}">Latest Draft</a>`;
+                
+                // ✅ The backend now sends an array of drafts for each student.
+                const drafts = students[studentName];
+                drafts.sort((a, b) => a.name.localeCompare(b.name)); // Sort drafts alphabetically
+
+                // ✅ Loop through the array and create a link for each draft.
+                drafts.forEach(draft => {
+                    html += `<a class="submission-file" data-path="${draft.path}">${draft.name}</a>`;
+                });
+
                 html += `</div>`;
             }
             html += `</div>`;
@@ -147,10 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
         submissionListContainer.innerHTML = html;
     };
 
-    /**
-     * ✅ UPDATED: Fetches the content of a single student draft.
-     * @param {string} path - The path to the draft file in the bucket.
-     */
+    // fetchDraftContent and fetchAndRenderDraft remain unchanged as they operate on a single path
     const fetchDraftContent = async (path) => {
         try {
             const teacherKey = sessionStorage.getItem('teacherKey');
@@ -158,7 +154,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 mode: 'cors',
                 headers: { 'Content-Type': 'application/json' },
-                // ✅ UPDATED: Action is 'getDraft', parameter is 'draftPath'
                 body: JSON.stringify({ action: 'getDraft', teacherKey, draftPath: path })
             });
             const data = await response.json();
@@ -170,15 +165,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    /**
-     * ✅ UPDATED: Fetches and renders the content of a selected draft.
-     * @param {string} path - The path to the draft file.
-     */
     const fetchAndRenderDraft = async (path) => {
         viewerPlaceholder.style.display = 'none';
         viewerContent.innerHTML = '<p>Lade Inhalt...</p>';
         
-        // ✅ UPDATED: Call the new function to get draft content
         const data = await fetchDraftContent(path);
         
         if (!data) {
@@ -186,7 +176,6 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
 
-        // The rendering logic itself was already compatible with the new data structure.
         let contentHtml = `<h1>Entwurf vom ${new Date(data.createdAt).toLocaleString('de-CH')}</h1>`;
         for (const assignmentId in data.assignments) {
             for (const subId in data.assignments[assignmentId]) {
@@ -243,12 +232,14 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadBtn.disabled = true;
         downloadBtnText.textContent = "Lade herunter...";
 
-        // ✅ UPDATED: Build a flat list of drafts to download
         let draftsToDownload = [];
         for (const className of classesToDownload) {
             for (const studentName in fullSubmissionData[className]) {
-                const draftInfo = fullSubmissionData[className][studentName];
-                draftsToDownload.push({ className, studentName, draftInfo });
+                // ✅ Loop through the array of drafts for each student
+                const drafts = fullSubmissionData[className][studentName];
+                drafts.forEach(draft => {
+                    draftsToDownload.push({ className, studentName, draft });
+                });
             }
         }
 
@@ -260,13 +251,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const classHandle = await dirHandle.getDirectoryHandle(item.className, { create: true });
             const studentHandle = await classHandle.getDirectoryHandle(item.studentName, { create: true });
             
-            // ✅ UPDATED: Use a consistent filename for the draft
-            const fileName = `draft.json`;
+            // ✅ Use the specific draft name for the file, e.g., "12.1 Werte.json"
+            const fileName = `${item.draft.name}.json`;
             
-            // ✅ UPDATED: Fetch draft content using the new function
-            const draftContent = await fetchDraftContent(item.draftInfo.path);
+            const draftContent = await fetchDraftContent(item.draft.path);
             if (draftContent) {
-                // The logic to avoid re-downloading identical files is kept
                 try {
                      const fileHandle = await studentHandle.getFileHandle(fileName, { create: false });
                      const existingFile = await fileHandle.getFile();
@@ -276,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          continue;
                      }
                 } catch (e) {
-                    // File does not exist, which is fine. We'll create it.
+                    // File does not exist, which is fine.
                 }
                 
                 const writable = await (await studentHandle.getFileHandle(fileName, { create: true })).createWritable();
@@ -293,14 +282,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     downloadBtn.addEventListener('click', downloadSubmissions);
 
-    // --- Event Delegation for Clicks ---
+    // --- Event Delegation (No changes) ---
     submissionListContainer.addEventListener('click', (e) => {
         if (e.target.classList.contains('submission-file')) {
             const currentActive = submissionListContainer.querySelector('.active');
             if (currentActive) currentActive.classList.remove('active');
             e.target.classList.add('active');
             const path = e.target.dataset.path;
-            // ✅ UPDATED: Call the new render function
             fetchAndRenderDraft(path);
         }
         if(e.target.classList.contains('class-name')) {
