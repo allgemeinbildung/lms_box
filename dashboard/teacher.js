@@ -20,12 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let fullSubmissionData = {};
 
-    // --- Authentication ---
+    // --- Authentication (No changes needed) ---
     const checkAuth = () => {
         const key = sessionStorage.getItem('teacherKey');
         if (key) {
             loginOverlay.classList.remove('visible');
-            fetchSubmissionsList(key);
+            // ✅ UPDATED: Call the new function to fetch drafts
+            fetchDraftsList(key);
         } else {
             loginOverlay.classList.add('visible');
         }
@@ -48,31 +49,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Data Fetching and Rendering ---
-    const fetchSubmissionsList = async (teacherKey) => {
+
+    /**
+     * ✅ UPDATED: Fetches the list of all available student drafts from the backend.
+     * @param {string} teacherKey - The authentication key for the teacher.
+     */
+    const fetchDraftsList = async (teacherKey) => {
         try {
             const response = await fetch(SCRIPT_URL, {
                 method: 'POST',
                 mode: 'cors',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'listSubmissions', teacherKey })
+                // ✅ UPDATED: The action now requests 'listDrafts'
+                body: JSON.stringify({ action: 'listDrafts', teacherKey })
             });
             const data = await response.json();
             if (data.status === 'error') throw new Error(data.message);
             
-            const rawSubmissionMap = data;
-            const normalizedSubmissionMap = {};
+            // The normalization logic for class names remains useful
+            const rawDraftMap = data;
+            const normalizedDraftMap = {};
 
-            for (const className in rawSubmissionMap) {
+            for (const className in rawDraftMap) {
                 const normalizedClassName = className.toUpperCase();
-                if (!normalizedSubmissionMap[normalizedClassName]) {
-                    normalizedSubmissionMap[normalizedClassName] = {};
+                if (!normalizedDraftMap[normalizedClassName]) {
+                    normalizedDraftMap[normalizedClassName] = {};
                 }
-                Object.assign(normalizedSubmissionMap[normalizedClassName], rawSubmissionMap[className]);
+                Object.assign(normalizedDraftMap[normalizedClassName], rawDraftMap[className]);
             }
             
-            fullSubmissionData = normalizedSubmissionMap;
-            renderClassFilter(Object.keys(normalizedSubmissionMap));
-            renderSubmissionsList(normalizedSubmissionMap);
+            fullSubmissionData = normalizedDraftMap;
+            renderClassFilter(Object.keys(normalizedDraftMap));
+            renderSubmissionsList(normalizedDraftMap);
 
         } catch (error) {
             submissionListContainer.innerHTML = `<p style="color: red;">Fehler: ${error.message}</p>`;
@@ -83,6 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // No changes needed in renderClassFilter
     const renderClassFilter = (classes) => {
         if (classes.length === 0) {
             classFilterContainer.innerHTML = '';
@@ -107,9 +116,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
     
+    /**
+     * ✅ UPDATED: Renders the list of students and a single link to their latest draft.
+     * @param {object} submissionMap - The map of classes, students, and their draft info.
+     */
     const renderSubmissionsList = (submissionMap) => {
         if (Object.keys(submissionMap).length === 0) {
-            submissionListContainer.innerHTML = '<p>Noch keine Abgaben vorhanden.</p>';
+            submissionListContainer.innerHTML = '<p>Noch keine Entwürfe vorhanden.</p>';
             return;
         }
         let html = '';
@@ -122,11 +135,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const sortedStudents = Object.keys(students).sort();
 
             for (const studentName of sortedStudents) {
+                const draftInfo = students[studentName]; // This is now an object, not an array
                 html += `<div class="student-group">
                              <div class="student-name">${studentName}</div>`;
-                students[studentName].forEach(file => {
-                    html += `<a class="submission-file" data-path="${file.path}">${file.name}</a>`;
-                });
+                // ✅ UPDATED: Display a single link for the latest draft
+                html += `<a class="submission-file" data-path="${draftInfo.path}">Latest Draft</a>`;
                 html += `</div>`;
             }
             html += `</div>`;
@@ -134,51 +147,56 @@ document.addEventListener('DOMContentLoaded', () => {
         submissionListContainer.innerHTML = html;
     };
 
-    const fetchSubmissionContent = async (path) => {
+    /**
+     * ✅ UPDATED: Fetches the content of a single student draft.
+     * @param {string} path - The path to the draft file in the bucket.
+     */
+    const fetchDraftContent = async (path) => {
         try {
             const teacherKey = sessionStorage.getItem('teacherKey');
             const response = await fetch(SCRIPT_URL, {
                 method: 'POST',
                 mode: 'cors',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getSubmission', teacherKey, submissionPath: path })
+                // ✅ UPDATED: Action is 'getDraft', parameter is 'draftPath'
+                body: JSON.stringify({ action: 'getDraft', teacherKey, draftPath: path })
             });
             const data = await response.json();
             if (data.status === 'error') throw new Error(data.message);
             return data;
         } catch (error) {
-            console.error(`Fehler beim Laden der Abgabe [${path}]:`, error);
+            console.error(`Fehler beim Laden des Entwurfs [${path}]:`, error);
             return null;
         }
     };
 
     /**
-     * 🔄 UPDATED: Renders the submission content, pairing questions with their answers.
-     * @param {string} path - The path to the submission file.
+     * ✅ UPDATED: Fetches and renders the content of a selected draft.
+     * @param {string} path - The path to the draft file.
      */
-    const fetchAndRenderSubmission = async (path) => {
+    const fetchAndRenderDraft = async (path) => {
         viewerPlaceholder.style.display = 'none';
         viewerContent.innerHTML = '<p>Lade Inhalt...</p>';
         
-        const data = await fetchSubmissionContent(path);
+        // ✅ UPDATED: Call the new function to get draft content
+        const data = await fetchDraftContent(path);
         
         if (!data) {
-             viewerContent.innerHTML = `<p style="color: red;">Fehler beim Laden der Abgabe.</p>`;
+             viewerContent.innerHTML = `<p style="color: red;">Fehler beim Laden des Entwurfs.</p>`;
              return;
         }
 
-        let contentHtml = `<h1>Abgabe vom ${new Date(data.createdAt).toLocaleString('de-CH')}</h1>`;
+        // The rendering logic itself was already compatible with the new data structure.
+        let contentHtml = `<h1>Entwurf vom ${new Date(data.createdAt).toLocaleString('de-CH')}</h1>`;
         for (const assignmentId in data.assignments) {
             for (const subId in data.assignments[assignmentId]) {
                 const subData = data.assignments[assignmentId][subId];
                 contentHtml += `<div class="assignment-block">
                                     <h2>${subData.title}</h2>`;
 
-                // 🔄 Check for the new 'answers' array structure
                 if (subData.answers && Array.isArray(subData.answers)) {
                     const answerMap = new Map(subData.answers.map(a => [a.questionId, a.answer]));
                     
-                    // Loop through the original questions to maintain order
                     subData.questions.forEach((question, index) => {
                         const answer = answerMap.get(question.id) || '<p><i>Keine Antwort abgegeben.</i></p>';
                         contentHtml += `
@@ -188,25 +206,23 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         `;
                     });
-
-                } else if (subData.answer) { // Fallback for old data structure
-                    contentHtml += `<div class="answer-box"><div class="ql-snow"><div class="ql-editor">${subData.answer}</div></div></div>`;
                 }
-
                 contentHtml += `</div>`;
             }
         }
         viewerContent.innerHTML = contentHtml;
     };
     
-    // --- Download & Sync Logic (No changes needed here) ---
+    /**
+     * ✅ UPDATED: Handles downloading all drafts for selected classes.
+     */
     const downloadSubmissions = async () => {
         if (!window.showDirectoryPicker) {
             alert("Dein Browser unterstützt diese Funktion nicht. Bitte nutze einen aktuellen Browser wie Chrome oder Edge.");
             return;
         }
 
-        const selectedClass = document.getElementById('class-filter').value;
+        const selectedClass = document.getElementById('class-filter')?.value || 'all';
         const classesToDownload = selectedClass === 'all' 
             ? Object.keys(fullSubmissionData)
             : [selectedClass];
@@ -227,32 +243,35 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadBtn.disabled = true;
         downloadBtnText.textContent = "Lade herunter...";
 
-        let filesToDownload = [];
+        // ✅ UPDATED: Build a flat list of drafts to download
+        let draftsToDownload = [];
         for (const className of classesToDownload) {
             for (const studentName in fullSubmissionData[className]) {
-                fullSubmissionData[className][studentName].forEach(file => {
-                    filesToDownload.push({ className, studentName, file });
-                });
+                const draftInfo = fullSubmissionData[className][studentName];
+                draftsToDownload.push({ className, studentName, draftInfo });
             }
         }
 
         let processedCount = 0;
-        for (const item of filesToDownload) {
+        for (const item of draftsToDownload) {
             processedCount++;
-            downloadStatus.textContent = `(${processedCount}/${filesToDownload.length})`;
+            downloadStatus.textContent = `(${processedCount}/${draftsToDownload.length})`;
 
             const classHandle = await dirHandle.getDirectoryHandle(item.className, { create: true });
             const studentHandle = await classHandle.getDirectoryHandle(item.studentName, { create: true });
             
-            const fileName = `${item.file.name}.json`;
+            // ✅ UPDATED: Use a consistent filename for the draft
+            const fileName = `draft.json`;
             
-            const submissionContent = await fetchSubmissionContent(item.file.path);
-            if (submissionContent) {
+            // ✅ UPDATED: Fetch draft content using the new function
+            const draftContent = await fetchDraftContent(item.draftInfo.path);
+            if (draftContent) {
+                // The logic to avoid re-downloading identical files is kept
                 try {
                      const fileHandle = await studentHandle.getFileHandle(fileName, { create: false });
                      const existingFile = await fileHandle.getFile();
                      const existingText = await existingFile.text();
-                     if (existingText === JSON.stringify(submissionContent, null, 2)) {
+                     if (existingText === JSON.stringify(draftContent, null, 2)) {
                          console.log(`Datei ${fileName} ist aktuell. Überspringe.`);
                          continue;
                      }
@@ -261,7 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 const writable = await (await studentHandle.getFileHandle(fileName, { create: true })).createWritable();
-                await writable.write(JSON.stringify(submissionContent, null, 2));
+                await writable.write(JSON.stringify(draftContent, null, 2));
                 await writable.close();
             }
         }
@@ -281,7 +300,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentActive) currentActive.classList.remove('active');
             e.target.classList.add('active');
             const path = e.target.dataset.path;
-            fetchAndRenderSubmission(path);
+            // ✅ UPDATED: Call the new render function
+            fetchAndRenderDraft(path);
         }
         if(e.target.classList.contains('class-name')) {
             const studentGroups = e.target.parentElement.querySelectorAll('.student-group');
