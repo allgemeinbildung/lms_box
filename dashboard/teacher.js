@@ -84,7 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // No changes needed in renderClassFilter
     const renderClassFilter = (classes) => {
         if (classes.length === 0) {
             classFilterContainer.innerHTML = '';
@@ -109,9 +108,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
     
-    /**
-     * ✅ UPDATED: Renders a list of draft links for each student.
-     */
     const renderSubmissionsList = (submissionMap) => {
         if (Object.keys(submissionMap).length === 0) {
             submissionListContainer.innerHTML = '<p>Noch keine Entwürfe vorhanden.</p>';
@@ -130,14 +126,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 html += `<div class="student-group">
                              <div class="student-name">${studentName}</div>`;
                 
-                // ✅ The backend now sends an array of drafts for each student.
                 const drafts = students[studentName];
-                drafts.sort((a, b) => a.name.localeCompare(b.name)); // Sort drafts alphabetically
-
-                // ✅ Loop through the array and create a link for each draft.
-                drafts.forEach(draft => {
-                    html += `<a class="submission-file" data-path="${draft.path}">${draft.name}</a>`;
-                });
+                
+                // ✅ FIX: Check if 'drafts' is an array before trying to sort or loop.
+                if (Array.isArray(drafts)) {
+                    drafts.sort((a, b) => a.name.localeCompare(b.name));
+                    drafts.forEach(draft => {
+                        html += `<a class="submission-file" data-path="${draft.path}">${draft.name}</a>`;
+                    });
+                } else {
+                    // This will log an error in the console for debugging but won't crash the page.
+                    console.error(`Data for student ${studentName} is not an array:`, drafts);
+                }
 
                 html += `</div>`;
             }
@@ -146,7 +146,6 @@ document.addEventListener('DOMContentLoaded', () => {
         submissionListContainer.innerHTML = html;
     };
 
-    // fetchDraftContent and fetchAndRenderDraft remain unchanged as they operate on a single path
     const fetchDraftContent = async (path) => {
         try {
             const teacherKey = sessionStorage.getItem('teacherKey');
@@ -202,9 +201,6 @@ document.addEventListener('DOMContentLoaded', () => {
         viewerContent.innerHTML = contentHtml;
     };
     
-    /**
-     * ✅ UPDATED: Handles downloading all drafts for selected classes.
-     */
     const downloadSubmissions = async () => {
         if (!window.showDirectoryPicker) {
             alert("Dein Browser unterstützt diese Funktion nicht. Bitte nutze einen aktuellen Browser wie Chrome oder Edge.");
@@ -235,11 +231,13 @@ document.addEventListener('DOMContentLoaded', () => {
         let draftsToDownload = [];
         for (const className of classesToDownload) {
             for (const studentName in fullSubmissionData[className]) {
-                // ✅ Loop through the array of drafts for each student
                 const drafts = fullSubmissionData[className][studentName];
-                drafts.forEach(draft => {
-                    draftsToDownload.push({ className, studentName, draft });
-                });
+                // ✅ FIX: Add the same safety check here.
+                if (Array.isArray(drafts)) {
+                    drafts.forEach(draft => {
+                        draftsToDownload.push({ className, studentName, draft });
+                    });
+                }
             }
         }
 
@@ -251,7 +249,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const classHandle = await dirHandle.getDirectoryHandle(item.className, { create: true });
             const studentHandle = await classHandle.getDirectoryHandle(item.studentName, { create: true });
             
-            // ✅ Use the specific draft name for the file, e.g., "12.1 Werte.json"
             const fileName = `${item.draft.name}.json`;
             
             const draftContent = await fetchDraftContent(item.draft.path);
