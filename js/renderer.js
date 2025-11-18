@@ -158,7 +158,7 @@ const gatherAndSaveDraft = debounce(async (studentKey, assignmentId, mode) => {
  * @param {string} studentKey - The authenticated student's key.
  * @param {string} mode - The current mode ('test' or 'live').
  * @param {object} draftData - The pre-fetched draft data from the server.
- * @param {object} assignmentData - ✅ NEU: The full assignment data for accessing top-level properties like solution_keys.
+ * @param {object} assignmentData - The full assignment data for accessing top-level properties like solution_keys.
  */
 function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, assignmentData) {
     const contentRenderer = document.getElementById('content-renderer');
@@ -225,17 +225,23 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
         });
     });
 
-    // --- ✅ KORRIGIERT: Solution Unlock Logic ---
+    // --- Solution Unlock Logic ---
     if (data.solution && Array.isArray(data.solution.solutions) && data.solution.solutions.length > 0) {
         solutionSection.style.display = 'block';
         
         const unlockedSolutions = JSON.parse(sessionStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
         if (unlockedSolutions[assignmentId]) {
             solutionUnlockContainer.style.display = 'none';
+            
+            // ✅ FIX START: Look up question text using questionId from the solution object.
+            const questionMap = new Map(data.questions.map(q => [q.id, q.text]));
             let solutionHtml = '<h3>Musterlösung</h3>';
             data.solution.solutions.forEach(sol => {
-                solutionHtml += `<div class="solution-item" style="margin-top: 1em;"><strong>Frage: ${sol.question}</strong><div class="answer-box" style="padding: 1em; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #fdfdfd; margin-top: 0.5em;">${sol.answer}</div></div>`;
+                const questionText = questionMap.get(sol.questionId) || 'Frage nicht gefunden';
+                solutionHtml += `<div class="solution-item" style="margin-top: 1em;"><strong>Frage: ${parseMarkdown(questionText)}</strong><div class="answer-box" style="padding: 1em; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #fdfdfd; margin-top: 0.5em;">${sol.answer}</div></div>`;
             });
+            // ✅ FIX END
+            
             solutionDisplayContainer.innerHTML = solutionHtml;
             solutionDisplayContainer.style.display = 'block';
         } else {
@@ -256,10 +262,15 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
                     unlockStatus.textContent = '';
                     solutionUnlockContainer.style.display = 'none';
 
+                    // ✅ FIX START: Same fix as above for when the solution is first unlocked.
+                    const questionMap = new Map(data.questions.map(q => [q.id, q.text]));
                     let solutionHtml = '<h3>Musterlösung</h3>';
                     data.solution.solutions.forEach(sol => {
-                        solutionHtml += `<div class="solution-item" style="margin-top: 1em;"><strong>Frage: ${sol.question}</strong><div class="answer-box" style="padding: 1em; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #fdfdfd; margin-top: 0.5em;">${sol.answer}</div></div>`;
+                        const questionText = questionMap.get(sol.questionId) || 'Frage nicht gefunden';
+                        solutionHtml += `<div class="solution-item" style="margin-top: 1em;"><strong>Frage: ${parseMarkdown(questionText)}</strong><div class="answer-box" style="padding: 1em; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #fdfdfd; margin-top: 0.5em;">${sol.answer}</div></div>`;
                     });
+                    // ✅ FIX END
+
                     solutionDisplayContainer.innerHTML = solutionHtml;
                     solutionDisplayContainer.style.display = 'block';
 
@@ -301,7 +312,6 @@ export async function renderSubAssignment(assignmentData, assignmentId, subId, s
     await storage.set(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`, subAssignmentData.type);
 
     if (subAssignmentData.type === 'quill') {
-        // ✅ KORRIGIERT: Übergebe das gesamte `assignmentData`-Objekt an `renderQuill`.
         renderQuill(subAssignmentData, assignmentId, subId, studentKey, mode, draftData, assignmentData);
     } else {
         document.getElementById('content-renderer').innerHTML = `<p>Unbekannter Aufgabentyp: ${subAssignmentData.type}</p>`;
