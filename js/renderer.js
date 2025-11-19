@@ -230,17 +230,19 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
         solutionSection.style.display = 'block';
         
         const unlockedSolutions = JSON.parse(sessionStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
+        
+        // Helper to match IDs between questions and solutions
+        const questionMap = new Map(data.questions.map(q => [q.id, q.text]));
+
         if (unlockedSolutions[assignmentId]) {
             solutionUnlockContainer.style.display = 'none';
             
-            // ✅ FIX START: Look up question text using questionId from the solution object.
-            const questionMap = new Map(data.questions.map(q => [q.id, q.text]));
             let solutionHtml = '<h3>Musterlösung</h3>';
             data.solution.solutions.forEach(sol => {
-                const questionText = questionMap.get(sol.questionId) || 'Frage nicht gefunden';
+                // ✅ FIX: Changed sol.questionId to sol.id to match JSON structure
+                const questionText = questionMap.get(sol.id) || 'Frage nicht gefunden';
                 solutionHtml += `<div class="solution-item" style="margin-top: 1em;"><strong>Frage: ${parseMarkdown(questionText)}</strong><div class="answer-box" style="padding: 1em; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #fdfdfd; margin-top: 0.5em;">${sol.answer}</div></div>`;
             });
-            // ✅ FIX END
             
             solutionDisplayContainer.innerHTML = solutionHtml;
             solutionDisplayContainer.style.display = 'block';
@@ -262,14 +264,12 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
                     unlockStatus.textContent = '';
                     solutionUnlockContainer.style.display = 'none';
 
-                    // ✅ FIX START: Same fix as above for when the solution is first unlocked.
-                    const questionMap = new Map(data.questions.map(q => [q.id, q.text]));
                     let solutionHtml = '<h3>Musterlösung</h3>';
                     data.solution.solutions.forEach(sol => {
-                        const questionText = questionMap.get(sol.questionId) || 'Frage nicht gefunden';
+                        // ✅ FIX: Changed sol.questionId to sol.id to match JSON structure
+                        const questionText = questionMap.get(sol.id) || 'Frage nicht gefunden';
                         solutionHtml += `<div class="solution-item" style="margin-top: 1em;"><strong>Frage: ${parseMarkdown(questionText)}</strong><div class="answer-box" style="padding: 1em; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #fdfdfd; margin-top: 0.5em;">${sol.answer}</div></div>`;
                     });
-                    // ✅ FIX END
 
                     solutionDisplayContainer.innerHTML = solutionHtml;
                     solutionDisplayContainer.style.display = 'block';
