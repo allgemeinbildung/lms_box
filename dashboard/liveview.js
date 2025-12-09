@@ -5,7 +5,6 @@
 //
 import { SCRIPT_URL } from '../js/config.js';
 
-
 document.addEventListener('DOMContentLoaded', () => {
     
     // --- DOM Elements ---
@@ -17,9 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const classSelect = document.getElementById('class-select');
     const assignmentSelect = document.getElementById('assignment-select');
     const refreshBtn = document.getElementById('refresh-btn');
+    const downloadBtn = document.getElementById('download-btn'); // Neuer Button
     const contentRenderer = document.getElementById('live-content-renderer');
-    const downloadBtn = document.getElementById('download-btn');
-    
+
     // State
     let draftsMap = {}; 
     let currentTeacherKey = '';
@@ -108,11 +107,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (classes.includes(currentVal)) {
             classSelect.value = currentVal;
         }
+
+        // --- FIX: Button Status sofort aktualisieren ---
+        // Wenn eine Klasse ausgewählt ist (oder wiederhergestellt wurde), Button aktivieren
+        downloadBtn.disabled = !classSelect.value;
+    };
+
+    // --- Helper für Markdown ---
+    const parseSimpleMarkdown = (text) => {
+        if (!text) return '';
+        return text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
     };
 
     // --- Aufgaben erkennen (Scan Logik) ---
     classSelect.addEventListener('change', async () => {
         const selectedClass = classSelect.value;
+        
+        // Button Status beim Wechseln aktualisieren
+        downloadBtn.disabled = !selectedClass;
+
         assignmentSelect.innerHTML = '<option value="">Lade Aufgaben...</option>';
         assignmentSelect.disabled = true;
         contentRenderer.innerHTML = '<div id="placeholder-msg">Bitte wählen Sie eine Aufgabe aus.</div>';
@@ -127,7 +140,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Scan der ersten 5 Schüler
         const studentsToScan = studentNames.slice(0, 5); 
         const foundAssignments = new Set();
         
@@ -160,14 +172,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- 4. Render Grid (Das Herzstück) ---
+    // --- 4. Render Grid ---
 
-    // Wenn Aufgabe gewählt wird -> direkt rendern
     assignmentSelect.addEventListener('change', () => {
         renderLiveGrid();
     });
 
-    // Refresh Button -> Reload
     refreshBtn.addEventListener('click', () => {
         if (classSelect.value && assignmentSelect.value) {
             renderLiveGrid();
@@ -175,13 +185,6 @@ document.addEventListener('DOMContentLoaded', () => {
             initDataLoad();
         }
     });
-
-// --- Helper für Markdown (**fett**) ---
-    const parseSimpleMarkdown = (text) => {
-        if (!text) return '';
-        // Ersetzt **text** durch <b>text</b>
-        return text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-    };
 
     const renderLiveGrid = async () => {
         const cls = classSelect.value;
@@ -220,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'student-card';
 
-            // 1. Assignment Data suchen
+            // 1. Assignment Data suchen (inkl. Fuzzy Search)
             let assignmentData = null;
             if (res.data && res.data.assignments) {
                 if (res.data.assignments[assId]) {
@@ -233,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // 2. Statistiken berechnen
+            // 2. Statistiken
             let totalQuestions = 0;
             let answeredQuestions = 0;
             let totalWords = 0;
@@ -268,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (new Date() - date < 300000) isRecent = true;
             }
 
-            // 3. Header erstellen
+            // 3. Header
             const header = document.createElement('div');
             header.className = 'student-header';
             header.innerHTML = `
@@ -295,7 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             card.appendChild(header);
             
-            // 4. Content Bereich (Fragen + Antworten)
+            // 4. Content (Fragen oben, Antworten unten)
             const cardContent = document.createElement('div');
             cardContent.className = 'student-card-content';
 
@@ -313,9 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         subBlock.className = 'sub-assignment-block';
                         subBlock.innerHTML = `<div class="sub-title">${displayTitle}</div>`;
 
-                        // --- NEU: Fragen über Antworten anzeigen ---
                         if (subTask.questions && subTask.questions.length > 0) {
-                            // Map erstellen für schnelles Finden der Antwort zur Frage
                             const answerMap = new Map((subTask.answers || []).map(a => [a.questionId, a.answer]));
 
                             subTask.questions.forEach((q, idx) => {
@@ -323,10 +324,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const answer = answerMap.get(q.id);
                                 const hasAnswer = answer && answer.trim() !== '' && answer !== '<p><br></p>';
 
-                                // 1. Die Frage
                                 subBlock.innerHTML += `<div class="question-text">${idx + 1}. ${questionText}</div>`;
 
-                                // 2. Die Antwort (oder Platzhalter)
                                 if (hasAnswer) {
                                     subBlock.innerHTML += `<div class="read-only-answer ql-editor">${answer}</div>`;
                                 } else {
@@ -334,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             });
                         } else {
-                            // Fallback falls keine Fragen-Struktur gespeichert wurde (sollte selten passieren)
+                            // Fallback
                             if (subTask.answers && subTask.answers.length > 0) {
                                 subTask.answers.forEach(a => {
                                     subBlock.innerHTML += `<div class="read-only-answer ql-editor">${a.answer}</div>`;
@@ -361,34 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
         contentRenderer.appendChild(grid);
     };
 
-    // --- Helper ---
-    const fetchDraftContent = async (path) => {
-        try {
-            const response = await fetch(SCRIPT_URL, {
-                method: 'POST',
-                mode: 'cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getDraft', teacherKey: currentTeacherKey, draftPath: path })
-            });
-            const data = await response.json();
-            if (data.status === 'error') throw new Error(data.message);
-            return data;
-        } catch (error) {
-            console.error(`Fehler bei ${path}:`, error);
-            return null;
-        }
-    };
-
-    checkAuth();
-});
-
-// --- 5. Download Funktion (Ganze Klasse) ---
-
-    // Button aktivieren, sobald eine Klasse gewählt ist
-    classSelect.addEventListener('change', () => {
-        downloadBtn.disabled = !classSelect.value;
-    });
-
+    // --- 5. Download Funktion (Ganze Klasse) ---
     downloadBtn.addEventListener('click', async () => {
         const cls = classSelect.value;
         if (!cls) {
@@ -396,7 +368,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Browser Support Check
         if (!window.showDirectoryPicker) {
             alert("Dein Browser unterstützt das Speichern von Ordnern nicht. Bitte nutze Chrome, Edge oder Opera.");
             return;
@@ -411,21 +382,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            // 1. Ordner auswählen lassen
             const dirHandle = await window.showDirectoryPicker();
             
-            // UI Feedback
             const originalText = downloadBtn.textContent;
             downloadBtn.disabled = true;
             downloadBtn.textContent = "Starte...";
 
-            // 2. Unterordner für die Klasse erstellen
             const classHandle = await dirHandle.getDirectoryHandle(cls, { create: true });
 
             let count = 0;
             const total = studentNames.length;
 
-            // 3. Durch alle Schüler loopen
             for (const name of studentNames) {
                 count++;
                 downloadBtn.textContent = `Lade ${count}/${total}...`;
@@ -433,22 +400,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const files = students[name];
                 if (!files || files.length === 0) continue;
 
-                // Nimm die neueste Datei
                 const sortedFiles = [...files].sort((a, b) => b.name.localeCompare(a.name));
                 const latestFile = sortedFiles[0];
 
                 try {
-                    // Inhalt vom Server laden
                     const data = await fetchDraftContent(latestFile.path);
-                    
                     if (data) {
-                        // Schüler-Ordner erstellen
                         const studentHandle = await classHandle.getDirectoryHandle(name, { create: true });
-                        
-                        // Datei speichern (Name: assignmentId.json oder timestamp.json)
-                        // Wir nutzen hier den Original-Dateinamen für Eindeutigkeit
                         const fileName = `${latestFile.name}.json`;
-                        
                         const fileHandle = await studentHandle.getFileHandle(fileName, { create: true });
                         const writable = await fileHandle.createWritable();
                         await writable.write(JSON.stringify(data, null, 2));
@@ -471,3 +430,25 @@ document.addEventListener('DOMContentLoaded', () => {
             downloadBtn.disabled = false;
         }
     });
+
+    // --- Helper: Fetch Single Draft ---
+    const fetchDraftContent = async (path) => {
+        try {
+            const response = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getDraft', teacherKey: currentTeacherKey, draftPath: path })
+            });
+            const data = await response.json();
+            if (data.status === 'error') throw new Error(data.message);
+            return data;
+        } catch (error) {
+            console.error(`Fehler bei ${path}:`, error);
+            return null;
+        }
+    };
+
+    // Start
+    checkAuth();
+});
