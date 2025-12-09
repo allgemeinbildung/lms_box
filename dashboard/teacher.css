@@ -458,3 +458,58 @@ body {
     border-color: #c3e6cb;
     font-weight: bold;
 }
+
+/* Styling für die Frage im Live View */
+.question-text {
+    font-weight: 600;
+    color: #555;
+    margin-top: 15px;
+    margin-bottom: 6px;
+    font-size: 0.95em;
+    line-height: 1.4;
+}
+
+/* Entfernt den Margin bei der allerersten Frage eines Blocks */
+.question-text:first-child {
+    margin-top: 0;
+}
+
+/* Leere Antwort Platzhalter */
+.empty-answer-placeholder {
+    color: #ccc;
+    font-style: italic;
+    font-size: 0.85em;
+    padding: 5px 0;
+}
+
+/* --- Button Gruppe im Header --- */
+.button-group {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end; /* Damit sie auf gleicher Höhe mit den Select-Boxen liegen */
+}
+
+/* Der neue Download Button (Grün) */
+#download-btn {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    height: 100%;
+    margin-top: 18px;
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+
+#download-btn:hover {
+    background-color: #218838;
+}
+
+#download-btn:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}

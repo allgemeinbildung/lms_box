@@ -5,6 +5,7 @@
 //
 import { SCRIPT_URL } from '../js/config.js';
 
+
 document.addEventListener('DOMContentLoaded', () => {
     
     // --- DOM Elements ---
@@ -17,7 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const assignmentSelect = document.getElementById('assignment-select');
     const refreshBtn = document.getElementById('refresh-btn');
     const contentRenderer = document.getElementById('live-content-renderer');
-
+    const downloadBtn = document.getElementById('download-btn');
+    
     // State
     let draftsMap = {}; 
     let currentTeacherKey = '';
@@ -174,7 +176,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-const renderLiveGrid = async () => {
+// --- Helper für Markdown (**fett**) ---
+    const parseSimpleMarkdown = (text) => {
+        if (!text) return '';
+        // Ersetzt **text** durch <b>text</b>
+        return text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+    };
+
+    const renderLiveGrid = async () => {
         const cls = classSelect.value;
         const assId = assignmentSelect.value;
 
@@ -192,7 +201,6 @@ const renderLiveGrid = async () => {
             const files = students[name];
             if (!files || files.length === 0) return null;
             
-            // Neueste Datei finden
             const sortedFiles = [...files].sort((a, b) => b.name.localeCompare(a.name));
             const filePath = sortedFiles[0].path; 
 
@@ -210,15 +218,14 @@ const renderLiveGrid = async () => {
             if (!res) return;
 
             const card = document.createElement('div');
-            card.className = 'student-card'; // Standardmäßig geschlossen
+            card.className = 'student-card';
 
-            // --- 1. Datenanalyse ---
+            // 1. Assignment Data suchen
             let assignmentData = null;
             if (res.data && res.data.assignments) {
                 if (res.data.assignments[assId]) {
                     assignmentData = res.data.assignments[assId];
                 } else {
-                    // Fuzzy Search
                     const foundKey = Object.keys(res.data.assignments).find(k => {
                         return decodeURIComponent(k).trim() === decodeURIComponent(assId).trim();
                     });
@@ -226,6 +233,7 @@ const renderLiveGrid = async () => {
                 }
             }
 
+            // 2. Statistiken berechnen
             let totalQuestions = 0;
             let answeredQuestions = 0;
             let totalWords = 0;
@@ -260,7 +268,7 @@ const renderLiveGrid = async () => {
                 if (new Date() - date < 300000) isRecent = true;
             }
 
-            // --- 2. Header bauen (Klickbar) ---
+            // 3. Header erstellen
             const header = document.createElement('div');
             header.className = 'student-header';
             header.innerHTML = `
@@ -281,14 +289,13 @@ const renderLiveGrid = async () => {
                 </div>
             `;
             
-            // Klick-Event für Dropdown-Effekt
             header.addEventListener('click', () => {
                 card.classList.toggle('open');
             });
 
             card.appendChild(header);
             
-            // --- 3. Content Bereich (Versteckt) ---
+            // 4. Content Bereich (Fragen + Antworten)
             const cardContent = document.createElement('div');
             cardContent.className = 'student-card-content';
 
@@ -306,18 +313,37 @@ const renderLiveGrid = async () => {
                         subBlock.className = 'sub-assignment-block';
                         subBlock.innerHTML = `<div class="sub-title">${displayTitle}</div>`;
 
-                        if (subTask.answers && subTask.answers.length > 0) {
-                            subTask.answers.forEach(a => {
-                                subBlock.innerHTML += `
-                                    <div class="read-only-answer ql-editor">
-                                        ${a.answer || '<span style="color:#ccc;">(Leer)</span>'}
-                                    </div>
-                                    <div style="margin-bottom: 5px;"></div>
-                                `;
+                        // --- NEU: Fragen über Antworten anzeigen ---
+                        if (subTask.questions && subTask.questions.length > 0) {
+                            // Map erstellen für schnelles Finden der Antwort zur Frage
+                            const answerMap = new Map((subTask.answers || []).map(a => [a.questionId, a.answer]));
+
+                            subTask.questions.forEach((q, idx) => {
+                                const questionText = parseSimpleMarkdown(q.text);
+                                const answer = answerMap.get(q.id);
+                                const hasAnswer = answer && answer.trim() !== '' && answer !== '<p><br></p>';
+
+                                // 1. Die Frage
+                                subBlock.innerHTML += `<div class="question-text">${idx + 1}. ${questionText}</div>`;
+
+                                // 2. Die Antwort (oder Platzhalter)
+                                if (hasAnswer) {
+                                    subBlock.innerHTML += `<div class="read-only-answer ql-editor">${answer}</div>`;
+                                } else {
+                                    subBlock.innerHTML += `<div class="empty-answer-placeholder">(Keine Antwort)</div>`;
+                                }
                             });
                         } else {
-                            subBlock.innerHTML += '<p style="font-size:0.8em; color:#aaa;">Noch keine Antworten.</p>';
+                            // Fallback falls keine Fragen-Struktur gespeichert wurde (sollte selten passieren)
+                            if (subTask.answers && subTask.answers.length > 0) {
+                                subTask.answers.forEach(a => {
+                                    subBlock.innerHTML += `<div class="read-only-answer ql-editor">${a.answer}</div>`;
+                                });
+                            } else {
+                                subBlock.innerHTML += '<p style="font-size:0.8em; color:#aaa;">Leer.</p>';
+                            }
                         }
+
                         cardContent.appendChild(subBlock);
                     });
                 }
@@ -355,3 +381,93 @@ const renderLiveGrid = async () => {
 
     checkAuth();
 });
+
+// --- 5. Download Funktion (Ganze Klasse) ---
+
+    // Button aktivieren, sobald eine Klasse gewählt ist
+    classSelect.addEventListener('change', () => {
+        downloadBtn.disabled = !classSelect.value;
+    });
+
+    downloadBtn.addEventListener('click', async () => {
+        const cls = classSelect.value;
+        if (!cls) {
+            alert("Bitte wähle zuerst eine Klasse aus.");
+            return;
+        }
+
+        // Browser Support Check
+        if (!window.showDirectoryPicker) {
+            alert("Dein Browser unterstützt das Speichern von Ordnern nicht. Bitte nutze Chrome, Edge oder Opera.");
+            return;
+        }
+
+        const students = draftsMap[cls];
+        const studentNames = Object.keys(students);
+
+        if (studentNames.length === 0) {
+            alert("Keine Schüler in dieser Klasse gefunden.");
+            return;
+        }
+
+        try {
+            // 1. Ordner auswählen lassen
+            const dirHandle = await window.showDirectoryPicker();
+            
+            // UI Feedback
+            const originalText = downloadBtn.textContent;
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = "Starte...";
+
+            // 2. Unterordner für die Klasse erstellen
+            const classHandle = await dirHandle.getDirectoryHandle(cls, { create: true });
+
+            let count = 0;
+            const total = studentNames.length;
+
+            // 3. Durch alle Schüler loopen
+            for (const name of studentNames) {
+                count++;
+                downloadBtn.textContent = `Lade ${count}/${total}...`;
+
+                const files = students[name];
+                if (!files || files.length === 0) continue;
+
+                // Nimm die neueste Datei
+                const sortedFiles = [...files].sort((a, b) => b.name.localeCompare(a.name));
+                const latestFile = sortedFiles[0];
+
+                try {
+                    // Inhalt vom Server laden
+                    const data = await fetchDraftContent(latestFile.path);
+                    
+                    if (data) {
+                        // Schüler-Ordner erstellen
+                        const studentHandle = await classHandle.getDirectoryHandle(name, { create: true });
+                        
+                        // Datei speichern (Name: assignmentId.json oder timestamp.json)
+                        // Wir nutzen hier den Original-Dateinamen für Eindeutigkeit
+                        const fileName = `${latestFile.name}.json`;
+                        
+                        const fileHandle = await studentHandle.getFileHandle(fileName, { create: true });
+                        const writable = await fileHandle.createWritable();
+                        await writable.write(JSON.stringify(data, null, 2));
+                        await writable.close();
+                    }
+                } catch (err) {
+                    console.error(`Fehler bei Schüler ${name}:`, err);
+                }
+            }
+
+            downloadBtn.textContent = "Fertig! ✅";
+            setTimeout(() => {
+                downloadBtn.textContent = originalText;
+                downloadBtn.disabled = false;
+            }, 3000);
+
+        } catch (err) {
+            console.error("Download abgebrochen:", err);
+            downloadBtn.textContent = "Download";
+            downloadBtn.disabled = false;
+        }
+    });
