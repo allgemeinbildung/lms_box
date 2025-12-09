@@ -121,6 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // HIER: Wir scannen die Dateinamen (oft "assignmentId.json") oder wir laden den ersten verfügbaren Schüler,
     // um die Struktur zu parsen.
     
+    // --- UPDATE: Bessere Erkennung von Aufgaben ---
     classSelect.addEventListener('change', async () => {
         const selectedClass = classSelect.value;
         assignmentSelect.innerHTML = '<option value="">Lade Aufgaben...</option>';
@@ -131,71 +132,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!selectedClass) return;
 
-        // Hole ersten Schüler der Klasse, um Struktur zu lesen
         const students = draftsMap[selectedClass];
         const studentNames = Object.keys(students);
+        
         if (studentNames.length === 0) {
             assignmentSelect.innerHTML = '<option value="">Keine Schüler gefunden</option>';
             return;
         }
 
-        // Wir nehmen an, dass alle Schüler an den gleichen Aufgaben arbeiten.
-        // Wir laden das Draft des ersten Schülers, um die Assignment-IDs zu finden.
-        const firstStudentDrafts = students[studentNames[0]]; // Array of files
-        if (!Array.isArray(firstStudentDrafts) || firstStudentDrafts.length === 0) return;
+        // TRICK: Wir scannen nun die ersten 3 aktiven Schüler (statt nur einen),
+        // um eine vollständigere Liste der Aufgaben zu bekommen.
+        const studentsToScan = studentNames.slice(0, 3); 
+        const foundAssignments = new Set(); // Set verhindert Doppelte
         
-        // Lade die Datei des ersten Schülers
-        try {
-            const draftContent = await fetchDraftContent(firstStudentDrafts[0].path);
-            if (draftContent && draftContent.assignments) {
-                populateAssignmentSelect(draftContent.assignments);
-            }
-        } catch (e) {
-            console.error("Konnte Struktur nicht laden", e);
-        }
-    });
-
-    const populateAssignmentSelect = (assignmentsObj) => {
-        assignmentSelect.innerHTML = '<option value="">-- Aufgabe wählen --</option>';
-        Object.keys(assignmentsObj).forEach(assId => {
-            const opt = document.createElement('option');
-            opt.value = assId;
-            opt.textContent = assId; // Wenn Titel verfügbar, hier nutzen
-            assignmentSelect.appendChild(opt);
-        });
-        assignmentSelect.disabled = false;
-    };
-
-    assignmentSelect.addEventListener('change', async () => {
-        const selectedClass = classSelect.value;
-        const selectedAss = assignmentSelect.value;
-        subSelect.innerHTML = '<option value="">Lade...</option>';
-        subSelect.disabled = true;
-
-        if (!selectedAss) return;
-
-        // Wir müssen erneut in das JSON schauen (oder es cachen), um Sub-IDs zu holen.
-        // Wir holen es schnell nochmal (oder optimiert: oben speichern).
-        const students = draftsMap[selectedClass];
-        const studentNames = Object.keys(students);
-        const firstStudentDrafts = students[studentNames[0]];
-        const draftContent = await fetchDraftContent(firstStudentDrafts[0].path);
-
-        if (draftContent && draftContent.assignments && draftContent.assignments[selectedAss]) {
-            const subAssignments = draftContent.assignments[selectedAss];
-            subSelect.innerHTML = '<option value="">-- Unteraufgabe wählen --</option>';
+        // Parallel die ersten paar Schüler laden, um Struktur zu finden
+        const scanPromises = studentsToScan.map(async (name) => {
+            const files = students[name];
+            if (!Array.isArray(files) || files.length === 0) return;
             
-            Object.keys(subAssignments).forEach(subId => {
-                const subData = subAssignments[subId];
+            // Wir schauen in die neueste Datei
+            try {
+                const draftContent = await fetchDraftContent(files[0].path);
+                if (draftContent && draftContent.assignments) {
+                    Object.keys(draftContent.assignments).forEach(id => foundAssignments.add(id));
+                }
+            } catch (e) {
+                console.warn(`Konnte Struktur von ${name} nicht lesen.`);
+            }
+        });
+
+        await Promise.all(scanPromises);
+
+        // Dropdown befüllen
+        assignmentSelect.innerHTML = '<option value="">-- Aufgabe wählen --</option>';
+        if (foundAssignments.size === 0) {
+            assignmentSelect.innerHTML += '<option value="" disabled>Keine Aufgaben in den gescannten Entwürfen gefunden.</option>';
+        } else {
+            Array.from(foundAssignments).sort().forEach(assId => {
                 const opt = document.createElement('option');
-                opt.value = subId;
-                opt.textContent = subData.title || subId;
-                subSelect.appendChild(opt);
+                opt.value = assId;
+                opt.textContent = assId;
+                assignmentSelect.appendChild(opt);
             });
-            subSelect.disabled = false;
+            assignmentSelect.disabled = false;
         }
     });
-
     // --- 4. Render Grid ---
 
     subSelect.addEventListener('change', () => {

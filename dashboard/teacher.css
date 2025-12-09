@@ -200,3 +200,38 @@ body {
 .answer-box .ql-editor {
     padding: 0;
 }
+
+/* Live View Grid Styles */
+#live-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5em;
+}
+
+.student-card {
+    background: #fff;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    border-top: 3px solid #007bff;
+    padding: 1em;
+    display: flex;
+    flex-direction: column;
+}
+
+.student-name-header {
+    font-weight: 600;
+    margin-bottom: 0.8em;
+    padding-bottom: 0.5em;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.student-card .ql-editor {
+    padding: 10px;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
