@@ -185,15 +185,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const students = draftsMap[cls];
         const studentNames = Object.keys(students).sort();
 
-        // Container für das Grid
         const grid = document.createElement('div');
         grid.id = 'live-grid';
 
-        // Daten parallel laden
         const promises = studentNames.map(async (name) => {
             const files = students[name];
             if (!files || files.length === 0) return null;
-            const filePath = files[0].path; 
+            
+            // Sortieren nach Dateiname (neueste zuerst)
+            const sortedFiles = [...files].sort((a, b) => b.name.localeCompare(a.name));
+            const filePath = sortedFiles[0].path; 
 
             try {
                 const data = await fetchDraftContent(filePath);
@@ -211,48 +212,82 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'student-card';
 
-            // --- Header & Timestamp ---
-            let lastUpdateStr = '-';
-            let isRecent = false;
-            if (res.data && res.data.createdAt) {
-                const date = new Date(res.data.createdAt);
-                lastUpdateStr = date.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
-                if (new Date() - date < 300000) isRecent = true;
-            }
-
-            const header = document.createElement('div');
-            header.className = 'student-header';
-            header.innerHTML = `
-                <span class="student-name">${res.name}</span>
-                <span class="last-update-badge ${isRecent ? 'recent' : ''}" title="Zuletzt gespeichert">
-                    🕒 ${lastUpdateStr}
-                </span>
-            `;
-            card.appendChild(header);
-            
-            const cardContent = document.createElement('div');
-            cardContent.className = 'student-card-content';
-
-            // --- NEU: Intelligente Suche nach Assignment ID ---
+            // 1. ZUERST Daten suchen (Assignment Data)
             let assignmentData = null;
-            
             if (res.data && res.data.assignments) {
-                // 1. Versuch: Exakter Treffer
                 if (res.data.assignments[assId]) {
                     assignmentData = res.data.assignments[assId];
                 } else {
-                    // 2. Versuch: Unscharfe Suche (Leerzeichen trimmen, URL-Decoding prüfen)
-                    // Wir suchen einen Key im Datensatz, der "gleichbedeutend" ist mit dem gesuchten assId
+                    // Fuzzy Search
                     const foundKey = Object.keys(res.data.assignments).find(k => {
                         return decodeURIComponent(k).trim() === decodeURIComponent(assId).trim();
                     });
                     if (foundKey) {
                         assignmentData = res.data.assignments[foundKey];
-                        // Optional: Hinweis im UI, dass ID abweicht (nur für Debugging relevant)
-                        // console.log(`Fuzzy match für ${res.name}: Suchte '${assId}', fand '${foundKey}'`);
                     }
                 }
             }
+
+            // 2. DANN Statistiken berechnen
+            let totalQuestions = 0;
+            let answeredQuestions = 0;
+            let totalWords = 0;
+            
+            if (assignmentData) {
+                const subIds = Object.keys(assignmentData);
+                subIds.forEach(subId => {
+                    const subTask = assignmentData[subId];
+                    if (subTask.questions) totalQuestions += subTask.questions.length;
+                    
+                    if (subTask.answers && subTask.answers.length > 0) {
+                        subTask.answers.forEach(a => {
+                            // Check ob Antwort valide ist (nicht leer, kein leeres HTML)
+                            if (a.answer && a.answer.trim() !== '' && a.answer !== '<p><br></p>') {
+                                answeredQuestions++;
+                                // Wortzählung (HTML Tags entfernen)
+                                const textOnly = a.answer.replace(/<[^>]*>/g, ' ').trim();
+                                const words = textOnly.split(/\s+/).filter(w => w.length > 0);
+                                totalWords += words.length;
+                            }
+                        });
+                    }
+                });
+            }
+            
+            const progressPercent = totalQuestions > 0 ? Math.round((answeredQuestions / totalQuestions) * 100) : 0;
+            const progressColor = progressPercent >= 80 ? '#28a745' : progressPercent >= 50 ? '#ffc107' : '#dc3545';
+
+            // 3. Zeitstempel vorbereiten
+            let lastUpdateStr = '-';
+            let isRecent = false;
+            if (res.data && res.data.createdAt) {
+                const date = new Date(res.data.createdAt);
+                lastUpdateStr = date.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
+                if (new Date() - date < 300000) isRecent = true; // jünger als 5 min
+            }
+
+            // 4. JETZT den Header erstellen (mit den berechneten Werten)
+            const header = document.createElement('div');
+            header.className = 'student-header';
+            header.innerHTML = `
+                <span class="student-name">${res.name}</span>
+                <div class="student-stats">
+                    <span class="progress-badge" style="background-color: ${progressColor};" title="Beantwortete Fragen">
+                        ${answeredQuestions}/${totalQuestions} ✓
+                    </span>
+                    <span class="word-count-badge" title="Geschriebene Wörter">
+                        ${totalWords} 📝
+                    </span>
+                    <span class="last-update-badge ${isRecent ? 'recent' : ''}" title="Zuletzt gespeichert">
+                        🕒 ${lastUpdateStr}
+                    </span>
+                </div>
+            `;
+            card.appendChild(header);
+            
+            // 5. Card Content rendern
+            const cardContent = document.createElement('div');
+            cardContent.className = 'student-card-content';
 
             if (assignmentData) {
                 const subIds = Object.keys(assignmentData).sort();
@@ -286,11 +321,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (res.error) {
                 cardContent.innerHTML = '<p style="color:red;">Ladefehler.</p>';
             } else {
-                // Falls wir wirklich nichts finden, zeigen wir zur Diagnose an, was da ist (optional)
-                // Das hilft enorm zu verstehen, warum es nicht matcht.
-                // const availableKeys = res.data && res.data.assignments ? Object.keys(res.data.assignments).join(', ') : 'Keine';
-                // cardContent.innerHTML = `<p style="color:#ccc; font-style:italic;">Noch nicht begonnen.</p><p style="font-size:0.7em; color:#ddd;">(Vorhanden: ${availableKeys})</p>`;
-                
                 cardContent.innerHTML = '<p style="color:#ccc; font-style:italic;">Noch nicht begonnen.</p>';
             }
 
