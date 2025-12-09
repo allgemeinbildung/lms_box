@@ -193,7 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const promises = studentNames.map(async (name) => {
             const files = students[name];
             if (!files || files.length === 0) return null;
-            // Neueste Datei
             const filePath = files[0].path; 
 
             try {
@@ -218,7 +217,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.data && res.data.createdAt) {
                 const date = new Date(res.data.createdAt);
                 lastUpdateStr = date.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
-                // Prüfen ob vor weniger als 5 Minuten (300000ms) geupdated wurde
                 if (new Date() - date < 300000) isRecent = true;
             }
 
@@ -235,30 +233,43 @@ document.addEventListener('DOMContentLoaded', () => {
             const cardContent = document.createElement('div');
             cardContent.className = 'student-card-content';
 
-            if (res.data && res.data.assignments && res.data.assignments[assId]) {
-                const assignmentData = res.data.assignments[assId];
-                // Hole alle Sub-IDs (Unteraufgaben) und sortiere sie
+            // --- NEU: Intelligente Suche nach Assignment ID ---
+            let assignmentData = null;
+            
+            if (res.data && res.data.assignments) {
+                // 1. Versuch: Exakter Treffer
+                if (res.data.assignments[assId]) {
+                    assignmentData = res.data.assignments[assId];
+                } else {
+                    // 2. Versuch: Unscharfe Suche (Leerzeichen trimmen, URL-Decoding prüfen)
+                    // Wir suchen einen Key im Datensatz, der "gleichbedeutend" ist mit dem gesuchten assId
+                    const foundKey = Object.keys(res.data.assignments).find(k => {
+                        return decodeURIComponent(k).trim() === decodeURIComponent(assId).trim();
+                    });
+                    if (foundKey) {
+                        assignmentData = res.data.assignments[foundKey];
+                        // Optional: Hinweis im UI, dass ID abweicht (nur für Debugging relevant)
+                        // console.log(`Fuzzy match für ${res.name}: Suchte '${assId}', fand '${foundKey}'`);
+                    }
+                }
+            }
+
+            if (assignmentData) {
                 const subIds = Object.keys(assignmentData).sort();
 
                 if (subIds.length === 0) {
                     cardContent.innerHTML = '<p style="color:orange; font-style:italic;">Keine Teilaufgaben gefunden.</p>';
                 } else {
-                    // Loop durch alle Teilaufgaben
                     subIds.forEach(subId => {
                         const subTask = assignmentData[subId];
+                        const displayTitle = subTask.title || subId;
                         
                         const subBlock = document.createElement('div');
                         subBlock.className = 'sub-assignment-block';
-                        
-                        // Titel der Teilaufgabe (z.B. "01 Einleitung")
-                        const displayTitle = subTask.title || subId;
                         subBlock.innerHTML = `<div class="sub-title">${displayTitle}</div>`;
 
-                        // Antworten rendern
                         if (subTask.answers && subTask.answers.length > 0) {
                             subTask.answers.forEach(a => {
-                                // Wir zeigen nur die Antwort. Die Frage wegzulassen spart Platz, 
-                                // da der Kontext meist klar ist.
                                 subBlock.innerHTML += `
                                     <div class="read-only-answer ql-editor">
                                         ${a.answer || '<span style="color:#ccc;">(Leer)</span>'}
@@ -272,11 +283,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         cardContent.appendChild(subBlock);
                     });
                 }
-
             } else if (res.error) {
                 cardContent.innerHTML = '<p style="color:red;">Ladefehler.</p>';
             } else {
-                 cardContent.innerHTML = '<p style="color:#ccc; font-style:italic;">Noch nicht begonnen.</p>';
+                // Falls wir wirklich nichts finden, zeigen wir zur Diagnose an, was da ist (optional)
+                // Das hilft enorm zu verstehen, warum es nicht matcht.
+                // const availableKeys = res.data && res.data.assignments ? Object.keys(res.data.assignments).join(', ') : 'Keine';
+                // cardContent.innerHTML = `<p style="color:#ccc; font-style:italic;">Noch nicht begonnen.</p><p style="font-size:0.7em; color:#ddd;">(Vorhanden: ${availableKeys})</p>`;
+                
+                cardContent.innerHTML = '<p style="color:#ccc; font-style:italic;">Noch nicht begonnen.</p>';
             }
 
             card.appendChild(cardContent);
