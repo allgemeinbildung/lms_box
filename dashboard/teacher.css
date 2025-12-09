@@ -3,7 +3,8 @@
 //  :::::: F I L E :   d a s h b o a r d / t e a c h e r . c s s ::::::
 // ──────────────────────────────────────────────────────────────────
 */
-/* General Styles */
+
+/* --- 1. General Styles --- */
 body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -11,7 +12,7 @@ body {
     color: #333;
 }
 
-/* Login Overlay */
+/* --- 2. Login Overlay --- */
 #login-overlay {
     position: fixed;
     top: 0;
@@ -24,9 +25,11 @@ body {
     align-items: center;
     z-index: 1000;
 }
+
 #login-overlay.visible {
     display: flex;
 }
+
 #login-box {
     background: #fff;
     padding: 2em 3em;
@@ -34,6 +37,7 @@ body {
     text-align: center;
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
 }
+
 #login-box input {
     display: block;
     width: 100%;
@@ -42,6 +46,7 @@ body {
     border: 1px solid #ccc;
     border-radius: 4px;
 }
+
 #login-box button {
     padding: 10px 20px;
     border: none;
@@ -50,17 +55,19 @@ body {
     border-radius: 4px;
     cursor: pointer;
 }
+
 #login-status {
     color: #d9534f;
     min-height: 1.2em;
     margin-top: 1em;
 }
 
-/* Dashboard Layout */
+/* --- 3. Dashboard Layout (Teacher View) --- */
 #dashboard-container {
     display: flex;
     height: 100vh;
 }
+
 #sidebar {
     width: 350px;
     background-color: #fff;
@@ -68,32 +75,34 @@ body {
     padding: 1em;
     overflow-y: auto;
     box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-    display: flex; /* ✅ NEU */
-    flex-direction: column; /* ✅ NEU */
+    display: flex;
+    flex-direction: column;
 }
+
 #sidebar h1 {
     margin-top: 0;
     font-size: 1.5em;
     border-bottom: 1px solid #eee;
     padding-bottom: 0.5em;
 }
+
 #content-viewer {
     flex-grow: 1;
     padding: 2em;
     overflow-y: auto;
 }
 
-/* ✅ NEU: Container für Steuerungselemente */
 #controls-container {
     padding-bottom: 1em;
     margin-bottom: 1em;
     border-bottom: 1px solid #eee;
 }
 
-/* ✅ UPDATED: Class Filter Styles */
+/* Class Filter */
 #class-filter-container {
-    margin-bottom: 1em; /* Leichter Abstand zum Button */
+    margin-bottom: 1em;
 }
+
 #class-filter {
     width: 100%;
     padding: 8px;
@@ -101,7 +110,7 @@ body {
     border: 1px solid #ccc;
 }
 
-/* ✅ NEU: Download Button Styles */
+/* Download Button */
 #download-btn {
     width: 100%;
     padding: 10px;
@@ -115,28 +124,33 @@ body {
     transition: background-color 0.2s;
     text-align: center;
 }
+
 #download-btn:hover {
     background-color: #218838;
 }
+
 #download-btn:disabled {
     background-color: #6c757d;
     border-color: #6c757d;
     cursor: not-allowed;
 }
+
 #download-status {
     font-weight: normal;
     font-size: 0.9em;
     margin-left: 8px;
 }
 
-/* ✅ UPDATED: Submission List Styling */
+/* Submission List Styling */
 #submission-list {
-    flex-grow: 1; /* Füllt den Rest des Sidebars */
-    overflow-y: auto; /* Scrollbar für die Liste */
+    flex-grow: 1;
+    overflow-y: auto;
 }
+
 .class-group {
     margin-bottom: 1.5em;
 }
+
 .class-name {
     font-weight: bold;
     font-size: 1.2em;
@@ -145,15 +159,18 @@ body {
     border-radius: 4px;
     cursor: pointer;
 }
+
 .student-group {
     margin-top: 0.5em;
     padding-left: 1em;
 }
+
 .student-name {
     font-weight: bold;
     font-size: 1.1em;
     margin-bottom: 0.5em;
 }
+
 .submission-file {
     display: block;
     padding: 8px 12px;
@@ -163,22 +180,25 @@ body {
     cursor: pointer;
     margin-left: 1em;
 }
+
 .submission-file:hover {
     background-color: #e9f3ff;
 }
+
 .submission-file.active {
     background-color: #007bff;
     color: white;
     font-weight: bold;
 }
 
-/* Content Viewer Styling */
+/* --- 4. Content Viewer (Detail View) --- */
 #viewer-placeholder {
     text-align: center;
     color: #777;
     margin-top: 5em;
     font-size: 1.2em;
 }
+
 .assignment-block {
     margin-bottom: 2.5em;
     padding: 1.5em;
@@ -186,60 +206,27 @@ body {
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
+
 .assignment-block h2 {
     margin-top: 0;
     border-bottom: 1px solid #eee;
     padding-bottom: 0.5em;
 }
+
 .answer-box {
     padding: 1em;
     border: 1px solid #e0e0e0;
     border-radius: 4px;
     background-color: #fdfdfd;
 }
+
 .answer-box .ql-editor {
     padding: 0;
 }
 
-/* Live View Grid Styles */
-#live-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1.5em;
-}
-
-.student-card {
-    background: #fff;
-    border-radius: 6px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-    border-top: 3px solid #007bff;
-    padding: 1em;
-    display: flex;
-    flex-direction: column;
-}
-
-.student-name-header {
-    font-weight: 600;
-    margin-bottom: 0.8em;
-    padding-bottom: 0.5em;
-    border-bottom: 1px solid #f0f0f0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.student-card .ql-editor {
-    padding: 10px;
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 4px;
-    font-size: 0.9em;
-}
-
-/* --- Live View Styles --- */
-
+/* --- 5. Live View Layout & Controls --- */
 #live-view-container {
-    max-width: 95%; /* Breiteres Layout nutzen */
+    max-width: 95%;
     margin: 0 auto;
     padding: 20px;
 }
@@ -287,11 +274,13 @@ body {
     cursor: pointer;
     font-weight: bold;
     height: 100%;
-    margin-top: 18px; /* Ausgleich für Labels */
+    margin-top: 18px; /* Alignment fix */
     transition: background 0.2s;
 }
 
-#refresh-btn:hover { background-color: #0056b3; }
+#refresh-btn:hover {
+    background-color: #0056b3;
+}
 
 #placeholder-msg {
     text-align: center;
@@ -300,69 +289,111 @@ body {
     font-size: 1.2em;
 }
 
-/* --- Das Grid --- */
+/* --- 6. Live View Grid System (Responsive) --- */
 #live-grid {
     display: grid;
-    /* Automatisch füllen: Karten sind mind. 400px breit */
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); 
-    gap: 20px;
-    align-items: start; /* Wichtig, damit Karten oben bündig sind */
+    /* Create as many columns as fit, min 480px width each */
+    grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+    gap: 15px;
+    align-items: start;
 }
 
-/* --- Schüler Karte --- */
+/* --- 7. Student Card (Accordion Style) --- */
 .student-card {
     background: #fff;
     border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    overflow: hidden;
+    transition: box-shadow 0.2s, transform 0.2s;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    transition: transform 0.2s;
 }
 
 .student-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+    z-index: 1;
 }
 
+/* Card Header */
 .student-header {
-    background-color: #f8f9fa;
-    padding: 12px 16px;
-    border-bottom: 1px solid #eee;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 10px 15px;
+    background-color: #fff;
+    border-bottom: 1px solid transparent;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s;
 }
 
-.student-name {
-    font-weight: bold;
-    font-size: 1.1em;
-    color: #333;
+.student-header:hover {
+    background-color: #f8f9fa;
 }
 
-.last-update-badge {
-    font-size: 0.8em;
-    background-color: #e9ecef;
-    padding: 4px 8px;
-    border-radius: 12px;
-    color: #555;
+/* Open State Header */
+.student-card.open .student-header {
+    background-color: #f1f3f5;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.header-left {
     display: flex;
     align-items: center;
-    gap: 4px;
-}
-.last-update-badge.recent {
-    background-color: #d4edda;
-    color: #155724;
+    gap: 8px;
+    overflow: hidden;
 }
 
+/* Toggle Arrow */
+.toggle-icon {
+    font-size: 0.8em;
+    color: #adb5bd;
+    transition: transform 0.2s ease;
+    display: inline-block;
+    width: 20px;
+    text-align: center;
+}
+
+.student-card.open .toggle-icon {
+    transform: rotate(90deg);
+    color: #495057;
+}
+
+/* Student Name inside Card */
+.student-header .student-name {
+    font-weight: 600;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+    margin-bottom: 0; /* Reset margin from general styling */
+}
+
+/* Stats Container */
+.student-stats {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+/* --- 8. Card Content & Badges --- */
 .student-card-content {
-    padding: 16px;
-    max-height: 600px; /* Maximale Höhe pro Karte, sonst wird sie zu lang */
-    overflow-y: auto;  /* Scrollbar innerhalb der Karte */
+    display: none;
+    padding: 15px;
+    background-color: #fff;
+    max-height: 500px;
+    overflow-y: auto;
 }
 
-/* --- Unteraufgaben innerhalb der Karte --- */
+.student-card.open .student-card-content {
+    display: block;
+}
+
+/* Sub-Assignments */
 .sub-assignment-block {
     margin-bottom: 1.5em;
     padding-bottom: 1em;
@@ -383,160 +414,47 @@ body {
     font-weight: bold;
 }
 
-/* Antwort-Boxen (Quill Output) */
+/* Read-Only Answers */
 .read-only-answer {
-    background-color: #fff;
+    background-color: #fafafa;
     border: 1px solid #e0e0e0;
     border-radius: 4px;
     padding: 10px;
     font-size: 0.95em;
-    background-color: #fafafa;
 }
+
 .read-only-answer img {
     max-width: 100%;
     height: auto;
 }
 
-/* --- Neue Stats Badges im Live View --- */
-
-.student-stats {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.progress-badge {
-    padding: 4px 8px;
+/* Stats Badges */
+.progress-badge, .word-count-badge {
+    padding: 3px 8px;
     border-radius: 12px;
-    font-size: 0.8em;
+    font-size: 0.75em;
     font-weight: bold;
-    color: white; /* Weisser Text auf farbigem Hintergrund */
+    color: white;
+    cursor: help;
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .word-count-badge {
-    background-color: #17a2b8; /* Info-Blau */
-    color: white;
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 0.8em;
-    font-weight: bold;
+    background-color: #17a2b8;
 }
-
-/* Anpassung des existierenden Headers für mehr Platz */
-.student-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 16px;
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #eee;
-}
-
-/* Sicherstellen, dass der Name nicht umbricht, wenn Badges viel Platz brauchen */
-.student-name {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-right: 10px;
-}
-
-/* --- Live View: Akkordeon Styles --- */
-
-#live-grid {
-    display: flex;
-    flex-direction: column; /* Liste statt Grid */
-    gap: 10px;
-}
-
-.student-card {
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    overflow: hidden;
-    transition: box-shadow 0.2s;
-}
-
-.student-card:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.student-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 20px;
-    background-color: #f8f9fa;
-    cursor: pointer; /* Zeigt an, dass es klickbar ist */
-    user-select: none;
-    transition: background-color 0.2s;
-}
-
-.student-header:hover {
-    background-color: #e9ecef;
-}
-
-.header-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-/* Pfeil-Icon für das Dropdown */
-.toggle-icon {
-    font-size: 0.8em;
-    color: #6c757d;
-    transition: transform 0.2s ease;
-    display: inline-block;
-    width: 20px;
-    text-align: center;
-}
-
-/* Wenn Karte offen ist, Pfeil drehen */
-.student-card.open .toggle-icon {
-    transform: rotate(90deg);
-}
-
-.student-name {
-    font-weight: 600;
-    color: #333;
-}
-
-.student-stats {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-}
-
-/* Inhalt standardmäßig verstecken */
-.student-card-content {
-    display: none;
-    padding: 20px;
-    background-color: #fff;
-    border-top: 1px solid #e0e0e0;
-}
-
-/* Wenn Karte offen ist, Inhalt zeigen */
-.student-card.open .student-card-content {
-    display: block;
-}
-
-/* Badges (wie vorher) */
-.progress-badge, .word-count-badge {
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 0.8em;
-    font-weight: bold;
-    color: white;
-}
-.word-count-badge { background-color: #17a2b8; }
 
 .last-update-badge {
-    font-size: 0.8em;
-    color: #888;
+    font-size: 0.75em;
+    color: #999;
+    background: #f8f9fa;
+    padding: 3px 6px;
+    border-radius: 4px;
+    border: 1px solid #eee;
 }
+
 .last-update-badge.recent {
     color: #155724;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
     font-weight: bold;
 }
