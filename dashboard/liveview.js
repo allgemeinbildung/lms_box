@@ -1,25 +1,35 @@
 //
 // ────────────────────────────────────────────────────────────────
-//  :::::: F I L E :   d a s h b o a r d / l i v e v i e w . j s ::::::
+//  :::::: F I L E :  d a s h b o a r d / l i v e v i e w . j s ::::::
 // ────────────────────────────────────────────────────────────────
 //
 import { SCRIPT_URL } from '../js/config.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     
-    // --- 1. Authentication (Copied from teacher.js) ---
-    // These are the only DOM elements needed for login
+    // --- DOM Elements ---
     const loginOverlay = document.getElementById('login-overlay');
     const keyInput = document.getElementById('teacher-key-input');
     const loginBtn = document.getElementById('login-btn');
     const loginStatus = document.getElementById('login-status');
     
+    const classSelect = document.getElementById('class-select');
+    const assignmentSelect = document.getElementById('assignment-select');
+    const subSelect = document.getElementById('sub-select');
+    const refreshBtn = document.getElementById('refresh-btn');
+    const contentRenderer = document.getElementById('live-content-renderer');
+
+    // State
+    let draftsMap = {}; // Struktur: { "KLASSE": { "SCHÜLER": { name: "...", path: "..." } } }
+    let currentTeacherKey = '';
+
+    // --- 1. Authentication ---
     const checkAuth = () => {
         const key = sessionStorage.getItem('teacherKey');
         if (key) {
+            currentTeacherKey = key;
             loginOverlay.classList.remove('visible');
-            // ✅ HIER ÄNDERN: Rufe die neue Funktion für diese Seite auf
-            loadLiveAssignment(key); 
+            initDataLoad(); 
         } else {
             loginOverlay.classList.add('visible');
         }
@@ -37,179 +47,262 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     loginBtn.addEventListener('click', attemptLogin);
-    keyInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') attemptLogin();
-    });
+    keyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptLogin(); });
 
-    // --- 2. Main Application Logic (NEU) ---
+    // --- 2. Data Loading & Initialization ---
 
-    /**
-     * Lädt und rendert die Live-Ansicht für eine bestimmte Aufgabe
-     */
-    const loadLiveAssignment = async (teacherKey) => {
-        // Get elements from liveview.html
-        const contentRenderer = document.getElementById('live-content-renderer');
-        const loadingStatus = document.getElementById('loading-status');
-
-        // Get assignmentId and subId from the URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const assignmentId = urlParams.get('assignmentId');
-        const subId = urlParams.get('subId');
-
-        if (!assignmentId || !subId) {
-            contentRenderer.innerHTML = '<p style="color: red;">Fehler: `assignmentId` oder `subId` in der URL nicht gefunden.</p>';
-            return;
-        }
-
+    const initDataLoad = async () => {
+        refreshBtn.textContent = 'Lade Liste...';
+        refreshBtn.disabled = true;
+        
         try {
-            // --- 3. Alle Abgaben abrufen (Multi-Schritt-Prozess) ---
-
-            // Schritt 3a: Hole die LISTE aller Abgabedateien
-            [span_0](start_span)// (Diese Logik ist von fetchSubmissionsList in teacher.js [cite: 65-71])
-            const listResponse = await fetch(SCRIPT_URL, {
+            // Wir holen die LISTE der Entwürfe (genau wie im Teacher Dashboard)
+            const response = await fetch(SCRIPT_URL, {
                 method: 'POST',
                 mode: 'cors',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'listSubmissions', teacherKey })
+                body: JSON.stringify({ action: 'listDrafts', teacherKey: currentTeacherKey })
             });
-            const submissionMap = await listResponse.json();
-            if (submissionMap.status === 'error') throw new Error(submissionMap.message);
-
-            // Schritt 3b: Erstelle eine flache Liste aller zu holenden Studentendateien
-            const filesToFetch = [];
-            for (const className in submissionMap) {
-                for (const studentName in submissionMap[className]) {
-                    // Finde die NEUESTE Abgabedatei für jeden Schüler
-                    const latestFile = submissionMap[className][studentName]
-                        .sort((a, b) => b.name.localeCompare(a.name))[0];
-                    
-                    if (latestFile) {
-                        filesToFetch.push({ studentName, path: latestFile.path });
-                    }
-                }
+            const data = await response.json();
+            
+            if (data.status === 'error') throw new Error(data.message);
+            
+            // Normalisiere Daten (Groß/Kleinschreibung bei Klassen)
+            draftsMap = {};
+            for (const className in data) {
+                const normalizedClass = className.toUpperCase();
+                if (!draftsMap[normalizedClass]) draftsMap[normalizedClass] = {};
+                Object.assign(draftsMap[normalizedClass], data[className]);
             }
 
-            if (filesToFetch.length === 0) {
-                loadingStatus.textContent = 'Noch keine Abgaben für dieses Modul gefunden.';
-                return;
-            }
-
-            // Schritt 3c: Hole den INHALT jeder einzelnen Datei
-            loadingStatus.textContent = `Lade ${filesToFetch.length} Abgaben...`;
-            
-            const fetchPromises = filesToFetch.map(fileInfo => 
-                fetchSubmissionContent(teacherKey, fileInfo.path)
-                    // Hänge die Studentendaten an die Antwort an
-                    .then(data => ({ ...fileInfo, submissionData: data }))
-            );
-            
-            const allSubmissions = await Promise.all(fetchPromises);
-
-            // --- 4. Inhalte rendern ---
-            renderAllAnswers(allSubmissions, assignmentId, subId);
+            populateClassSelect();
 
         } catch (error) {
-            contentRenderer.innerHTML = `<p style="color: red;">Fehler beim Laden der Abgaben: ${error.message}</p>`;
-            // Wichtig: Wenn der Schlüssel falsch ist, zeige das Login erneut an
+            console.error(error);
             if (error.message.includes('Invalid teacher key')) {
                 sessionStorage.removeItem('teacherKey');
                 checkAuth();
+            } else {
+                alert("Fehler beim Laden der Liste: " + error.message);
             }
+        } finally {
+            refreshBtn.textContent = '🔄 Aktualisieren';
+            refreshBtn.disabled = false;
         }
     };
 
-    /**
-     * Holt den Inhalt einer einzelnen Abgabe vom Backend
-     * [cite_start](Basiert auf fetchSubmissionContent in teacher.js [cite: 87-91])
-     */
-    const fetchSubmissionContent = async (teacherKey, path) => {
+    // --- 3. UI Logic: Populate Dropdowns ---
+
+    const populateClassSelect = () => {
+        const classes = Object.keys(draftsMap).sort();
+        
+        // Aktuelle Auswahl merken
+        const currentVal = classSelect.value;
+        
+        classSelect.innerHTML = '<option value="">-- Klasse wählen --</option>';
+        classes.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = c;
+            classSelect.appendChild(opt);
+        });
+        classSelect.disabled = false;
+
+        if (classes.includes(currentVal)) {
+            classSelect.value = currentVal;
+        }
+    };
+
+    // Wenn Klasse gewählt wird, müssen wir eigentlich wissen, welche Aufgaben existieren.
+    // Da `listDrafts` nur Dateinamen/Pfade liefert, aber nicht den INHALT (und damit die Assignment IDs),
+    // müssen wir hier einen Trick anwenden oder Annahmen treffen.
+    // BESSERE LÖSUNG: Wir laden EIN Draft eines Schülers dieser Klasse, um die Assignment-Struktur zu lesen,
+    // oder wir hardcoden die IDs, wenn sie bekannt sind.
+    // HIER: Wir scannen die Dateinamen (oft "assignmentId.json") oder wir laden den ersten verfügbaren Schüler,
+    // um die Struktur zu parsen.
+    
+    classSelect.addEventListener('change', async () => {
+        const selectedClass = classSelect.value;
+        assignmentSelect.innerHTML = '<option value="">Lade Aufgaben...</option>';
+        assignmentSelect.disabled = true;
+        subSelect.innerHTML = '<option value="">-</option>';
+        subSelect.disabled = true;
+        contentRenderer.innerHTML = '';
+
+        if (!selectedClass) return;
+
+        // Hole ersten Schüler der Klasse, um Struktur zu lesen
+        const students = draftsMap[selectedClass];
+        const studentNames = Object.keys(students);
+        if (studentNames.length === 0) {
+            assignmentSelect.innerHTML = '<option value="">Keine Schüler gefunden</option>';
+            return;
+        }
+
+        // Wir nehmen an, dass alle Schüler an den gleichen Aufgaben arbeiten.
+        // Wir laden das Draft des ersten Schülers, um die Assignment-IDs zu finden.
+        const firstStudentDrafts = students[studentNames[0]]; // Array of files
+        if (!Array.isArray(firstStudentDrafts) || firstStudentDrafts.length === 0) return;
+        
+        // Lade die Datei des ersten Schülers
+        try {
+            const draftContent = await fetchDraftContent(firstStudentDrafts[0].path);
+            if (draftContent && draftContent.assignments) {
+                populateAssignmentSelect(draftContent.assignments);
+            }
+        } catch (e) {
+            console.error("Konnte Struktur nicht laden", e);
+        }
+    });
+
+    const populateAssignmentSelect = (assignmentsObj) => {
+        assignmentSelect.innerHTML = '<option value="">-- Aufgabe wählen --</option>';
+        Object.keys(assignmentsObj).forEach(assId => {
+            const opt = document.createElement('option');
+            opt.value = assId;
+            opt.textContent = assId; // Wenn Titel verfügbar, hier nutzen
+            assignmentSelect.appendChild(opt);
+        });
+        assignmentSelect.disabled = false;
+    };
+
+    assignmentSelect.addEventListener('change', async () => {
+        const selectedClass = classSelect.value;
+        const selectedAss = assignmentSelect.value;
+        subSelect.innerHTML = '<option value="">Lade...</option>';
+        subSelect.disabled = true;
+
+        if (!selectedAss) return;
+
+        // Wir müssen erneut in das JSON schauen (oder es cachen), um Sub-IDs zu holen.
+        // Wir holen es schnell nochmal (oder optimiert: oben speichern).
+        const students = draftsMap[selectedClass];
+        const studentNames = Object.keys(students);
+        const firstStudentDrafts = students[studentNames[0]];
+        const draftContent = await fetchDraftContent(firstStudentDrafts[0].path);
+
+        if (draftContent && draftContent.assignments && draftContent.assignments[selectedAss]) {
+            const subAssignments = draftContent.assignments[selectedAss];
+            subSelect.innerHTML = '<option value="">-- Unteraufgabe wählen --</option>';
+            
+            Object.keys(subAssignments).forEach(subId => {
+                const subData = subAssignments[subId];
+                const opt = document.createElement('option');
+                opt.value = subId;
+                opt.textContent = subData.title || subId;
+                subSelect.appendChild(opt);
+            });
+            subSelect.disabled = false;
+        }
+    });
+
+    // --- 4. Render Grid ---
+
+    subSelect.addEventListener('change', () => {
+        renderLiveGrid();
+    });
+
+    refreshBtn.addEventListener('click', () => {
+        // Wenn bereits alles ausgewählt ist, refreshe nur den Grid-Inhalt
+        if (classSelect.value && assignmentSelect.value && subSelect.value) {
+            renderLiveGrid();
+        } else {
+            initDataLoad(); // Full reload
+        }
+    });
+
+    const renderLiveGrid = async () => {
+        const cls = classSelect.value;
+        const assId = assignmentSelect.value;
+        const subId = subSelect.value;
+
+        if (!cls || !assId || !subId) return;
+
+        contentRenderer.innerHTML = '<p>Lade Antworten aller Schüler/innen...</p>';
+        
+        const students = draftsMap[cls];
+        const studentNames = Object.keys(students).sort();
+
+        // Container für das Grid
+        const grid = document.createElement('div');
+        grid.id = 'live-grid';
+
+        // Lade alle parallel
+        const promises = studentNames.map(async (name) => {
+            const files = students[name];
+            // Nimm die neueste Datei (Draft)
+            if (!files || files.length === 0) return null;
+            
+            // Sortiere falls nötig, meistens ist Index 0 aber okay oder wir nehmen das, was da ist.
+            const filePath = files[0].path; 
+
+            try {
+                const data = await fetchDraftContent(filePath);
+                return { name, data };
+            } catch (e) {
+                return { name, error: true };
+            }
+        });
+
+        const results = await Promise.all(promises);
+
+        results.forEach(res => {
+            if (!res) return;
+
+            const card = document.createElement('div');
+            card.className = 'student-card';
+
+            const header = document.createElement('div');
+            header.className = 'student-name-header';
+            header.innerHTML = `<span>${res.name}</span>`;
+            
+            let contentHtml = '<p style="color:#ccc; font-style:italic;">Keine Daten für diese Aufgabe.</p>';
+
+            if (res.data && res.data.assignments && res.data.assignments[assId] && res.data.assignments[assId][subId]) {
+                const subData = res.data.assignments[assId][subId];
+                const lastUpdate = res.data.createdAt ? new Date(res.data.createdAt).toLocaleTimeString() : '';
+                header.innerHTML += `<span class="last-update">🕒 ${lastUpdate}</span>`;
+
+                if (subData.answers && subData.answers.length > 0) {
+                    contentHtml = '';
+                    // Zeige alle Antworten für diese Sub-Aufgabe untereinander
+                    subData.answers.forEach(a => {
+                        contentHtml += `<div class="ql-editor" style="background:#f9f9f9; border:1px solid #eee; margin-top:5px; padding:10px; max-height:200px; overflow-y:auto;">${a.answer || '...'}</div>`;
+                    });
+                } else {
+                    contentHtml = '<p style="color:orange;">Aufgabe begonnen, aber leer.</p>';
+                }
+            } else if (res.error) {
+                contentHtml = '<p style="color:red;">Fehler beim Laden.</p>';
+            }
+
+            card.appendChild(header);
+            card.innerHTML += contentHtml;
+            grid.appendChild(card);
+        });
+
+        contentRenderer.innerHTML = '';
+        contentRenderer.appendChild(grid);
+    };
+
+    // --- Helper: Fetch Single Draft ---
+    const fetchDraftContent = async (path) => {
         try {
             const response = await fetch(SCRIPT_URL, {
                 method: 'POST',
                 mode: 'cors',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getSubmission', teacherKey, submissionPath: path })
+                body: JSON.stringify({ action: 'getDraft', teacherKey: currentTeacherKey, draftPath: path })
             });
             const data = await response.json();
             if (data.status === 'error') throw new Error(data.message);
             return data;
         } catch (error) {
-            console.error(`Fehler beim Laden von ${path}:`, error);
-            return null; // Überspringe, wenn eine Datei fehlschlägt
+            console.error(`Fehler bei ${path}:`, error);
+            return null;
         }
     };
 
-    /**
-     * Rendert alle Antworten für die spezifische Aufgabe
-     */
-    const renderAllAnswers = (allSubmissions, assignmentId, subId) => {
-        const contentRenderer = document.getElementById('live-content-renderer');
-        contentRenderer.innerHTML = ''; // Lade-Meldung löschen
-
-        let subAssignmentTitle = '';
-        let questions = [];
-        const relevantAnswers = [];
-        
-        // Filtere alle Abgaben, um nur die relevanten Antworten zu finden
-        for (const submission of allSubmissions) {
-            if (!submission.submissionData || !submission.submissionData.assignments) continue;
-
-            const assignment = submission.submissionData.assignments[assignmentId];
-            if (!assignment) continue;
-
-            const subAssignment = assignment[subId];
-            if (!subAssignment) continue;
-            
-            // Speichere Titel und Fragenstruktur (wir brauchen sie nur einmal)
-            if (!subAssignmentTitle) {
-                subAssignmentTitle = subAssignment.title;
-                questions = subAssignment.questions || [];
-                // Seitentitel aktualisieren
-                document.getElementById('main-title').textContent = assignmentId;
-                document.getElementById('sub-title').textContent = subAssignmentTitle;
-            }
-            
-            relevantAnswers.push({
-                studentName: submission.studentName,
-                [cite_start]answers: subAssignment.answers || [] //[span_0](end_span)
-            });
-        }
-        
-        if (questions.length === 0) {
-            contentRenderer.innerHTML = "<p>Keine Fragen-Struktur für diese Aufgabe gefunden.</p>";
-            return;
-        }
-
-        // Gehe durch jede FRAGE und zeige alle Schülerantworten dafür an
-        let html = '';
-        questions.forEach((question, index) => {
-            [span_1](start_span)// Verwende 'assignment-block' Stil von teacher.css[span_1](end_span)
-            html += `<div class="assignment-block">`;
-            html += `<h2>Frage ${index + 1}: ${question.text}</h2>`;
-
-            // Sortiere Schüler alphabetisch
-            relevantAnswers.sort((a, b) => a.studentName.localeCompare(b.studentName));
-
-            // Gehe nun alle Schüler durch
-            relevantAnswers.forEach(student => {
-                const answerMap = new Map(student.answers.map(a => [a.questionId, a.answer]));
-                const answer = answerMap.get(question.id) || '<p><i>Keine Antwort abgegeben.</i></p>';
-
-                html += `<div style="margin-top: 1.5em;">`;
-                // Deine Anforderung: "Der Name des Schülers steht über der Antwort"
-                html += `<p style="font-weight: bold; margin-bottom: 0.5em;">${student.studentName}</p>`;
-                
-                [span_2](start_span)// Verwende 'answer-box' Stile von teacher.css[span_2](end_span)
-                html += `<div class="answer-box"><div class="ql-snow"><div class="ql-editor">${answer}</div></div></div>`;
-                html += `</div>`;
-            });
-
-            html += `</div>`;
-        });
-
-        contentRenderer.innerHTML = html;
-    };
-
-    // --- Initialer Ladevorgang ---
+    // Start
     checkAuth();
 });
