@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    const renderLiveGrid = async () => {
+const renderLiveGrid = async () => {
         const cls = classSelect.value;
         const assId = assignmentSelect.value;
 
@@ -192,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const files = students[name];
             if (!files || files.length === 0) return null;
             
-            // Sortieren nach Dateiname (neueste zuerst)
+            // Neueste Datei finden
             const sortedFiles = [...files].sort((a, b) => b.name.localeCompare(a.name));
             const filePath = sortedFiles[0].path; 
 
@@ -210,9 +210,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!res) return;
 
             const card = document.createElement('div');
-            card.className = 'student-card';
+            card.className = 'student-card'; // Standardmäßig geschlossen
 
-            // 1. ZUERST Daten suchen (Assignment Data)
+            // --- 1. Datenanalyse ---
             let assignmentData = null;
             if (res.data && res.data.assignments) {
                 if (res.data.assignments[assId]) {
@@ -222,13 +222,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const foundKey = Object.keys(res.data.assignments).find(k => {
                         return decodeURIComponent(k).trim() === decodeURIComponent(assId).trim();
                     });
-                    if (foundKey) {
-                        assignmentData = res.data.assignments[foundKey];
-                    }
+                    if (foundKey) assignmentData = res.data.assignments[foundKey];
                 }
             }
 
-            // 2. DANN Statistiken berechnen
             let totalQuestions = 0;
             let answeredQuestions = 0;
             let totalWords = 0;
@@ -241,10 +238,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     if (subTask.answers && subTask.answers.length > 0) {
                         subTask.answers.forEach(a => {
-                            // Check ob Antwort valide ist (nicht leer, kein leeres HTML)
                             if (a.answer && a.answer.trim() !== '' && a.answer !== '<p><br></p>') {
                                 answeredQuestions++;
-                                // Wortzählung (HTML Tags entfernen)
                                 const textOnly = a.answer.replace(/<[^>]*>/g, ' ').trim();
                                 const words = textOnly.split(/\s+/).filter(w => w.length > 0);
                                 totalWords += words.length;
@@ -257,35 +252,43 @@ document.addEventListener('DOMContentLoaded', () => {
             const progressPercent = totalQuestions > 0 ? Math.round((answeredQuestions / totalQuestions) * 100) : 0;
             const progressColor = progressPercent >= 80 ? '#28a745' : progressPercent >= 50 ? '#ffc107' : '#dc3545';
 
-            // 3. Zeitstempel vorbereiten
             let lastUpdateStr = '-';
             let isRecent = false;
             if (res.data && res.data.createdAt) {
                 const date = new Date(res.data.createdAt);
                 lastUpdateStr = date.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
-                if (new Date() - date < 300000) isRecent = true; // jünger als 5 min
+                if (new Date() - date < 300000) isRecent = true;
             }
 
-            // 4. JETZT den Header erstellen (mit den berechneten Werten)
+            // --- 2. Header bauen (Klickbar) ---
             const header = document.createElement('div');
             header.className = 'student-header';
             header.innerHTML = `
-                <span class="student-name">${res.name}</span>
+                <div class="header-left">
+                    <span class="toggle-icon">▶</span>
+                    <span class="student-name">${res.name}</span>
+                </div>
                 <div class="student-stats">
-                    <span class="progress-badge" style="background-color: ${progressColor};" title="Beantwortete Fragen">
+                    <span class="progress-badge" style="background-color: ${progressColor};" title="Fortschritt">
                         ${answeredQuestions}/${totalQuestions} ✓
                     </span>
-                    <span class="word-count-badge" title="Geschriebene Wörter">
+                    <span class="word-count-badge" title="Wörter">
                         ${totalWords} 📝
                     </span>
-                    <span class="last-update-badge ${isRecent ? 'recent' : ''}" title="Zuletzt gespeichert">
+                    <span class="last-update-badge ${isRecent ? 'recent' : ''}" title="Letztes Speichern">
                         🕒 ${lastUpdateStr}
                     </span>
                 </div>
             `;
+            
+            // Klick-Event für Dropdown-Effekt
+            header.addEventListener('click', () => {
+                card.classList.toggle('open');
+            });
+
             card.appendChild(header);
             
-            // 5. Card Content rendern
+            // --- 3. Content Bereich (Versteckt) ---
             const cardContent = document.createElement('div');
             cardContent.className = 'student-card-content';
 

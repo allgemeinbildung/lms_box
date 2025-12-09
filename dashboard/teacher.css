@@ -440,3 +440,103 @@ body {
     text-overflow: ellipsis;
     margin-right: 10px;
 }
+
+/* --- Live View: Akkordeon Styles --- */
+
+#live-grid {
+    display: flex;
+    flex-direction: column; /* Liste statt Grid */
+    gap: 10px;
+}
+
+.student-card {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+}
+
+.student-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.student-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background-color: #f8f9fa;
+    cursor: pointer; /* Zeigt an, dass es klickbar ist */
+    user-select: none;
+    transition: background-color 0.2s;
+}
+
+.student-header:hover {
+    background-color: #e9ecef;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Pfeil-Icon für das Dropdown */
+.toggle-icon {
+    font-size: 0.8em;
+    color: #6c757d;
+    transition: transform 0.2s ease;
+    display: inline-block;
+    width: 20px;
+    text-align: center;
+}
+
+/* Wenn Karte offen ist, Pfeil drehen */
+.student-card.open .toggle-icon {
+    transform: rotate(90deg);
+}
+
+.student-name {
+    font-weight: 600;
+    color: #333;
+}
+
+.student-stats {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+/* Inhalt standardmäßig verstecken */
+.student-card-content {
+    display: none;
+    padding: 20px;
+    background-color: #fff;
+    border-top: 1px solid #e0e0e0;
+}
+
+/* Wenn Karte offen ist, Inhalt zeigen */
+.student-card.open .student-card-content {
+    display: block;
+}
+
+/* Badges (wie vorher) */
+.progress-badge, .word-count-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: bold;
+    color: white;
+}
+.word-count-badge { background-color: #17a2b8; }
+
+.last-update-badge {
+    font-size: 0.8em;
+    color: #888;
+}
+.last-update-badge.recent {
+    color: #155724;
+    font-weight: bold;
+}
