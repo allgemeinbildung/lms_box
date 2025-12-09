@@ -158,8 +158,9 @@ const gatherAndSaveDraft = debounce(async (studentKey, assignmentId, mode) => {
  * @param {string} studentKey - The authenticated student's key.
  * @param {string} mode - The current mode ('test' or 'live').
  * @param {object} draftData - The pre-fetched draft data from the server.
+ * @param {object} assignmentData - The full assignment data for accessing top-level properties like solution_keys.
  */
-function renderQuill(data, assignmentId, subId, studentKey, mode, draftData) {
+function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, assignmentData) {
     const contentRenderer = document.getElementById('content-renderer');
     const solutionSection = document.getElementById('solution-section');
     const solutionUnlockContainer = document.getElementById('solution-unlock-container');
@@ -224,10 +225,69 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData) {
         });
     });
 
-    // --- Solution Unlock Logic (Unchanged) ---
+    // --- Solution Unlock Logic ---
     if (data.solution && Array.isArray(data.solution.solutions) && data.solution.solutions.length > 0) {
         solutionSection.style.display = 'block';
-        // ... (The entire solution unlock logic can remain exactly as it was)
+        
+        const unlockedSolutions = JSON.parse(sessionStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
+        
+        // Helper to match IDs between questions and solutions
+        const questionMap = new Map(data.questions.map(q => [q.id, q.text]));
+
+        if (unlockedSolutions[assignmentId]) {
+            solutionUnlockContainer.style.display = 'none';
+            
+            let solutionHtml = '<h3>Musterlösung</h3>';
+            data.solution.solutions.forEach(sol => {
+                // ✅ FIX: Changed sol.questionId to sol.id to match JSON structure
+                const questionText = questionMap.get(sol.id) || 'Frage nicht gefunden';
+                solutionHtml += `<div class="solution-item" style="margin-top: 1em;"><strong>Frage: ${parseMarkdown(questionText)}</strong><div class="answer-box" style="padding: 1em; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #fdfdfd; margin-top: 0.5em;">${sol.answer}</div></div>`;
+            });
+            
+            solutionDisplayContainer.innerHTML = solutionHtml;
+            solutionDisplayContainer.style.display = 'block';
+        } else {
+            solutionUnlockContainer.innerHTML = `
+                <p>Um die Musterlösung anzuzeigen, gib bitte den Freischalt-Code ein:</p>
+                <input type="text" id="solution-key-input" placeholder="Freischalt-Code" style="margin-right: 10px;">
+                <button id="unlock-solution-btn">Freischalten</button>
+                <p id="unlock-status" style="color: red; margin-top: 5px;"></p>
+            `;
+
+            const unlockBtn = document.getElementById('unlock-solution-btn');
+            const keyInput = document.getElementById('solution-key-input');
+            const unlockStatus = document.getElementById('unlock-status');
+
+            const unlockAction = () => {
+                const enteredKey = keyInput.value.trim();
+                if (assignmentData.solution_keys && assignmentData.solution_keys.includes(enteredKey)) {
+                    unlockStatus.textContent = '';
+                    solutionUnlockContainer.style.display = 'none';
+
+                    let solutionHtml = '<h3>Musterlösung</h3>';
+                    data.solution.solutions.forEach(sol => {
+                        // ✅ FIX: Changed sol.questionId to sol.id to match JSON structure
+                        const questionText = questionMap.get(sol.id) || 'Frage nicht gefunden';
+                        solutionHtml += `<div class="solution-item" style="margin-top: 1em;"><strong>Frage: ${parseMarkdown(questionText)}</strong><div class="answer-box" style="padding: 1em; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #fdfdfd; margin-top: 0.5em;">${sol.answer}</div></div>`;
+                    });
+
+                    solutionDisplayContainer.innerHTML = solutionHtml;
+                    solutionDisplayContainer.style.display = 'block';
+
+                    const unlocked = JSON.parse(sessionStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
+                    unlocked[assignmentId] = true;
+                    sessionStorage.setItem(SOLUTION_KEYS_STORE, JSON.stringify(unlocked));
+                } else {
+                    unlockStatus.textContent = 'Falscher Code. Bitte versuche es erneut.';
+                    keyInput.value = '';
+                }
+            };
+
+            unlockBtn.addEventListener('click', unlockAction);
+            keyInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') unlockAction();
+            });
+        }
     }
 }
 
@@ -252,7 +312,7 @@ export async function renderSubAssignment(assignmentData, assignmentId, subId, s
     await storage.set(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`, subAssignmentData.type);
 
     if (subAssignmentData.type === 'quill') {
-        renderQuill(subAssignmentData, assignmentId, subId, studentKey, mode, draftData);
+        renderQuill(subAssignmentData, assignmentId, subId, studentKey, mode, draftData, assignmentData);
     } else {
         document.getElementById('content-renderer').innerHTML = `<p>Unbekannter Aufgabentyp: ${subAssignmentData.type}</p>`;
     }
