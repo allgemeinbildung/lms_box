@@ -3,68 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live View - Entwürfe</title>
+    <title>Live View - Ganze Klasse</title>
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <link rel="stylesheet" href="teacher.css">
-    <style>
-        /* Spezifische Styles für die Live-View-Steuerung */
-        #controls-bar {
-            background: white;
-            padding: 1em;
-            margin-bottom: 2em;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            display: flex;
-            gap: 1em;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        select {
-            padding: 8px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            font-size: 1em;
-            min-width: 150px;
-        }
-        #refresh-btn {
-            margin-left: auto;
-            background-color: #28a745;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        #refresh-btn:hover { background-color: #218838; }
-        
-        /* Grid Layout für die Schüler-Karten */
-        #live-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 1.5em;
-        }
-        .student-card {
-            background: white;
-            border-radius: 8px;
-            padding: 1em;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            border-top: 4px solid #007bff;
-        }
-        .student-name-header {
-            font-weight: bold;
-            margin-bottom: 1em;
-            padding-bottom: 0.5em;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            justify-content: space-between;
-        }
-        .last-update {
-            font-size: 0.8em;
-            color: #888;
-            font-weight: normal;
-        }
-    </style>
 </head>
 <body>
     
@@ -78,25 +19,27 @@
         </div>
     </div>
 
-    <div id="live-view-container" style="max-width: 1400px; margin: 2em auto; padding: 1em;">
-        <h1 id="main-title">Klassen-Monitor (Live Entwürfe)</h1>
-        
-        <div id="controls-bar">
-            <label>1. Klasse:
-                <select id="class-select" disabled><option value="">Lade...</option></select>
-            </label>
-            <label>2. Aufgabe:
-                <select id="assignment-select" disabled><option value="">-</option></select>
-            </label>
-            <label>3. Unteraufgabe:
-                <select id="sub-select" disabled><option value="">-</option></select>
-            </label>
-            
-            <button id="refresh-btn">🔄 Aktualisieren</button>
-        </div>
+    <div id="live-view-container">
+        <header id="live-header">
+            <h1 id="main-title">Klassen-Monitor</h1>
+            <div id="controls-bar">
+                <div class="control-group">
+                    <label>Klasse:</label>
+                    <select id="class-select" disabled><option value="">Lade...</option></select>
+                </div>
+                <div class="control-group">
+                    <label>Aufgabe:</label>
+                    <select id="assignment-select" disabled><option value="">-</option></select>
+                </div>
+                <button id="refresh-btn">🔄 Aktualisieren</button>
+            </div>
+        </header>
 
         <div id="live-content-renderer">
-            <p style="text-align: center; color: #666;">Bitte wählen Sie Klasse und Aufgabe aus, um die Fortschritte der Schüler/innen zu sehen.</p>
+            <div id="placeholder-msg">
+                Bitte wählen Sie eine Klasse und eine Aufgabe aus.<br>
+                <small>Es werden alle Antworten aller Schüler/innen angezeigt.</small>
+            </div>
         </div>
     </div>
 

@@ -15,12 +15,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const classSelect = document.getElementById('class-select');
     const assignmentSelect = document.getElementById('assignment-select');
-    const subSelect = document.getElementById('sub-select');
     const refreshBtn = document.getElementById('refresh-btn');
     const contentRenderer = document.getElementById('live-content-renderer');
 
     // State
-    let draftsMap = {}; // Struktur: { "KLASSE": { "SCHÜLER": { name: "...", path: "..." } } }
+    let draftsMap = {}; 
     let currentTeacherKey = '';
 
     // --- 1. Authentication ---
@@ -56,7 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshBtn.disabled = true;
         
         try {
-            // Wir holen die LISTE der Entwürfe (genau wie im Teacher Dashboard)
             const response = await fetch(SCRIPT_URL, {
                 method: 'POST',
                 mode: 'cors',
@@ -67,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (data.status === 'error') throw new Error(data.message);
             
-            // Normalisiere Daten (Groß/Kleinschreibung bei Klassen)
             draftsMap = {};
             for (const className in data) {
                 const normalizedClass = className.toUpperCase();
@@ -95,8 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const populateClassSelect = () => {
         const classes = Object.keys(draftsMap).sort();
-        
-        // Aktuelle Auswahl merken
         const currentVal = classSelect.value;
         
         classSelect.innerHTML = '<option value="">-- Klasse wählen --</option>';
@@ -113,22 +108,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Wenn Klasse gewählt wird, müssen wir eigentlich wissen, welche Aufgaben existieren.
-    // Da `listDrafts` nur Dateinamen/Pfade liefert, aber nicht den INHALT (und damit die Assignment IDs),
-    // müssen wir hier einen Trick anwenden oder Annahmen treffen.
-    // BESSERE LÖSUNG: Wir laden EIN Draft eines Schülers dieser Klasse, um die Assignment-Struktur zu lesen,
-    // oder wir hardcoden die IDs, wenn sie bekannt sind.
-    // HIER: Wir scannen die Dateinamen (oft "assignmentId.json") oder wir laden den ersten verfügbaren Schüler,
-    // um die Struktur zu parsen.
-    
-    // --- UPDATE: Bessere Erkennung von Aufgaben ---
+    // --- Aufgaben erkennen (Scan Logik) ---
     classSelect.addEventListener('change', async () => {
         const selectedClass = classSelect.value;
         assignmentSelect.innerHTML = '<option value="">Lade Aufgaben...</option>';
         assignmentSelect.disabled = true;
-        subSelect.innerHTML = '<option value="">-</option>';
-        subSelect.disabled = true;
-        contentRenderer.innerHTML = '';
+        contentRenderer.innerHTML = '<div id="placeholder-msg">Bitte wählen Sie eine Aufgabe aus.</div>';
 
         if (!selectedClass) return;
 
@@ -140,17 +125,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // TRICK: Wir scannen nun die ersten 3 aktiven Schüler (statt nur einen),
-        // um eine vollständigere Liste der Aufgaben zu bekommen.
-        const studentsToScan = studentNames.slice(0, 3); 
-        const foundAssignments = new Set(); // Set verhindert Doppelte
+        // Scan der ersten 5 Schüler
+        const studentsToScan = studentNames.slice(0, 5); 
+        const foundAssignments = new Set();
         
-        // Parallel die ersten paar Schüler laden, um Struktur zu finden
         const scanPromises = studentsToScan.map(async (name) => {
             const files = students[name];
             if (!Array.isArray(files) || files.length === 0) return;
-            
-            // Wir schauen in die neueste Datei
             try {
                 const draftContent = await fetchDraftContent(files[0].path);
                 if (draftContent && draftContent.assignments) {
@@ -163,10 +144,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         await Promise.all(scanPromises);
 
-        // Dropdown befüllen
         assignmentSelect.innerHTML = '<option value="">-- Aufgabe wählen --</option>';
         if (foundAssignments.size === 0) {
-            assignmentSelect.innerHTML += '<option value="" disabled>Keine Aufgaben in den gescannten Entwürfen gefunden.</option>';
+             assignmentSelect.innerHTML += '<option value="" disabled>Keine Aufgaben gefunden.</option>';
         } else {
             Array.from(foundAssignments).sort().forEach(assId => {
                 const opt = document.createElement('option');
@@ -177,29 +157,30 @@ document.addEventListener('DOMContentLoaded', () => {
             assignmentSelect.disabled = false;
         }
     });
-    // --- 4. Render Grid ---
 
-    subSelect.addEventListener('change', () => {
+    // --- 4. Render Grid (Das Herzstück) ---
+
+    // Wenn Aufgabe gewählt wird -> direkt rendern
+    assignmentSelect.addEventListener('change', () => {
         renderLiveGrid();
     });
 
+    // Refresh Button -> Reload
     refreshBtn.addEventListener('click', () => {
-        // Wenn bereits alles ausgewählt ist, refreshe nur den Grid-Inhalt
-        if (classSelect.value && assignmentSelect.value && subSelect.value) {
+        if (classSelect.value && assignmentSelect.value) {
             renderLiveGrid();
         } else {
-            initDataLoad(); // Full reload
+            initDataLoad();
         }
     });
 
     const renderLiveGrid = async () => {
         const cls = classSelect.value;
         const assId = assignmentSelect.value;
-        const subId = subSelect.value;
 
-        if (!cls || !assId || !subId) return;
+        if (!cls || !assId) return;
 
-        contentRenderer.innerHTML = '<p>Lade Antworten aller Schüler/innen...</p>';
+        contentRenderer.innerHTML = '<p style="text-align:center; margin-top:2em;">Lade Daten aller Schüler/innen...</p>';
         
         const students = draftsMap[cls];
         const studentNames = Object.keys(students).sort();
@@ -208,13 +189,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const grid = document.createElement('div');
         grid.id = 'live-grid';
 
-        // Lade alle parallel
+        // Daten parallel laden
         const promises = studentNames.map(async (name) => {
             const files = students[name];
-            // Nimm die neueste Datei (Draft)
             if (!files || files.length === 0) return null;
-            
-            // Sortiere falls nötig, meistens ist Index 0 aber okay oder wir nehmen das, was da ist.
+            // Neueste Datei
             const filePath = files[0].path; 
 
             try {
@@ -233,32 +212,74 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'student-card';
 
-            const header = document.createElement('div');
-            header.className = 'student-name-header';
-            header.innerHTML = `<span>${res.name}</span>`;
-            
-            let contentHtml = '<p style="color:#ccc; font-style:italic;">Keine Daten für diese Aufgabe.</p>';
-
-            if (res.data && res.data.assignments && res.data.assignments[assId] && res.data.assignments[assId][subId]) {
-                const subData = res.data.assignments[assId][subId];
-                const lastUpdate = res.data.createdAt ? new Date(res.data.createdAt).toLocaleTimeString() : '';
-                header.innerHTML += `<span class="last-update">🕒 ${lastUpdate}</span>`;
-
-                if (subData.answers && subData.answers.length > 0) {
-                    contentHtml = '';
-                    // Zeige alle Antworten für diese Sub-Aufgabe untereinander
-                    subData.answers.forEach(a => {
-                        contentHtml += `<div class="ql-editor" style="background:#f9f9f9; border:1px solid #eee; margin-top:5px; padding:10px; max-height:200px; overflow-y:auto;">${a.answer || '...'}</div>`;
-                    });
-                } else {
-                    contentHtml = '<p style="color:orange;">Aufgabe begonnen, aber leer.</p>';
-                }
-            } else if (res.error) {
-                contentHtml = '<p style="color:red;">Fehler beim Laden.</p>';
+            // --- Header & Timestamp ---
+            let lastUpdateStr = '-';
+            let isRecent = false;
+            if (res.data && res.data.createdAt) {
+                const date = new Date(res.data.createdAt);
+                lastUpdateStr = date.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
+                // Prüfen ob vor weniger als 5 Minuten (300000ms) geupdated wurde
+                if (new Date() - date < 300000) isRecent = true;
             }
 
+            const header = document.createElement('div');
+            header.className = 'student-header';
+            header.innerHTML = `
+                <span class="student-name">${res.name}</span>
+                <span class="last-update-badge ${isRecent ? 'recent' : ''}" title="Zuletzt gespeichert">
+                    🕒 ${lastUpdateStr}
+                </span>
+            `;
             card.appendChild(header);
-            card.innerHTML += contentHtml;
+            
+            const cardContent = document.createElement('div');
+            cardContent.className = 'student-card-content';
+
+            if (res.data && res.data.assignments && res.data.assignments[assId]) {
+                const assignmentData = res.data.assignments[assId];
+                // Hole alle Sub-IDs (Unteraufgaben) und sortiere sie
+                const subIds = Object.keys(assignmentData).sort();
+
+                if (subIds.length === 0) {
+                    cardContent.innerHTML = '<p style="color:orange; font-style:italic;">Keine Teilaufgaben gefunden.</p>';
+                } else {
+                    // Loop durch alle Teilaufgaben
+                    subIds.forEach(subId => {
+                        const subTask = assignmentData[subId];
+                        
+                        const subBlock = document.createElement('div');
+                        subBlock.className = 'sub-assignment-block';
+                        
+                        // Titel der Teilaufgabe (z.B. "01 Einleitung")
+                        const displayTitle = subTask.title || subId;
+                        subBlock.innerHTML = `<div class="sub-title">${displayTitle}</div>`;
+
+                        // Antworten rendern
+                        if (subTask.answers && subTask.answers.length > 0) {
+                            subTask.answers.forEach(a => {
+                                // Wir zeigen nur die Antwort. Die Frage wegzulassen spart Platz, 
+                                // da der Kontext meist klar ist.
+                                subBlock.innerHTML += `
+                                    <div class="read-only-answer ql-editor">
+                                        ${a.answer || '<span style="color:#ccc;">(Leer)</span>'}
+                                    </div>
+                                    <div style="margin-bottom: 5px;"></div>
+                                `;
+                            });
+                        } else {
+                            subBlock.innerHTML += '<p style="font-size:0.8em; color:#aaa;">Noch keine Antworten.</p>';
+                        }
+                        cardContent.appendChild(subBlock);
+                    });
+                }
+
+            } else if (res.error) {
+                cardContent.innerHTML = '<p style="color:red;">Ladefehler.</p>';
+            } else {
+                 cardContent.innerHTML = '<p style="color:#ccc; font-style:italic;">Noch nicht begonnen.</p>';
+            }
+
+            card.appendChild(cardContent);
             grid.appendChild(card);
         });
 
@@ -266,7 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
         contentRenderer.appendChild(grid);
     };
 
-    // --- Helper: Fetch Single Draft ---
+    // --- Helper ---
     const fetchDraftContent = async (path) => {
         try {
             const response = await fetch(SCRIPT_URL, {
@@ -284,6 +305,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Start
     checkAuth();
 });
