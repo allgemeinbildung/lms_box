@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Helper Functions ---
     const parseSimpleMarkdown = (text) => text ? text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') : '';
     
-    // Scan Logic
+    // --- Scan Logic (Updated to find ALL assignments) ---
     classSelect.addEventListener('change', async () => {
         const selectedClass = classSelect.value;
         downloadBtn.disabled = !selectedClass;
@@ -125,31 +125,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const students = draftsMap[selectedClass];
         const studentNames = Object.keys(students);
+        
         if (studentNames.length === 0) {
             assignmentSelect.innerHTML = '<option value="">Keine Schüler gefunden</option>';
             return;
         }
 
-        const studentsToScan = studentNames.slice(0, 5); 
         const foundAssignments = new Set();
-        
+
+        // ---------------------------------------------------------
+        // STRATEGY 1: Scan ALL filenames (Instant & covers everyone)
+        // ---------------------------------------------------------
+        Object.values(students).forEach(files => {
+            if (Array.isArray(files)) {
+                files.forEach(f => {
+                    // Assuming filename is "6.2 Bundesstaat Schweiz.json"
+                    // We remove the .json extension to get the ID
+                    const potentialId = f.name.replace(/\.json$/i, '').trim();
+                    if (potentialId) foundAssignments.add(potentialId);
+                });
+            }
+        });
+
+        // ---------------------------------------------------------
+        // STRATEGY 2: Deep Scan (Backup for "Draft.json" files)
+        // Only scan the first file of the first 3 students to check internal keys
+        // This helps if filenames don't match assignment titles
+        // ---------------------------------------------------------
+        const studentsToScan = studentNames.slice(0, 3); 
         const scanPromises = studentsToScan.map(async (name) => {
             const files = students[name];
             if (!Array.isArray(files) || files.length === 0) return;
             try {
-                const draftContent = await fetchDraftContent(files[0].path);
-                if (draftContent && draftContent.assignments) {
-                    Object.keys(draftContent.assignments).forEach(id => foundAssignments.add(id));
+                // Only fetch if we haven't found many assignments via filenames
+                if (foundAssignments.size < 2) {
+                    const draftContent = await fetchDraftContent(files[0].path);
+                    if (draftContent && draftContent.assignments) {
+                        Object.keys(draftContent.assignments).forEach(id => foundAssignments.add(id));
+                    }
                 }
             } catch (e) { console.warn(`Scan error: ${name}`); }
         });
 
         await Promise.all(scanPromises);
+
+        // Populate Dropdown
         assignmentSelect.innerHTML = '<option value="">-- Aufgabe wählen --</option>';
         if (foundAssignments.size === 0) {
              assignmentSelect.innerHTML += '<option value="" disabled>Keine Aufgaben gefunden.</option>';
         } else {
-            Array.from(foundAssignments).sort().forEach(assId => {
+            // Sort naturally (so 6.2 comes after 6.1)
+            Array.from(foundAssignments).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })).forEach(assId => {
                 const opt = document.createElement('option');
                 opt.value = assId;
                 opt.textContent = assId;
@@ -163,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshBtn.addEventListener('click', () => classSelect.value && assignmentSelect.value ? renderLiveGrid() : initDataLoad());
 
     // --- RENDER GRID ---
+// --- RENDER GRID ---
     const renderLiveGrid = async () => {
         const cls = classSelect.value;
         const assId = assignmentSelect.value;
@@ -171,8 +198,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- 1. Reset UI ---
         printAllBtn.disabled = false;
         printAllBtn.style.backgroundColor = "#17a2b8"; 
-        
-        // Make sure the Print Button triggers the print dialog
         printAllBtn.onclick = () => window.print();
 
         contentRenderer.innerHTML = '<div style="text-align:center; margin-top:2em; color:#666;"><span class="spinner"></span> Lade Master-Daten & Schüler...</div>';
@@ -208,11 +233,42 @@ document.addEventListener('DOMContentLoaded', () => {
         const promises = studentNames.map(async (name) => {
             const files = students[name];
             if (!files || files.length === 0) return null;
+            
+            // --- SMART FILE SELECTION ---
+            let correctFile = null;
+            let correctData = null;
+
+            // Sort by filename (proxy for date)
             const sortedFiles = [...files].sort((a, b) => b.name.localeCompare(a.name));
-            try {
-                const data = await fetchDraftContent(sortedFiles[0].path);
-                return { name, data };
-            } catch (e) { return { name, error: true }; }
+
+            for (const file of sortedFiles) {
+                try {
+                    const data = await fetchDraftContent(file.path);
+                    if (data && data.assignments) {
+                        // Check exact match
+                        if (data.assignments[assId]) {
+                            correctFile = file;
+                            correctData = data;
+                            break;
+                        }
+                        // Check fuzzy match
+                        const foundKey = Object.keys(data.assignments).find(k => 
+                            decodeURIComponent(k).trim() === decodeURIComponent(assId).trim()
+                        );
+                        if (foundKey) {
+                            correctFile = file;
+                            correctData = data;
+                            break;
+                        }
+                    }
+                } catch (e) { /* continue searching */ }
+            }
+
+            if (correctData) {
+                return { name, data: correctData };
+            } else {
+                return { name, data: null };
+            }
         });
 
         const results = await Promise.all(promises);
@@ -281,63 +337,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
-
             // Helper: Inject Feedback into DOM
             const distributeFeedback = (feedbackData, container) => {
                 const existingHeader = container.querySelector('.feedback-controls-header');
                 if (existingHeader) existingHeader.remove();
 
-                // --- HISTORY & DELTA LOGIC ---
                 let currentItem = feedbackData;
                 let previousItem = null;
                 let versionCount = 1;
 
-                // 1. Determine Current and Previous Versions
                 if (feedbackData.history && Array.isArray(feedbackData.history)) {
                     versionCount = feedbackData.history.length;
-                    currentItem = feedbackData.history[versionCount - 1]; // Latest
+                    currentItem = feedbackData.history[versionCount - 1]; 
                     if (versionCount >= 2) {
-                        previousItem = feedbackData.history[versionCount - 2]; // One before latest
+                        previousItem = feedbackData.history[versionCount - 2];
                     }
                 }
 
-                // 2. Helper to calculate stats for a specific result set
                 const calculateStats = (results) => {
                     let totalScore = 0;
                     let answeredCount = 0;
                     if (results && Array.isArray(results)) {
                         results.forEach(r => {
                             totalScore += (r.score || 0);
-                            // We assume a question is "answered" if it has a score > 0 
-                            // OR if the feedback doesn't explicitly say "Nicht beantwortet" (logic varies, score > 0 is safest)
                             if (r.score > 0) answeredCount++;
                         });
                     }
                     return { totalScore, answeredCount };
                 };
 
-                // 3. Calculate Deltas
                 let deltaHtml = '';
                 if (previousItem) {
                     const currStats = calculateStats(currentItem.results);
                     const prevStats = calculateStats(previousItem.results);
-
                     const scoreDiff = currStats.totalScore - prevStats.totalScore;
                     const ansDiff = currStats.answeredCount - prevStats.answeredCount;
 
-                    // Format Score Delta
                     let scoreClass = 'color:#666'; 
                     let scoreSign = '';
-                    if (scoreDiff > 0) { scoreClass = 'color:#16a34a'; scoreSign = '▲ +'; } // Green
-                    else if (scoreDiff < 0) { scoreClass = 'color:#dc2626'; scoreSign = '▼ '; } // Red
+                    if (scoreDiff > 0) { scoreClass = 'color:#16a34a'; scoreSign = '▲ +'; }
+                    else if (scoreDiff < 0) { scoreClass = 'color:#dc2626'; scoreSign = '▼ '; }
 
-                    // Format Progress Delta
                     let ansClass = 'color:#666';
                     let ansSign = '';
                     if (ansDiff > 0) { ansClass = 'color:#16a34a'; ansSign = '▲ +'; }
                     else if (ansDiff < 0) { ansClass = 'color:#dc2626'; ansSign = '▼ '; }
 
-                    // Only show if there is a difference or to show stability
                     deltaHtml = `
                         <span style="font-size:0.85em; margin-left:15px; border-left:1px solid #ccc; padding-left:10px;">
                             <span style="margin-right:8px; font-weight:bold; ${scoreClass}" title="Veränderung Punkte">${scoreSign}${scoreDiff} Pkt</span>
@@ -345,7 +390,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         </span>
                     `;
                 }
-                // -----------------------------
 
                 const dateStr = currentItem.date_str || "Gespeichert";
                 const versionLabel = versionCount > 1 ? ` <span style="font-size:0.8em; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:10px; margin-left:5px;">v${versionCount}</span>` : "";
@@ -378,7 +422,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 container.prepend(controlsHeader);
                 
-                // Clear old slots
                 container.querySelectorAll('.inline-feedback').forEach(el => {
                     el.innerHTML = ''; 
                     el.style.display = 'none';
@@ -399,7 +442,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                                 <div style="font-size:0.9em; color:#555; background:white; padding:8px; border-left:3px solid #e2e8f0; margin-top:5px;">${item.detailed_feedback}</div>
                             `;
-                            // Attach data for scraper
                             targetSlot.dataset.score = item.score;
                             targetSlot.dataset.concise = item.concise_feedback;
                             targetSlot.dataset.detailed = item.detailed_feedback;
@@ -521,22 +563,147 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(r => r.json())
             .then(data => {
                 if (data.found && data.data) {
-                    // Inject feedback immediately (hidden inside collapsed card)
                     distributeFeedback(data.data, cardContent);
                     
-                    // UPDATE BUTTON VISUALLY so user knows it's there
                     feedbackBtn.textContent = "Gespeichert ✓";
-                    feedbackBtn.style.backgroundColor = "#e0f2fe"; // Light blue
+                    feedbackBtn.style.backgroundColor = "#e0f2fe"; 
                     feedbackBtn.style.borderColor = "#bae6fd";
                     feedbackBtn.style.color = "#0369a1";
                 }
             })
-            .catch(e => { /* Ignore errors if server is down or file missing */ });
+            .catch(e => { });
         });
 
         contentRenderer.innerHTML = '';
         contentRenderer.appendChild(grid);
-    };
+    }; 
+    // --- END OF renderLiveGrid ---
+
+    // --- EXPORT TO EXCEL (CSV) - MOVED OUTSIDE ---
+    downloadBtn.addEventListener('click', async () => {
+        const cls = classSelect.value;
+        const assId = assignmentSelect.value;
+        if (!cls || !assId) return;
+
+        downloadBtn.textContent = "Generiere...";
+        downloadBtn.disabled = true;
+
+        // 1. Get Master Total Questions (Max Points)
+        let maxPoints = 0;
+        try {
+            const masterRes = await fetch('http://localhost:5000/get_master_assignment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ assignmentId: assId })
+            });
+            if (masterRes.ok) {
+                const masterAss = await masterRes.json();
+                if (masterAss.subAssignments) {
+                    Object.values(masterAss.subAssignments).forEach(subTask => {
+                        if (subTask.questions) maxPoints += subTask.questions.length;
+                    });
+                }
+            }
+        } catch (e) { console.warn("Master fetch failed during download"); }
+
+        // 2. Prepare Data Rows
+        const students = draftsMap[cls];
+        const studentNames = Object.keys(students).sort();
+        const csvRows = [];
+
+        // Header Row
+        csvRows.push("Anmeldename;Vorname;Nachname;Punkte;Max.");
+
+        // Process each student
+        for (const name of studentNames) {
+            // A. Name Parsing
+            const nameParts = name.trim().split(/\s+/);
+            let vorname = "";
+            let nachname = name;
+            
+            if (nameParts.length > 1) {
+                nachname = nameParts.pop(); // Remove last element
+                vorname = nameParts.join(" "); // Join the rest
+            } else {
+                vorname = name;
+                nachname = "";
+            }
+
+            const cleanVorname = vorname.toLowerCase().replace(/\s+/g, '.');
+            const cleanNachname = nachname.toLowerCase().replace(/\s+/g, '.');
+            const anmeldename = `${cleanVorname}.${cleanNachname}`;
+
+            // B. Find Correct File (Smart Selection)
+            const files = students[name];
+            let targetFile = null;
+            if (files && files.length > 0) {
+                const sortedFiles = [...files].sort((a, b) => b.name.localeCompare(a.name));
+                // Try Exact Match
+                targetFile = sortedFiles.find(f => f.name.replace(/\.json$/i, '').trim() === assId.trim());
+                // Try Fuzzy Match
+                if (!targetFile) targetFile = sortedFiles.find(f => f.name.includes(assId));
+                // Fallback to latest
+                if (!targetFile) targetFile = sortedFiles[0]; 
+            }
+
+            // C. Calculate Points
+            let points = 0;
+            let currentMax = maxPoints; 
+
+            if (targetFile) {
+                try {
+                    const data = await fetchDraftContent(targetFile.path);
+                    
+                    let assignmentData = null;
+                    if (data && data.assignments) {
+                        if (data.assignments[assId]) {
+                            assignmentData = data.assignments[assId];
+                        } else {
+                            const foundKey = Object.keys(data.assignments).find(k => 
+                                decodeURIComponent(k).trim() === decodeURIComponent(assId).trim()
+                            );
+                            if (foundKey) assignmentData = data.assignments[foundKey];
+                        }
+                    }
+
+                    if (assignmentData) {
+                        let studentParamCount = 0;
+                        Object.values(assignmentData).forEach(subTask => {
+                            if (subTask.questions) studentParamCount += subTask.questions.length;
+                            if (subTask.answers) {
+                                subTask.answers.forEach(a => {
+                                    if (a.answer && a.answer.trim() !== '' && a.answer !== '<p><br></p>') {
+                                        points++;
+                                    }
+                                });
+                            }
+                        });
+                        if (currentMax === 0) currentMax = studentParamCount;
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            // D. Add Row
+            csvRows.push(`${anmeldename};${vorname};${nachname};${points};${currentMax}`);
+        }
+
+        // 3. Download
+        const bom = "\uFEFF"; 
+        const csvString = bom + csvRows.join("\n");
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `${cls}_${assId.replace(/[^a-z0-9]/gi, '_')}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        downloadBtn.textContent = "📥 Download";
+        downloadBtn.disabled = false;
+    });
 
     // --- PRINT DIALOG ---
     const showPrintDialog = (onConfirm) => {
