@@ -168,11 +168,43 @@ document.addEventListener('DOMContentLoaded', () => {
         const assId = assignmentSelect.value;
         if (!cls || !assId) return;
         
+        // 1. Reset UI
         printAllBtn.disabled = false;
         printAllBtn.style.backgroundColor = "#17a2b8"; 
-
-        contentRenderer.innerHTML = '<p style="text-align:center; margin-top:2em;">Lade Daten aller Schüler/innen...</p>';
+        contentRenderer.innerHTML = '<div style="text-align:center; margin-top:2em; color:#666;"><span class="spinner"></span> Lade Master-Daten & Schüler...</div>';
         
+        // 2. Fetch Master Data from Local Server
+        // This ensures we know the TRUE total number of questions (e.g. 14)
+        let masterAss = null;
+        let masterTotalQuestions = 0;
+
+        try {
+            const masterRes = await fetch('http://localhost:5000/get_master_assignment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ assignmentId: assId })
+            });
+            
+            if (masterRes.ok) {
+                masterAss = await masterRes.json();
+                console.log("Loaded Master Data locally:", masterAss);
+                
+                // Calculate TRUE total questions from the Master File
+                if (masterAss.subAssignments) {
+                    Object.values(masterAss.subAssignments).forEach(subTask => {
+                        if (subTask.questions) masterTotalQuestions += subTask.questions.length;
+                    });
+                }
+            } else {
+                console.warn("Could not load master assignment from local server (using student totals as fallback).");
+            }
+        } catch (e) {
+            console.error("Connection to local server failed:", e);
+        }
+        
+        const useMasterTotal = masterTotalQuestions > 0;
+
+        // 3. Fetch Student Data
         const students = draftsMap[cls];
         const studentNames = Object.keys(students).sort();
         const grid = document.createElement('div');
@@ -190,6 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const results = await Promise.all(promises);
 
+        // 4. Render Cards
         results.forEach(res => {
             if (!res) return;
 
@@ -197,30 +230,43 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'student-card';
             card.dataset.studentName = res.name;
 
+            // Find Assignment Data (Case Insensitive Search)
             let assignmentData = null;
             if (res.data && res.data.assignments) {
                 if (res.data.assignments[assId]) {
                     assignmentData = res.data.assignments[assId];
                 } else {
-                    const foundKey = Object.keys(res.data.assignments).find(k => decodeURIComponent(k).trim() === decodeURIComponent(assId).trim());
+                    const foundKey = Object.keys(res.data.assignments).find(k => 
+                        decodeURIComponent(k).trim() === decodeURIComponent(assId).trim()
+                    );
                     if (foundKey) assignmentData = res.data.assignments[foundKey];
                 }
             }
 
-            let totalQuestions = 0, answeredQuestions = 0, totalWords = 0;
+            // Calculate Stats
+            let studentTotalParams = 0;
+            let answeredQuestions = 0;
+            let totalWords = 0;
+
             if (assignmentData) {
                 Object.values(assignmentData).forEach(subTask => {
-                    if (subTask.questions) totalQuestions += subTask.questions.length;
+                    // Fallback count if master is missing
+                    if (subTask.questions) studentTotalParams += subTask.questions.length;
+                    
                     if (subTask.answers) subTask.answers.forEach(a => {
                         if (a.answer && a.answer.trim() !== '' && a.answer !== '<p><br></p>') {
                             answeredQuestions++;
-                            totalWords += a.answer.replace(/<[^>]*>/g, ' ').trim().split(/\s+/).filter(w => w.length > 0).length;
+                            const textOnly = a.answer.replace(/<[^>]*>/g, ' ').trim();
+                            if(textOnly.length > 0) totalWords += textOnly.split(/\s+/).length;
                         }
                     });
                 });
             }
             
-            const progressPercent = totalQuestions > 0 ? Math.round((answeredQuestions / totalQuestions) * 100) : 0;
+            // USE THE MASTER TOTAL IF AVAILABLE
+            const finalTotal = useMasterTotal ? masterTotalQuestions : studentTotalParams;
+
+            const progressPercent = finalTotal > 0 ? Math.round((answeredQuestions / finalTotal) * 100) : 0;
             const progressColor = progressPercent >= 80 ? '#28a745' : progressPercent >= 50 ? '#ffc107' : '#dc3545';
             
             let lastUpdateStr = '-';
@@ -229,6 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 lastUpdateStr = date.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
             }
 
+            // Create Header
             const header = document.createElement('div');
             header.className = 'student-header';
             header.innerHTML = `
@@ -237,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="student-name">${res.name}</span>
                 </div>
                 <div class="student-stats">
-                    <span class="progress-badge" style="background:${progressColor}">${answeredQuestions}/${totalQuestions} ✓</span>
+                    <span class="progress-badge" style="background:${progressColor}">${answeredQuestions}/${finalTotal} ✓</span>
                     <span class="word-count-badge">${totalWords} 📝</span>
                     <span class="last-update-badge">🕒 ${lastUpdateStr}</span>
                     <button class="live-feedback-btn" style="margin-left:5px; padding:3px 8px; border-radius:4px; border:1px solid #ccc; background:#fff; cursor:pointer; font-size:0.8em; font-weight:bold; color:#555;">⚡ Feedback</button>
@@ -246,7 +293,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // --- INLINE FEEDBACK RENDERER ---
             const distributeFeedback = (feedbackData, container) => {
-                // 1. Render Top Controls (Date + Print)
                 const existingHeader = container.querySelector('.feedback-controls-header');
                 if (existingHeader) existingHeader.remove();
 
@@ -259,29 +305,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="print-single-btn" style="border:none; background:none; cursor:pointer; font-size:1.2em;" title="Feedback drucken">🖨️</button>
                 `;
                 
-                // Print Button Logic
                 controlsHeader.querySelector('.print-single-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
-                    showPrintDialog((mode) => {
-                        printFeedback(res.name, assId, feedbackData, mode);
-                    });
+                    if (typeof showPrintDialog === 'function' && typeof printFeedback === 'function') {
+                        showPrintDialog((mode) => { printFeedback(res.name, assId, feedbackData, mode); });
+                    }
                 });
 
                 container.prepend(controlsHeader);
 
-                // 2. Clear old feedback slots
                 container.querySelectorAll('.inline-feedback').forEach(el => {
-                    el.innerHTML = ''; 
-                    el.style.display = 'none';
-                    delete el.dataset.feedbackJson;
+                    el.innerHTML = ''; el.style.display = 'none';
+                    delete el.dataset.score; delete el.dataset.concise; delete el.dataset.detailed;
                 });
 
-                // 3. Inject new feedback into slots
                 if (feedbackData.results) {
                     feedbackData.results.forEach(item => {
-                        // Find the matching QA container
                         const targetSlot = container.querySelector(`.inline-feedback[data-qid="${item.question_id}"]`);
-                        
                         if (targetSlot) {
                             let color = '#ef4444'; 
                             if (item.score === 2) color = '#f59e0b'; 
@@ -292,17 +332,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <span style="background:${color}; color:white; padding:1px 6px; border-radius:4px; font-size:0.8em; font-weight:bold;">Score: ${item.score}</span>
                                     <span style="color:#334155; font-weight:600; font-size:0.95em;">${item.concise_feedback}</span>
                                 </div>
-                                <div style="font-size:0.9em; color:#555; background:white; padding:8px; border-left:3px solid #e2e8f0; margin-top:5px;">
-                                    ${item.detailed_feedback}
-                                </div>
+                                <div style="font-size:0.9em; color:#555; background:white; padding:8px; border-left:3px solid #e2e8f0; margin-top:5px;">${item.detailed_feedback}</div>
                             `;
-                            
-                            // Attach data for Bulk Print scraper
                             targetSlot.dataset.score = item.score;
                             targetSlot.dataset.concise = item.concise_feedback;
                             targetSlot.dataset.detailed = item.detailed_feedback;
                             targetSlot.dataset.qtext = item.question_text;
-                            
                             targetSlot.style.display = 'block';
                         }
                     });
@@ -359,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             card.appendChild(header);
 
+            // Card Content (Q&A)
             const cardContent = document.createElement('div');
             cardContent.className = 'student-card-content';
             
@@ -375,23 +411,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     (subTask.questions || []).forEach((q, idx) => {
                         const ans = answerMap.get(q.id);
-                        const qIdString = `${subId}_${q.id}`; // Matches Python Logic
-
-                        // Wrapper for Q + Feedback + A
+                        const qIdString = `${subId}_${q.id}`; 
                         const qaWrapper = document.createElement('div');
                         qaWrapper.style.marginBottom = "20px";
                         
-                        // 1. Question
-                        qaWrapper.innerHTML += `<div class="question-text" style="font-weight:bold; color:#333; margin-bottom:5px;">${idx+1}. ${parseSimpleMarkdown(q.text)}</div>`;
+                        const qTextParsed = (typeof parseSimpleMarkdown === 'function') ? parseSimpleMarkdown(q.text) : q.text;
+                        qaWrapper.innerHTML += `<div class="question-text" style="font-weight:bold; color:#333; margin-bottom:5px;">${idx+1}. ${qTextParsed}</div>`;
                         
-                        // 2. Feedback Slot (Between Q and A)
                         const feedbackSlot = document.createElement('div');
                         feedbackSlot.className = 'inline-feedback';
-                        feedbackSlot.dataset.qid = qIdString; // Identity for matching
+                        feedbackSlot.dataset.qid = qIdString; 
                         feedbackSlot.style.cssText = "display:none; background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; padding:10px; margin-bottom:10px;";
                         qaWrapper.appendChild(feedbackSlot);
 
-                        // 3. Answer
                         const answerDiv = document.createElement('div');
                         if(ans) {
                             answerDiv.className = "read-only-answer ql-editor";
@@ -401,7 +433,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             answerDiv.textContent = "(Keine Antwort)";
                         }
                         qaWrapper.appendChild(answerDiv);
-
                         subBlock.appendChild(qaWrapper);
                     });
                     cardContent.appendChild(subBlock);
@@ -413,7 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.appendChild(cardContent);
             grid.appendChild(card);
 
-            // Auto-load existing feedback
+            // 5. Load existing feedback
             fetch('http://localhost:5000/get_feedback', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -425,7 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     distributeFeedback(data.data, cardContent);
                 }
             })
-            .catch(e => console.log("Local server offline or no feedback"));
+            .catch(e => {});
         });
 
         contentRenderer.innerHTML = '';
