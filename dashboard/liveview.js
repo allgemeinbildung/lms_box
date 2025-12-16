@@ -168,13 +168,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const assId = assignmentSelect.value;
         if (!cls || !assId) return;
         
-        // 1. Reset UI
+        // --- 1. Reset UI ---
         printAllBtn.disabled = false;
         printAllBtn.style.backgroundColor = "#17a2b8"; 
+        
+        // Make sure the Print Button triggers the print dialog
+        printAllBtn.onclick = () => window.print();
+
         contentRenderer.innerHTML = '<div style="text-align:center; margin-top:2em; color:#666;"><span class="spinner"></span> Lade Master-Daten & Schüler...</div>';
         
-        // 2. Fetch Master Data from Local Server
-        // This ensures we know the TRUE total number of questions (e.g. 14)
+        // --- 2. Fetch Master Data (Total Questions) ---
         let masterAss = null;
         let masterTotalQuestions = 0;
 
@@ -184,27 +187,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ assignmentId: assId })
             });
-            
             if (masterRes.ok) {
                 masterAss = await masterRes.json();
-                console.log("Loaded Master Data locally:", masterAss);
-                
-                // Calculate TRUE total questions from the Master File
                 if (masterAss.subAssignments) {
                     Object.values(masterAss.subAssignments).forEach(subTask => {
                         if (subTask.questions) masterTotalQuestions += subTask.questions.length;
                     });
                 }
-            } else {
-                console.warn("Could not load master assignment from local server (using student totals as fallback).");
             }
-        } catch (e) {
-            console.error("Connection to local server failed:", e);
-        }
+        } catch (e) { console.log("Local server offline or master not found."); }
         
         const useMasterTotal = masterTotalQuestions > 0;
 
-        // 3. Fetch Student Data
+        // --- 3. Process Students ---
         const students = draftsMap[cls];
         const studentNames = Object.keys(students).sort();
         const grid = document.createElement('div');
@@ -222,15 +217,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const results = await Promise.all(promises);
 
-        // 4. Render Cards
         results.forEach(res => {
             if (!res) return;
 
+            // --- 4. Render Student Card ---
             const card = document.createElement('div');
             card.className = 'student-card';
             card.dataset.studentName = res.name;
 
-            // Find Assignment Data (Case Insensitive Search)
+            // Find Assignment Data
             let assignmentData = null;
             if (res.data && res.data.assignments) {
                 if (res.data.assignments[assId]) {
@@ -243,16 +238,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Calculate Stats
+            // Stats
             let studentTotalParams = 0;
             let answeredQuestions = 0;
             let totalWords = 0;
 
             if (assignmentData) {
                 Object.values(assignmentData).forEach(subTask => {
-                    // Fallback count if master is missing
                     if (subTask.questions) studentTotalParams += subTask.questions.length;
-                    
                     if (subTask.answers) subTask.answers.forEach(a => {
                         if (a.answer && a.answer.trim() !== '' && a.answer !== '<p><br></p>') {
                             answeredQuestions++;
@@ -263,19 +256,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
             
-            // USE THE MASTER TOTAL IF AVAILABLE
             const finalTotal = useMasterTotal ? masterTotalQuestions : studentTotalParams;
-
             const progressPercent = finalTotal > 0 ? Math.round((answeredQuestions / finalTotal) * 100) : 0;
             const progressColor = progressPercent >= 80 ? '#28a745' : progressPercent >= 50 ? '#ffc107' : '#dc3545';
             
             let lastUpdateStr = '-';
             if (res.data && res.data.createdAt) {
-                const date = new Date(res.data.createdAt);
-                lastUpdateStr = date.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
+                lastUpdateStr = new Date(res.data.createdAt).toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
             }
 
-            // Create Header
+            // Header Construction
             const header = document.createElement('div');
             header.className = 'student-header';
             header.innerHTML = `
@@ -291,36 +281,111 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
-            // --- INLINE FEEDBACK RENDERER ---
+
+            // Helper: Inject Feedback into DOM
             const distributeFeedback = (feedbackData, container) => {
                 const existingHeader = container.querySelector('.feedback-controls-header');
                 if (existingHeader) existingHeader.remove();
 
-                const dateStr = feedbackData.date_str || "Gerade eben";
+                // --- HISTORY & DELTA LOGIC ---
+                let currentItem = feedbackData;
+                let previousItem = null;
+                let versionCount = 1;
+
+                // 1. Determine Current and Previous Versions
+                if (feedbackData.history && Array.isArray(feedbackData.history)) {
+                    versionCount = feedbackData.history.length;
+                    currentItem = feedbackData.history[versionCount - 1]; // Latest
+                    if (versionCount >= 2) {
+                        previousItem = feedbackData.history[versionCount - 2]; // One before latest
+                    }
+                }
+
+                // 2. Helper to calculate stats for a specific result set
+                const calculateStats = (results) => {
+                    let totalScore = 0;
+                    let answeredCount = 0;
+                    if (results && Array.isArray(results)) {
+                        results.forEach(r => {
+                            totalScore += (r.score || 0);
+                            // We assume a question is "answered" if it has a score > 0 
+                            // OR if the feedback doesn't explicitly say "Nicht beantwortet" (logic varies, score > 0 is safest)
+                            if (r.score > 0) answeredCount++;
+                        });
+                    }
+                    return { totalScore, answeredCount };
+                };
+
+                // 3. Calculate Deltas
+                let deltaHtml = '';
+                if (previousItem) {
+                    const currStats = calculateStats(currentItem.results);
+                    const prevStats = calculateStats(previousItem.results);
+
+                    const scoreDiff = currStats.totalScore - prevStats.totalScore;
+                    const ansDiff = currStats.answeredCount - prevStats.answeredCount;
+
+                    // Format Score Delta
+                    let scoreClass = 'color:#666'; 
+                    let scoreSign = '';
+                    if (scoreDiff > 0) { scoreClass = 'color:#16a34a'; scoreSign = '▲ +'; } // Green
+                    else if (scoreDiff < 0) { scoreClass = 'color:#dc2626'; scoreSign = '▼ '; } // Red
+
+                    // Format Progress Delta
+                    let ansClass = 'color:#666';
+                    let ansSign = '';
+                    if (ansDiff > 0) { ansClass = 'color:#16a34a'; ansSign = '▲ +'; }
+                    else if (ansDiff < 0) { ansClass = 'color:#dc2626'; ansSign = '▼ '; }
+
+                    // Only show if there is a difference or to show stability
+                    deltaHtml = `
+                        <span style="font-size:0.85em; margin-left:15px; border-left:1px solid #ccc; padding-left:10px;">
+                            <span style="margin-right:8px; font-weight:bold; ${scoreClass}" title="Veränderung Punkte">${scoreSign}${scoreDiff} Pkt</span>
+                            <span style="font-weight:bold; ${ansClass}" title="Veränderung beantwortete Fragen">${ansSign}${ansDiff} Fragen</span>
+                        </span>
+                    `;
+                }
+                // -----------------------------
+
+                const dateStr = currentItem.date_str || "Gespeichert";
+                const versionLabel = versionCount > 1 ? ` <span style="font-size:0.8em; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:10px; margin-left:5px;">v${versionCount}</span>` : "";
+
                 const controlsHeader = document.createElement('div');
                 controlsHeader.className = 'feedback-controls-header';
                 controlsHeader.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#f0f9ff; padding:10px; border-radius:6px; margin-bottom:15px; border:1px solid #bae6fd;";
+                
                 controlsHeader.innerHTML = `
-                    <div style="font-size:0.9em; color:#0369a1;"><strong>⚡ KI-Status:</strong> <span style="color:#666;">${dateStr}</span></div>
+                    <div style="font-size:0.9em; color:#0369a1; display:flex; align-items:center;">
+                        <strong>⚡ Status:</strong> 
+                        <span style="color:#555; margin-left:5px;">${dateStr}</span>
+                        ${versionLabel}
+                        ${deltaHtml}
+                    </div>
                     <button class="print-single-btn" style="border:none; background:none; cursor:pointer; font-size:1.2em;" title="Feedback drucken">🖨️</button>
                 `;
                 
                 controlsHeader.querySelector('.print-single-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (typeof showPrintDialog === 'function' && typeof printFeedback === 'function') {
-                        showPrintDialog((mode) => { printFeedback(res.name, assId, feedbackData, mode); });
+                        const printPayload = {
+                            student_name: res.name,
+                            date_str: currentItem.date_str,
+                            results: currentItem.results
+                        };
+                        showPrintDialog((mode) => { printFeedback(res.name, assId, printPayload, mode); });
                     }
                 });
 
                 container.prepend(controlsHeader);
-
+                
+                // Clear old slots
                 container.querySelectorAll('.inline-feedback').forEach(el => {
-                    el.innerHTML = ''; el.style.display = 'none';
-                    delete el.dataset.score; delete el.dataset.concise; delete el.dataset.detailed;
+                    el.innerHTML = ''; 
+                    el.style.display = 'none';
                 });
 
-                if (feedbackData.results) {
-                    feedbackData.results.forEach(item => {
+                if (currentItem.results) {
+                    currentItem.results.forEach(item => {
                         const targetSlot = container.querySelector(`.inline-feedback[data-qid="${item.question_id}"]`);
                         if (targetSlot) {
                             let color = '#ef4444'; 
@@ -334,6 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                                 <div style="font-size:0.9em; color:#555; background:white; padding:8px; border-left:3px solid #e2e8f0; margin-top:5px;">${item.detailed_feedback}</div>
                             `;
+                            // Attach data for scraper
                             targetSlot.dataset.score = item.score;
                             targetSlot.dataset.concise = item.concise_feedback;
                             targetSlot.dataset.detailed = item.detailed_feedback;
@@ -344,11 +410,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
 
+            // Toggle Card
             header.addEventListener('click', (e) => {
                 if (e.target.closest('button')) return; 
                 card.classList.toggle('open');
             });
 
+            // Feedback Button Logic
             const feedbackBtn = header.querySelector('.live-feedback-btn');
             feedbackBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -385,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => {
                         feedbackBtn.disabled = false;
                         if(feedbackBtn.textContent.includes('Fertig') || feedbackBtn.textContent.includes('Fehler')) {
-                            feedbackBtn.textContent = "⚡ Feedback";
+                            feedbackBtn.textContent = "⚡ Feedback"; // Reset text
                             feedbackBtn.style.backgroundColor = "#fff";
                         }
                     }, 3000);
@@ -394,7 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             card.appendChild(header);
 
-            // Card Content (Q&A)
+            // Render Card Body (Questions)
             const cardContent = document.createElement('div');
             cardContent.className = 'student-card-content';
             
@@ -444,7 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.appendChild(cardContent);
             grid.appendChild(card);
 
-            // 5. Load existing feedback
+            // --- 5. AUTOMATICALLY FETCH SAVED FEEDBACK ---
             fetch('http://localhost:5000/get_feedback', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -453,10 +521,17 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(r => r.json())
             .then(data => {
                 if (data.found && data.data) {
+                    // Inject feedback immediately (hidden inside collapsed card)
                     distributeFeedback(data.data, cardContent);
+                    
+                    // UPDATE BUTTON VISUALLY so user knows it's there
+                    feedbackBtn.textContent = "Gespeichert ✓";
+                    feedbackBtn.style.backgroundColor = "#e0f2fe"; // Light blue
+                    feedbackBtn.style.borderColor = "#bae6fd";
+                    feedbackBtn.style.color = "#0369a1";
                 }
             })
-            .catch(e => {});
+            .catch(e => { /* Ignore errors if server is down or file missing */ });
         });
 
         contentRenderer.innerHTML = '';
