@@ -318,7 +318,13 @@ document.addEventListener('DOMContentLoaded', () => {
             
             let lastUpdateStr = '-';
             if (res.data && res.data.createdAt) {
-                lastUpdateStr = new Date(res.data.createdAt).toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
+                // Wir nutzen toLocaleString statt toLocaleTimeString für Datum + Uhrzeit
+                lastUpdateStr = new Date(res.data.createdAt).toLocaleString('de-DE', {
+                    day: '2-digit', 
+                    month: '2-digit', 
+                    hour: '2-digit', 
+                    minute:'2-digit'
+                });
             }
 
             // Header Construction
