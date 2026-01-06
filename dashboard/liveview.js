@@ -23,6 +23,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const controlsBar = document.getElementById('controls-bar');
     const buttonGroup = controlsBar.querySelector('.button-group');
     
+    // Bulk Controls
+    const selectAllBtn = document.getElementById('select-all-btn');
+    const bulkAssessBtn = document.getElementById('bulk-assess-btn');
+    const bulkProgressOverlay = document.getElementById('bulk-progress-overlay');
+    const bulkProgressBar = document.getElementById('bulk-progress-bar');
+    const bulkProgressText = document.getElementById('bulk-progress-text');
+    const cancelBulkBtn = document.getElementById('cancel-bulk-btn');
+
+    let stopBulkFlag = false;
+
     const printAllBtn = document.createElement('button');
     printAllBtn.id = 'print-all-btn';
     printAllBtn.textContent = '🖨️ Klasse Drucken';
@@ -133,31 +143,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const foundAssignments = new Set();
 
-        // ---------------------------------------------------------
-        // STRATEGY 1: Scan ALL filenames (Instant & covers everyone)
-        // ---------------------------------------------------------
+        // STRATEGY 1: Scan ALL filenames
         Object.values(students).forEach(files => {
             if (Array.isArray(files)) {
                 files.forEach(f => {
-                    // Assuming filename is "6.2 Bundesstaat Schweiz.json"
-                    // We remove the .json extension to get the ID
                     const potentialId = f.name.replace(/\.json$/i, '').trim();
                     if (potentialId) foundAssignments.add(potentialId);
                 });
             }
         });
 
-        // ---------------------------------------------------------
-        // STRATEGY 2: Deep Scan (Backup for "Draft.json" files)
-        // Only scan the first file of the first 3 students to check internal keys
-        // This helps if filenames don't match assignment titles
-        // ---------------------------------------------------------
+        // STRATEGY 2: Deep Scan
         const studentsToScan = studentNames.slice(0, 3); 
         const scanPromises = studentsToScan.map(async (name) => {
             const files = students[name];
             if (!Array.isArray(files) || files.length === 0) return;
             try {
-                // Only fetch if we haven't found many assignments via filenames
                 if (foundAssignments.size < 2) {
                     const draftContent = await fetchDraftContent(files[0].path);
                     if (draftContent && draftContent.assignments) {
@@ -174,7 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (foundAssignments.size === 0) {
              assignmentSelect.innerHTML += '<option value="" disabled>Keine Aufgaben gefunden.</option>';
         } else {
-            // Sort naturally (so 6.2 comes after 6.1)
             Array.from(foundAssignments).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })).forEach(assId => {
                 const opt = document.createElement('option');
                 opt.value = assId;
@@ -188,8 +188,120 @@ document.addEventListener('DOMContentLoaded', () => {
     assignmentSelect.addEventListener('change', () => renderLiveGrid());
     refreshBtn.addEventListener('click', () => classSelect.value && assignmentSelect.value ? renderLiveGrid() : initDataLoad());
 
+    // --- BULK LOGIC ---
+    const updateBulkButton = () => {
+        const checkedBoxes = document.querySelectorAll('.student-checkbox:checked');
+        if (checkedBoxes.length > 0) {
+            bulkAssessBtn.style.display = 'inline-block';
+            bulkAssessBtn.textContent = `⚡ ${checkedBoxes.length} bewerten`;
+        } else {
+            bulkAssessBtn.style.display = 'none';
+        }
+    };
+
+    selectAllBtn.addEventListener('click', () => {
+        const checkboxes = document.querySelectorAll('.student-checkbox');
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        checkboxes.forEach(cb => cb.checked = !allChecked);
+        updateBulkButton();
+    });
+
+    cancelBulkBtn.addEventListener('click', () => {
+        stopBulkFlag = true;
+        cancelBulkBtn.textContent = "Breche ab...";
+    });
+
+    bulkAssessBtn.addEventListener('click', async () => {
+        const selectedCheckboxes = Array.from(document.querySelectorAll('.student-checkbox:checked'));
+        if (selectedCheckboxes.length === 0) return;
+
+        stopBulkFlag = false;
+        bulkProgressOverlay.style.display = 'flex';
+        cancelBulkBtn.textContent = "Abbrechen";
+        
+        let processed = 0;
+        const total = selectedCheckboxes.length;
+        
+        for (const cb of selectedCheckboxes) {
+            if (stopBulkFlag) break;
+
+            const studentName = cb.dataset.studentName;
+            const card = cb.closest('.student-card');
+            const feedbackBtn = card.querySelector('.live-feedback-btn');
+
+            // Retrieve Data from DOM
+            const studentData = JSON.parse(card.dataset.studentData || "{}");
+            const cls = classSelect.value;
+            const assId = assignmentSelect.value;
+
+            if (studentData && cls && assId) {
+                // Scroll to card
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Execute Logic
+                await performAssessment(cls, assId, studentName, studentData, feedbackBtn, card);
+            }
+
+            processed++;
+            const pct = Math.round((processed / total) * 100);
+            bulkProgressBar.style.width = `${pct}%`;
+            bulkProgressText.textContent = `${processed} / ${total} verarbeitet`;
+        }
+
+        bulkProgressOverlay.style.display = 'none';
+        if (!stopBulkFlag) {
+            // Uncheck all after success
+            document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = false);
+            updateBulkButton();
+        }
+    });
+
+    // --- SHARED ASSESSMENT LOGIC ---
+    const performAssessment = async (className, assignmentId, studentName, studentData, feedbackBtn, card) => {
+        feedbackBtn.disabled = true;
+        feedbackBtn.textContent = "Analysiere...";
+        feedbackBtn.style.backgroundColor = "#fff3cd";
+
+        try {
+            const response = await fetch('http://localhost:5000/assess', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    className: className,
+                    assignmentId: assignmentId,
+                    studentName: studentName,
+                    studentData: studentData
+                })
+            });
+            const result = await response.json();
+            if (result.error) throw new Error(result.error);
+
+            const contentArea = card.querySelector('.student-card-content');
+            distributeFeedback(result, contentArea);
+            
+            if (!card.classList.contains('open')) card.classList.add('open');
+            feedbackBtn.textContent = "Fertig ✓";
+            feedbackBtn.style.backgroundColor = "#dcfce7";
+
+        } catch (err) {
+            console.error(err);
+            feedbackBtn.textContent = "Fehler ❌";
+            feedbackBtn.style.backgroundColor = "#fee2e2";
+        } finally {
+            // Reset button after delay
+            setTimeout(() => {
+                // Only reset if we are still on the page or element exists
+                if (feedbackBtn) {
+                    feedbackBtn.disabled = false;
+                    if(feedbackBtn.textContent.includes('Fertig') || feedbackBtn.textContent.includes('Fehler')) {
+                        feedbackBtn.textContent = "⚡ Feedback"; 
+                        feedbackBtn.style.backgroundColor = "#fff";
+                    }
+                }
+            }, 3000);
+        }
+    };
+
     // --- RENDER GRID ---
-// --- RENDER GRID ---
     const renderLiveGrid = async () => {
         const cls = classSelect.value;
         const assId = assignmentSelect.value;
@@ -199,6 +311,9 @@ document.addEventListener('DOMContentLoaded', () => {
         printAllBtn.disabled = false;
         printAllBtn.style.backgroundColor = "#17a2b8"; 
         printAllBtn.onclick = () => window.print();
+        
+        // Hide bulk button initially
+        bulkAssessBtn.style.display = 'none';
 
         contentRenderer.innerHTML = '<div style="text-align:center; margin-top:2em; color:#666;"><span class="spinner"></span> Lade Master-Daten & Schüler...</div>';
         
@@ -280,6 +395,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'student-card';
             card.dataset.studentName = res.name;
+            // Store data for bulk processing
+            card.dataset.studentData = JSON.stringify(res.data);
 
             // Find Assignment Data
             let assignmentData = null;
@@ -318,7 +435,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             let lastUpdateStr = '-';
             if (res.data && res.data.createdAt) {
-                // Wir nutzen toLocaleString statt toLocaleTimeString für Datum + Uhrzeit
                 lastUpdateStr = new Date(res.data.createdAt).toLocaleString('de-DE', {
                     day: '2-digit', 
                     month: '2-digit', 
@@ -332,6 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
             header.className = 'student-header';
             header.innerHTML = `
                 <div class="header-left">
+                    <input type="checkbox" class="student-checkbox" data-student-name="${res.name}">
                     <span class="toggle-icon">▶</span>
                     <span class="student-name">${res.name}</span>
                 </div>
@@ -441,9 +558,21 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (item.score === 2) color = '#f59e0b'; 
                             if (item.score === 3) color = '#22c55e';
 
+                            // Completeness Color
+                            let compColor = '#ef4444'; 
+                            if (item.completeness === 2) compColor = '#f59e0b';
+                            if (item.completeness === 3) compColor = '#22c55e';
+
                             targetSlot.innerHTML = `
                                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                                    <span style="background:${color}; color:white; padding:1px 6px; border-radius:4px; font-size:0.8em; font-weight:bold;">Score: ${item.score}</span>
+                                    <div style="display:flex; gap:4px;">
+                                        <span style="background:${color}; color:white; padding:1px 6px; border-radius:4px; font-size:0.8em; font-weight:bold;" title="Korrektheit (0-3)">
+                                        Korr: ${item.score}
+                                        </span>
+                                        <span style="background:${compColor}; color:white; padding:1px 6px; border-radius:4px; font-size:0.8em; font-weight:bold;" title="Vollständigkeit (0-3)">
+                                        Voll: ${item.completeness !== undefined ? item.completeness : '-'}
+                                        </span>
+                                    </div>
                                     <span style="color:#334155; font-weight:600; font-size:0.95em;">${item.concise_feedback}</span>
                                 </div>
                                 <div style="font-size:0.9em; color:#555; background:white; padding:8px; border-left:3px solid #e2e8f0; margin-top:5px;">${item.detailed_feedback}</div>
@@ -460,52 +589,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Toggle Card
             header.addEventListener('click', (e) => {
-                if (e.target.closest('button')) return; 
+                if (e.target.closest('button') || e.target.classList.contains('student-checkbox')) return; 
                 card.classList.toggle('open');
             });
+
+            // Checkbox Handler
+            const cb = header.querySelector('.student-checkbox');
+            cb.addEventListener('change', updateBulkButton);
 
             // Feedback Button Logic
             const feedbackBtn = header.querySelector('.live-feedback-btn');
             feedbackBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                feedbackBtn.disabled = true;
-                feedbackBtn.textContent = "Analysiere...";
-                feedbackBtn.style.backgroundColor = "#fff3cd";
-
-                try {
-                    const response = await fetch('http://localhost:5000/assess', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            className: cls,
-                            assignmentId: assId,
-                            studentName: res.name,
-                            studentData: res.data
-                        })
-                    });
-                    const result = await response.json();
-                    if (result.error) throw new Error(result.error);
-
-                    const contentArea = card.querySelector('.student-card-content');
-                    distributeFeedback(result, contentArea);
-                    
-                    if (!card.classList.contains('open')) card.classList.add('open');
-                    feedbackBtn.textContent = "Fertig ✓";
-                    feedbackBtn.style.backgroundColor = "#dcfce7";
-
-                } catch (err) {
-                    alert("Fehler: " + err.message);
-                    feedbackBtn.textContent = "Fehler ❌";
-                    feedbackBtn.style.backgroundColor = "#fee2e2";
-                } finally {
-                    setTimeout(() => {
-                        feedbackBtn.disabled = false;
-                        if(feedbackBtn.textContent.includes('Fertig') || feedbackBtn.textContent.includes('Fehler')) {
-                            feedbackBtn.textContent = "⚡ Feedback"; // Reset text
-                            feedbackBtn.style.backgroundColor = "#fff";
-                        }
-                    }, 3000);
-                }
+                await performAssessment(cls, assId, res.name, res.data, feedbackBtn, card);
             });
 
             card.appendChild(header);
@@ -570,7 +666,6 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 if (data.found && data.data) {
                     distributeFeedback(data.data, cardContent);
-                    
                     feedbackBtn.textContent = "Gespeichert ✓";
                     feedbackBtn.style.backgroundColor = "#e0f2fe"; 
                     feedbackBtn.style.borderColor = "#bae6fd";
@@ -585,7 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }; 
     // --- END OF renderLiveGrid ---
 
-    // --- EXPORT TO EXCEL (CSV) - MOVED OUTSIDE ---
+    // --- EXPORT TO EXCEL (CSV) ---
     downloadBtn.addEventListener('click', async () => {
         const cls = classSelect.value;
         const assId = assignmentSelect.value;
@@ -644,11 +739,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let targetFile = null;
             if (files && files.length > 0) {
                 const sortedFiles = [...files].sort((a, b) => b.name.localeCompare(a.name));
-                // Try Exact Match
                 targetFile = sortedFiles.find(f => f.name.replace(/\.json$/i, '').trim() === assId.trim());
-                // Try Fuzzy Match
                 if (!targetFile) targetFile = sortedFiles.find(f => f.name.includes(assId));
-                // Fallback to latest
                 if (!targetFile) targetFile = sortedFiles[0]; 
             }
 
@@ -738,8 +830,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dialogOverlay.addEventListener('click', (e) => { if(e.target === dialogOverlay) close(); });
     };
 
-    // --- UPDATED PRINTING FUNCTIONS ---
-
+    // --- PRINTING FUNCTIONS ---
     const printFeedback = (studentName, assignmentName, feedbackData, mode) => {
         const printWindow = window.open('', '_blank');
         const html = generatePrintHTML([feedbackData], assignmentName, mode);
@@ -753,7 +844,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const assignmentName = assignmentSelect.value;
 
         cards.forEach(card => {
-            // Find filled slots
             const slots = card.querySelectorAll('.inline-feedback[style*="block"]');
             if (slots.length > 0) {
                 const studentName = card.querySelector('.student-name').textContent;
@@ -761,7 +851,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 slots.forEach(slot => {
                     items.push({
-                        question_id: slot.dataset.qid, // Required for grouping
+                        question_id: slot.dataset.qid, 
                         question_text: slot.dataset.qtext,
                         score: parseInt(slot.dataset.score),
                         concise_feedback: slot.dataset.concise,
@@ -769,7 +859,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
                 
-                // Get date from header
                 const dateHeader = card.querySelector('.feedback-controls-header span');
                 const dateStr = dateHeader ? dateHeader.textContent : '';
 
@@ -811,7 +900,6 @@ document.addEventListener('DOMContentLoaded', () => {
             let lastSection = "";
 
             fb.results.forEach(item => {
-                // Grouping Logic
                 let currentSection = "";
                 if (item.question_id) {
                     const parts = item.question_id.split('_');

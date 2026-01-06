@@ -51,6 +51,7 @@
             /* 5. HIDE unwanted elements */
             .student-card-content, /* Hide the questions/answers */
             .header-left .toggle-icon,
+            .header-left .student-checkbox, /* Hide checkboxes in print */
             .student-stats .word-count-badge,
             .student-stats .last-update-badge,
             .student-stats .live-feedback-btn {
@@ -88,6 +89,15 @@
         </div>
     </div>
 
+    <div id="bulk-progress-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:2000; flex-direction:column; justify-content:center; align-items:center;">
+        <h2 style="color:#333;">Automatische Bewertung läuft...</h2>
+        <div style="width:300px; height:20px; background:#e9ecef; border-radius:10px; overflow:hidden; margin:20px 0; border:1px solid #ced4da;">
+            <div id="bulk-progress-bar" style="width:0%; height:100%; background:#007bff; transition:width 0.3s;"></div>
+        </div>
+        <p id="bulk-progress-text" style="color:#666; font-weight:bold;">0 / 0 verarbeitet</p>
+        <button id="cancel-bulk-btn" style="margin-top:20px; padding:10px 20px; border:1px solid #dc3545; color:#dc3545; background:white; border-radius:4px; cursor:pointer; font-weight:bold;">Abbrechen</button>
+    </div>
+
     <div id="live-view-container">
         <header id="live-header">
             <h1 id="main-title">Klassen-Monitor</h1>
@@ -102,6 +112,8 @@
                 </div>
                 <div class="button-group">
                     <button id="refresh-btn">🔄 Aktualisieren</button>
+                    <button id="select-all-btn" style="background-color: #6c757d; margin-top: 18px; margin-left: 10px; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 100%;">☑ Alle</button>
+                    <button id="bulk-assess-btn" style="background-color: #6f42c1; display:none; margin-top: 18px; margin-left: 10px; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 100%;">⚡ Auswahl bewerten</button>
                     <button id="print-all-btn" title="Klasse als Übersicht drucken">🖨️ Klasse Drucken</button>
                     <button id="download-btn" disabled title="Ganze Klasse herunterladen">📥 Download</button>
                 </div>
