@@ -289,7 +289,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             // Reset button after delay
             setTimeout(() => {
-                // Only reset if we are still on the page or element exists
                 if (feedbackBtn) {
                     feedbackBtn.disabled = false;
                     if(feedbackBtn.textContent.includes('Fertig') || feedbackBtn.textContent.includes('Fehler')) {
@@ -558,25 +557,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (item.score === 2) color = '#f59e0b'; 
                             if (item.score === 3) color = '#22c55e';
 
-                            // Completeness Color
-                            let compColor = '#ef4444'; 
-                            if (item.completeness === 2) compColor = '#f59e0b';
-                            if (item.completeness === 3) compColor = '#22c55e';
-
+                            // --- CHANGE: Simplified Display (Removed Completeness Badge) ---
                             targetSlot.innerHTML = `
                                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                                    <div style="display:flex; gap:4px;">
-                                        <span style="background:${color}; color:white; padding:1px 6px; border-radius:4px; font-size:0.8em; font-weight:bold;" title="Korrektheit (0-3)">
-                                        Korr: ${item.score}
-                                        </span>
-                                        <span style="background:${compColor}; color:white; padding:1px 6px; border-radius:4px; font-size:0.8em; font-weight:bold;" title="Vollständigkeit (0-3)">
-                                        Voll: ${item.completeness !== undefined ? item.completeness : '-'}
-                                        </span>
-                                    </div>
+                                    <span style="background:${color}; color:white; padding:1px 6px; border-radius:4px; font-size:0.8em; font-weight:bold;" title="Korrektheit (0-3)">
+                                    Punkte: ${item.score}
+                                    </span>
                                     <span style="color:#334155; font-weight:600; font-size:0.95em;">${item.concise_feedback}</span>
                                 </div>
                                 <div style="font-size:0.9em; color:#555; background:white; padding:8px; border-left:3px solid #e2e8f0; margin-top:5px;">${item.detailed_feedback}</div>
                             `;
+                            // -------------------------------------------------------------
+
                             targetSlot.dataset.score = item.score;
                             targetSlot.dataset.concise = item.concise_feedback;
                             targetSlot.dataset.detailed = item.detailed_feedback;
@@ -920,7 +912,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 bodyContent += `
                     <div class="item">
                         <div class="question">${formattedQuestion}</div>
-                        <div class="concise"><span class="badge ${colorClass}">Score: ${item.score}</span> ${item.concise_feedback}</div>`;
+                        <div class="concise"><span class="badge ${colorClass}">Punkte: ${item.score}</span> ${item.concise_feedback}</div>`;
                 
                 if (mode === 'full') {
                     bodyContent += `<div class="detailed">${item.detailed_feedback}</div>`;
