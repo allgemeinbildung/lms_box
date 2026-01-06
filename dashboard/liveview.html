@@ -10,69 +10,20 @@
     <style>
         /* --- PRINT STYLES --- */
         @media print {
-            /* 1. Hide everything on the page by default */
-            body * {
-                visibility: hidden;
-            }
-
-            /* 2. Make the grid and its contents visible */
-            #live-grid, #live-grid * {
-                visibility: visible;
-            }
-
-            /* 3. Position the grid at the top-left */
+            body * { visibility: hidden; }
+            #live-grid, #live-grid * { visibility: visible; }
             #live-grid {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                display: grid;
-                grid-template-columns: repeat(3, 1fr); /* 3 Columns for compact view */
-                gap: 15px;
+                position: absolute; left: 0; top: 0; width: 100%;
+                display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;
             }
-
-            /* 4. Style the card for printing */
-            .student-card {
-                break-inside: avoid; /* Don't split card across pages */
-                border: 1px solid #000; /* Crisp border */
-                box-shadow: none;
-                margin: 0;
-                padding: 0;
-            }
-
-            .student-header {
-                background: #fff !important; /* Save ink */
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 10px;
-            }
-
-            /* 5. HIDE unwanted elements */
-            .student-card-content, /* Hide the questions/answers */
-            .header-left .toggle-icon,
-            .header-left .student-checkbox, /* Hide checkboxes in print */
-            .student-stats .word-count-badge,
-            .student-stats .last-update-badge,
-            .student-stats .live-feedback-btn {
-                display: none !important;
-            }
-
-            /* 6. Enforce Name and Progress Badge visibility */
-            .student-name {
-                font-size: 16px;
-                font-weight: bold;
-                color: #000;
-            }
-            
+            .student-card { break-inside: avoid; border: 1px solid #000; box-shadow: none; margin: 0; padding: 0; }
+            .student-header { background: #fff !important; display: flex; justify-content: space-between; align-items: center; padding: 10px; }
+            .student-card-content, .header-left .toggle-icon, .header-left .student-checkbox, 
+            .student-stats .word-count-badge, .student-stats .last-update-badge, .student-stats .live-feedback-btn { display: none !important; }
+            .student-name { font-size: 16px; font-weight: bold; color: #000; }
             .progress-badge {
-                font-size: 14px;
-                font-weight: bold;
-                border: 1px solid #000;
-                color: #000 !important;
-                /* Force background color printing if browser allows, otherwise white */
-                -webkit-print-color-adjust: exact; 
-                print-color-adjust: exact;
+                font-size: 14px; font-weight: bold; border: 1px solid #000; color: #000 !important;
+                -webkit-print-color-adjust: exact; print-color-adjust: exact;
             }
         }
     </style>
@@ -112,10 +63,13 @@
                 </div>
                 <div class="button-group">
                     <button id="refresh-btn">🔄 Aktualisieren</button>
+                    
                     <button id="select-all-btn" style="background-color: #6c757d; margin-top: 18px; margin-left: 10px; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 100%;">☑ Alle</button>
                     <button id="bulk-assess-btn" style="background-color: #6f42c1; display:none; margin-top: 18px; margin-left: 10px; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 100%;">⚡ Auswahl bewerten</button>
-                    <button id="print-all-btn" title="Klasse als Übersicht drucken">🖨️ Klasse Drucken</button>
-                    <button id="download-btn" disabled title="Ganze Klasse herunterladen">📥 Download</button>
+                    
+                    <button id="export-analysis-btn" style="background-color: #28a745; margin-top: 18px; margin-left: 10px; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 100%;" disabled title="Exportiert Noten und Details">📊 Analyse-Export</button>
+                    
+                    <button id="print-all-btn" title="Klasse als Übersicht drucken">🖨️ Drucken</button>
                 </div>
             </div>
         </header>

@@ -16,7 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const classSelect = document.getElementById('class-select');
     const assignmentSelect = document.getElementById('assignment-select');
     const refreshBtn = document.getElementById('refresh-btn');
-    const downloadBtn = document.getElementById('download-btn'); 
     const contentRenderer = document.getElementById('live-content-renderer');
     
     // Header Controls
@@ -30,15 +29,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const bulkProgressBar = document.getElementById('bulk-progress-bar');
     const bulkProgressText = document.getElementById('bulk-progress-text');
     const cancelBulkBtn = document.getElementById('cancel-bulk-btn');
+    
+    // Export Button
+    const exportBtn = document.getElementById('export-analysis-btn');
 
     let stopBulkFlag = false;
 
-    const printAllBtn = document.createElement('button');
-    printAllBtn.id = 'print-all-btn';
-    printAllBtn.textContent = '🖨️ Klasse Drucken';
-    printAllBtn.disabled = true;
-    printAllBtn.style.cssText = "background-color: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 100%; margin-top: 18px; margin-left: 10px;";
-    buttonGroup.appendChild(printAllBtn);
+    // Print Button Logic
+    let printAllBtn = document.getElementById('print-all-btn');
+    if(!printAllBtn) {
+        // Fallback falls nicht im HTML
+        printAllBtn = document.createElement('button');
+        printAllBtn.id = 'print-all-btn';
+        printAllBtn.textContent = '🖨️ Klasse Drucken';
+        printAllBtn.disabled = true;
+        buttonGroup.appendChild(printAllBtn);
+    }
 
     // State
     let draftsMap = {}; 
@@ -117,16 +123,201 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         classSelect.disabled = false;
         if (classes.includes(currentVal)) classSelect.value = currentVal;
-        downloadBtn.disabled = !classSelect.value;
+        
+        // Disable action buttons if no class
+        if (exportBtn) exportBtn.disabled = !classSelect.value;
+        const downloadBtn = document.getElementById('download-btn');
+        if(downloadBtn) downloadBtn.disabled = !classSelect.value;
     };
 
     // --- Helper Functions ---
     const parseSimpleMarkdown = (text) => text ? text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') : '';
     
-    // --- Scan Logic (Updated to find ALL assignments) ---
+    // --- Helper: Inject Feedback into DOM (SHARED FUNCTION) ---
+    const distributeFeedback = (feedbackData, container) => {
+        // Clean existing header
+        const existingHeader = container.querySelector('.feedback-controls-header');
+        if (existingHeader) existingHeader.remove();
+
+        let currentItem = feedbackData;
+        let previousItem = null;
+        let versionCount = 1;
+
+        // Check for history
+        if (feedbackData.history && Array.isArray(feedbackData.history)) {
+            versionCount = feedbackData.history.length;
+            currentItem = feedbackData.history[versionCount - 1]; 
+            if (versionCount >= 2) {
+                previousItem = feedbackData.history[versionCount - 2];
+            }
+        }
+
+        // --- Delta Logic (History comparison) ---
+        const calculateStats = (results) => {
+            let totalScore = 0;
+            let answeredCount = 0;
+            if (results && Array.isArray(results)) {
+                results.forEach(r => {
+                    totalScore += (r.score || 0);
+                    if (r.score > 0) answeredCount++;
+                });
+            }
+            return { totalScore, answeredCount };
+        };
+
+        let deltaHtml = '';
+        if (previousItem) {
+            const currStats = calculateStats(currentItem.results);
+            const prevStats = calculateStats(previousItem.results);
+            const scoreDiff = currStats.totalScore - prevStats.totalScore;
+            const ansDiff = currStats.answeredCount - prevStats.answeredCount;
+
+            let scoreClass = 'color:#666'; 
+            let scoreSign = '';
+            if (scoreDiff > 0) { scoreClass = 'color:#16a34a'; scoreSign = '▲ +'; }
+            else if (scoreDiff < 0) { scoreClass = 'color:#dc2626'; scoreSign = '▼ '; }
+
+            let ansClass = 'color:#666';
+            let ansSign = '';
+            if (ansDiff > 0) { ansClass = 'color:#16a34a'; ansSign = '▲ +'; }
+            else if (ansDiff < 0) { ansClass = 'color:#dc2626'; ansSign = '▼ '; }
+
+            deltaHtml = `
+                <span style="font-size:0.85em; margin-left:15px; border-left:1px solid #ccc; padding-left:10px;">
+                    <span style="margin-right:8px; font-weight:bold; ${scoreClass}" title="Veränderung Punkte">${scoreSign}${scoreDiff} Pkt</span>
+                    <span style="font-weight:bold; ${ansClass}" title="Veränderung beantwortete Fragen">${ansSign}${ansDiff} Fragen</span>
+                </span>
+            `;
+        }
+
+        const dateStr = currentItem.date_str || "Gespeichert";
+        const versionLabel = versionCount > 1 ? ` <span style="font-size:0.8em; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:10px; margin-left:5px;">v${versionCount}</span>` : "";
+
+        // Create Header
+        const controlsHeader = document.createElement('div');
+        controlsHeader.className = 'feedback-controls-header';
+        controlsHeader.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#f0f9ff; padding:10px; border-radius:6px; margin-bottom:15px; border:1px solid #bae6fd;";
+        
+        controlsHeader.innerHTML = `
+            <div style="font-size:0.9em; color:#0369a1; display:flex; align-items:center;">
+                <strong>⚡ Status:</strong> 
+                <span style="color:#555; margin-left:5px;">${dateStr}</span>
+                ${versionLabel}
+                ${deltaHtml}
+            </div>
+            <button class="print-single-btn" style="border:none; background:none; cursor:pointer; font-size:1.2em;" title="Feedback drucken">🖨️</button>
+        `;
+        
+        // Print Single Feedback Handler
+        controlsHeader.querySelector('.print-single-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const card = container.closest('.student-card');
+            const sName = card ? card.dataset.studentName : "Student";
+            const assId = document.getElementById('assignment-select').value;
+             
+            if (typeof showPrintDialog === 'function' && typeof printFeedback === 'function') {
+                const printPayload = {
+                    student_name: sName,
+                    date_str: currentItem.date_str,
+                    results: currentItem.results
+                };
+                showPrintDialog((mode) => { printFeedback(sName, assId, printPayload, mode); });
+            }
+        });
+
+        container.prepend(controlsHeader);
+        
+        // Clear slots first
+        container.querySelectorAll('.inline-feedback').forEach(el => {
+            el.innerHTML = ''; 
+            el.style.display = 'none';
+        });
+
+        // Fill slots
+        if (currentItem.results) {
+            currentItem.results.forEach(item => {
+                const targetSlot = container.querySelector(`.inline-feedback[data-qid="${item.question_id}"]`);
+                if (targetSlot) {
+                    let color = '#ef4444'; 
+                    if (item.score === 2) color = '#f59e0b'; 
+                    if (item.score === 3) color = '#22c55e';
+
+                    // --- SIMPLIFIED BADGE DISPLAY (Only Points) ---
+                    targetSlot.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                            <span style="background:${color}; color:white; padding:1px 6px; border-radius:4px; font-size:0.8em; font-weight:bold;" title="Korrektheit (0-3)">
+                                Punkte: ${item.score}
+                            </span>
+                            <span style="color:#334155; font-weight:600; font-size:0.95em;">${item.concise_feedback}</span>
+                        </div>
+                        <div style="font-size:0.9em; color:#555; background:white; padding:8px; border-left:3px solid #e2e8f0; margin-top:5px;">${item.detailed_feedback}</div>
+                    `;
+                    // ----------------------------------------------
+
+                    targetSlot.dataset.score = item.score;
+                    targetSlot.dataset.concise = item.concise_feedback;
+                    targetSlot.dataset.detailed = item.detailed_feedback;
+                    targetSlot.dataset.qtext = item.question_text;
+                    targetSlot.style.display = 'block';
+                }
+            });
+        }
+    };
+
+    // --- SHARED ASSESSMENT LOGIC (Accessed by Single & Bulk) ---
+    const performAssessment = async (className, assignmentId, studentName, studentData, feedbackBtn, card) => {
+        feedbackBtn.disabled = true;
+        feedbackBtn.textContent = "Analysiere...";
+        feedbackBtn.style.backgroundColor = "#fff3cd";
+
+        try {
+            const response = await fetch('http://localhost:5000/assess', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    className: className,
+                    assignmentId: assignmentId,
+                    studentName: studentName,
+                    studentData: studentData
+                })
+            });
+            const result = await response.json();
+            if (result.error) throw new Error(result.error);
+
+            const contentArea = card.querySelector('.student-card-content');
+            distributeFeedback(result, contentArea);
+            
+            if (!card.classList.contains('open')) card.classList.add('open');
+            feedbackBtn.textContent = "Fertig ✓";
+            feedbackBtn.style.backgroundColor = "#dcfce7";
+
+        } catch (err) {
+            console.error(err);
+            feedbackBtn.textContent = "Fehler ❌";
+            feedbackBtn.style.backgroundColor = "#fee2e2";
+        } finally {
+            // Restore button state
+            setTimeout(() => {
+                // Check if element still exists
+                if (feedbackBtn) {
+                    feedbackBtn.disabled = false;
+                    // Only reset text if it wasn't clicked again in the meantime
+                    if(feedbackBtn.textContent.includes('Fertig') || feedbackBtn.textContent.includes('Fehler')) {
+                        feedbackBtn.textContent = "⚡ Feedback"; 
+                        feedbackBtn.style.backgroundColor = "#fff";
+                    }
+                }
+            }, 3000);
+        }
+    };
+
+    // --- Scan Logic ---
     classSelect.addEventListener('change', async () => {
         const selectedClass = classSelect.value;
-        downloadBtn.disabled = !selectedClass;
+        const dBtn = document.getElementById('download-btn');
+        if(dBtn) dBtn.disabled = !selectedClass;
+        if(exportBtn) exportBtn.disabled = !selectedClass;
+
         assignmentSelect.innerHTML = '<option value="">Lade Aufgaben...</option>';
         assignmentSelect.disabled = true;
         contentRenderer.innerHTML = '<div id="placeholder-msg">Bitte wählen Sie eine Aufgabe aus.</div>';
@@ -153,7 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // STRATEGY 2: Deep Scan
+        // STRATEGY 2: Deep Scan first few
         const studentsToScan = studentNames.slice(0, 3); 
         const scanPromises = studentsToScan.map(async (name) => {
             const files = students[name];
@@ -188,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
     assignmentSelect.addEventListener('change', () => renderLiveGrid());
     refreshBtn.addEventListener('click', () => classSelect.value && assignmentSelect.value ? renderLiveGrid() : initDataLoad());
 
-    // --- BULK LOGIC ---
+    // --- BULK SELECTION LOGIC ---
     const updateBulkButton = () => {
         const checkedBoxes = document.querySelectorAll('.student-checkbox:checked');
         if (checkedBoxes.length > 0) {
@@ -229,15 +420,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = cb.closest('.student-card');
             const feedbackBtn = card.querySelector('.live-feedback-btn');
 
-            // Retrieve Data from DOM
             const studentData = JSON.parse(card.dataset.studentData || "{}");
             const cls = classSelect.value;
             const assId = assignmentSelect.value;
 
             if (studentData && cls && assId) {
-                // Scroll to card
+                // Scroll into view
                 card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                // Execute Logic
+                // Execute logic
                 await performAssessment(cls, assId, studentName, studentData, feedbackBtn, card);
             }
 
@@ -249,56 +439,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         bulkProgressOverlay.style.display = 'none';
         if (!stopBulkFlag) {
-            // Uncheck all after success
             document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = false);
             updateBulkButton();
         }
     });
-
-    // --- SHARED ASSESSMENT LOGIC ---
-    const performAssessment = async (className, assignmentId, studentName, studentData, feedbackBtn, card) => {
-        feedbackBtn.disabled = true;
-        feedbackBtn.textContent = "Analysiere...";
-        feedbackBtn.style.backgroundColor = "#fff3cd";
-
-        try {
-            const response = await fetch('http://localhost:5000/assess', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    className: className,
-                    assignmentId: assignmentId,
-                    studentName: studentName,
-                    studentData: studentData
-                })
-            });
-            const result = await response.json();
-            if (result.error) throw new Error(result.error);
-
-            const contentArea = card.querySelector('.student-card-content');
-            distributeFeedback(result, contentArea);
-            
-            if (!card.classList.contains('open')) card.classList.add('open');
-            feedbackBtn.textContent = "Fertig ✓";
-            feedbackBtn.style.backgroundColor = "#dcfce7";
-
-        } catch (err) {
-            console.error(err);
-            feedbackBtn.textContent = "Fehler ❌";
-            feedbackBtn.style.backgroundColor = "#fee2e2";
-        } finally {
-            // Reset button after delay
-            setTimeout(() => {
-                if (feedbackBtn) {
-                    feedbackBtn.disabled = false;
-                    if(feedbackBtn.textContent.includes('Fertig') || feedbackBtn.textContent.includes('Fehler')) {
-                        feedbackBtn.textContent = "⚡ Feedback"; 
-                        feedbackBtn.style.backgroundColor = "#fff";
-                    }
-                }
-            }, 3000);
-        }
-    };
 
     // --- RENDER GRID ---
     const renderLiveGrid = async () => {
@@ -306,13 +450,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const assId = assignmentSelect.value;
         if (!cls || !assId) return;
         
-        // --- 1. Reset UI ---
         printAllBtn.disabled = false;
         printAllBtn.style.backgroundColor = "#17a2b8"; 
         printAllBtn.onclick = () => window.print();
         
-        // Hide bulk button initially
-        bulkAssessBtn.style.display = 'none';
+        if (exportBtn) exportBtn.disabled = false;
+        bulkAssessBtn.style.display = 'none'; // Reset bulk button
 
         contentRenderer.innerHTML = '<div style="text-align:center; margin-top:2em; color:#666;"><span class="spinner"></span> Lade Master-Daten & Schüler...</div>';
         
@@ -348,24 +491,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const files = students[name];
             if (!files || files.length === 0) return null;
             
-            // --- SMART FILE SELECTION ---
             let correctFile = null;
             let correctData = null;
-
-            // Sort by filename (proxy for date)
             const sortedFiles = [...files].sort((a, b) => b.name.localeCompare(a.name));
 
             for (const file of sortedFiles) {
                 try {
                     const data = await fetchDraftContent(file.path);
                     if (data && data.assignments) {
-                        // Check exact match
                         if (data.assignments[assId]) {
                             correctFile = file;
                             correctData = data;
                             break;
                         }
-                        // Check fuzzy match
                         const foundKey = Object.keys(data.assignments).find(k => 
                             decodeURIComponent(k).trim() === decodeURIComponent(assId).trim()
                         );
@@ -394,10 +532,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'student-card';
             card.dataset.studentName = res.name;
-            // Store data for bulk processing
-            card.dataset.studentData = JSON.stringify(res.data);
+            card.dataset.studentData = JSON.stringify(res.data); // IMPORTANT: Store data on DOM for Bulk
 
-            // Find Assignment Data
             let assignmentData = null;
             if (res.data && res.data.assignments) {
                 if (res.data.assignments[assId]) {
@@ -410,7 +546,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Stats
             let studentTotalParams = 0;
             let answeredQuestions = 0;
             let totalWords = 0;
@@ -435,10 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let lastUpdateStr = '-';
             if (res.data && res.data.createdAt) {
                 lastUpdateStr = new Date(res.data.createdAt).toLocaleString('de-DE', {
-                    day: '2-digit', 
-                    month: '2-digit', 
-                    hour: '2-digit', 
-                    minute:'2-digit'
+                    day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit'
                 });
             }
 
@@ -459,137 +591,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
-            // Helper: Inject Feedback into DOM
-            const distributeFeedback = (feedbackData, container) => {
-                const existingHeader = container.querySelector('.feedback-controls-header');
-                if (existingHeader) existingHeader.remove();
-
-                let currentItem = feedbackData;
-                let previousItem = null;
-                let versionCount = 1;
-
-                if (feedbackData.history && Array.isArray(feedbackData.history)) {
-                    versionCount = feedbackData.history.length;
-                    currentItem = feedbackData.history[versionCount - 1]; 
-                    if (versionCount >= 2) {
-                        previousItem = feedbackData.history[versionCount - 2];
-                    }
-                }
-
-                const calculateStats = (results) => {
-                    let totalScore = 0;
-                    let answeredCount = 0;
-                    if (results && Array.isArray(results)) {
-                        results.forEach(r => {
-                            totalScore += (r.score || 0);
-                            if (r.score > 0) answeredCount++;
-                        });
-                    }
-                    return { totalScore, answeredCount };
-                };
-
-                let deltaHtml = '';
-                if (previousItem) {
-                    const currStats = calculateStats(currentItem.results);
-                    const prevStats = calculateStats(previousItem.results);
-                    const scoreDiff = currStats.totalScore - prevStats.totalScore;
-                    const ansDiff = currStats.answeredCount - prevStats.answeredCount;
-
-                    let scoreClass = 'color:#666'; 
-                    let scoreSign = '';
-                    if (scoreDiff > 0) { scoreClass = 'color:#16a34a'; scoreSign = '▲ +'; }
-                    else if (scoreDiff < 0) { scoreClass = 'color:#dc2626'; scoreSign = '▼ '; }
-
-                    let ansClass = 'color:#666';
-                    let ansSign = '';
-                    if (ansDiff > 0) { ansClass = 'color:#16a34a'; ansSign = '▲ +'; }
-                    else if (ansDiff < 0) { ansClass = 'color:#dc2626'; ansSign = '▼ '; }
-
-                    deltaHtml = `
-                        <span style="font-size:0.85em; margin-left:15px; border-left:1px solid #ccc; padding-left:10px;">
-                            <span style="margin-right:8px; font-weight:bold; ${scoreClass}" title="Veränderung Punkte">${scoreSign}${scoreDiff} Pkt</span>
-                            <span style="font-weight:bold; ${ansClass}" title="Veränderung beantwortete Fragen">${ansSign}${ansDiff} Fragen</span>
-                        </span>
-                    `;
-                }
-
-                const dateStr = currentItem.date_str || "Gespeichert";
-                const versionLabel = versionCount > 1 ? ` <span style="font-size:0.8em; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:10px; margin-left:5px;">v${versionCount}</span>` : "";
-
-                const controlsHeader = document.createElement('div');
-                controlsHeader.className = 'feedback-controls-header';
-                controlsHeader.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#f0f9ff; padding:10px; border-radius:6px; margin-bottom:15px; border:1px solid #bae6fd;";
-                
-                controlsHeader.innerHTML = `
-                    <div style="font-size:0.9em; color:#0369a1; display:flex; align-items:center;">
-                        <strong>⚡ Status:</strong> 
-                        <span style="color:#555; margin-left:5px;">${dateStr}</span>
-                        ${versionLabel}
-                        ${deltaHtml}
-                    </div>
-                    <button class="print-single-btn" style="border:none; background:none; cursor:pointer; font-size:1.2em;" title="Feedback drucken">🖨️</button>
-                `;
-                
-                controlsHeader.querySelector('.print-single-btn').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if (typeof showPrintDialog === 'function' && typeof printFeedback === 'function') {
-                        const printPayload = {
-                            student_name: res.name,
-                            date_str: currentItem.date_str,
-                            results: currentItem.results
-                        };
-                        showPrintDialog((mode) => { printFeedback(res.name, assId, printPayload, mode); });
-                    }
-                });
-
-                container.prepend(controlsHeader);
-                
-                container.querySelectorAll('.inline-feedback').forEach(el => {
-                    el.innerHTML = ''; 
-                    el.style.display = 'none';
-                });
-
-                if (currentItem.results) {
-                    currentItem.results.forEach(item => {
-                        const targetSlot = container.querySelector(`.inline-feedback[data-qid="${item.question_id}"]`);
-                        if (targetSlot) {
-                            let color = '#ef4444'; 
-                            if (item.score === 2) color = '#f59e0b'; 
-                            if (item.score === 3) color = '#22c55e';
-
-                            // --- CHANGE: Simplified Display (Removed Completeness Badge) ---
-                            targetSlot.innerHTML = `
-                                <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                                    <span style="background:${color}; color:white; padding:1px 6px; border-radius:4px; font-size:0.8em; font-weight:bold;" title="Korrektheit (0-3)">
-                                    Punkte: ${item.score}
-                                    </span>
-                                    <span style="color:#334155; font-weight:600; font-size:0.95em;">${item.concise_feedback}</span>
-                                </div>
-                                <div style="font-size:0.9em; color:#555; background:white; padding:8px; border-left:3px solid #e2e8f0; margin-top:5px;">${item.detailed_feedback}</div>
-                            `;
-                            // -------------------------------------------------------------
-
-                            targetSlot.dataset.score = item.score;
-                            targetSlot.dataset.concise = item.concise_feedback;
-                            targetSlot.dataset.detailed = item.detailed_feedback;
-                            targetSlot.dataset.qtext = item.question_text;
-                            targetSlot.style.display = 'block';
-                        }
-                    });
-                }
-            };
-
-            // Toggle Card
+            // Toggle Card logic
             header.addEventListener('click', (e) => {
                 if (e.target.closest('button') || e.target.classList.contains('student-checkbox')) return; 
                 card.classList.toggle('open');
             });
 
-            // Checkbox Handler
+            // Checkbox logic
             const cb = header.querySelector('.student-checkbox');
             cb.addEventListener('change', updateBulkButton);
 
-            // Feedback Button Logic
+            // Button Logic
             const feedbackBtn = header.querySelector('.live-feedback-btn');
             feedbackBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -598,7 +610,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             card.appendChild(header);
 
-            // Render Card Body (Questions)
+            // Render Card Body
             const cardContent = document.createElement('div');
             cardContent.className = 'student-card-content';
             
@@ -672,128 +684,219 @@ document.addEventListener('DOMContentLoaded', () => {
     }; 
     // --- END OF renderLiveGrid ---
 
-    // --- EXPORT TO EXCEL (CSV) ---
-    downloadBtn.addEventListener('click', async () => {
-        const cls = classSelect.value;
-        const assId = assignmentSelect.value;
-        if (!cls || !assId) return;
+    // --- ANALYSE-EXPORT FUNCTION ---
+    if(exportBtn) {
+        exportBtn.addEventListener('click', async () => {
+            const cls = classSelect.value;
+            const assId = assignmentSelect.value;
+            if (!cls || !assId) return;
 
-        downloadBtn.textContent = "Generiere...";
-        downloadBtn.disabled = true;
+            const originalText = exportBtn.textContent;
+            exportBtn.textContent = "Lade Daten...";
+            exportBtn.disabled = true;
 
-        // 1. Get Master Total Questions (Max Points)
-        let maxPoints = 0;
-        try {
-            const masterRes = await fetch('http://localhost:5000/get_master_assignment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ assignmentId: assId })
-            });
-            if (masterRes.ok) {
-                const masterAss = await masterRes.json();
-                if (masterAss.subAssignments) {
-                    Object.values(masterAss.subAssignments).forEach(subTask => {
-                        if (subTask.questions) maxPoints += subTask.questions.length;
-                    });
-                }
-            }
-        } catch (e) { console.warn("Master fetch failed during download"); }
-
-        // 2. Prepare Data Rows
-        const students = draftsMap[cls];
-        const studentNames = Object.keys(students).sort();
-        const csvRows = [];
-
-        // Header Row
-        csvRows.push("Anmeldename;Vorname;Nachname;Punkte;Max.");
-
-        // Process each student
-        for (const name of studentNames) {
-            // A. Name Parsing
-            const nameParts = name.trim().split(/\s+/);
-            let vorname = "";
-            let nachname = name;
-            
-            if (nameParts.length > 1) {
-                nachname = nameParts.pop(); // Remove last element
-                vorname = nameParts.join(" "); // Join the rest
-            } else {
-                vorname = name;
-                nachname = "";
-            }
-
-            const cleanVorname = vorname.toLowerCase().replace(/\s+/g, '.');
-            const cleanNachname = nachname.toLowerCase().replace(/\s+/g, '.');
-            const anmeldename = `${cleanVorname}.${cleanNachname}`;
-
-            // B. Find Correct File (Smart Selection)
-            const files = students[name];
-            let targetFile = null;
-            if (files && files.length > 0) {
-                const sortedFiles = [...files].sort((a, b) => b.name.localeCompare(a.name));
-                targetFile = sortedFiles.find(f => f.name.replace(/\.json$/i, '').trim() === assId.trim());
-                if (!targetFile) targetFile = sortedFiles.find(f => f.name.includes(assId));
-                if (!targetFile) targetFile = sortedFiles[0]; 
-            }
-
-            // C. Calculate Points
-            let points = 0;
-            let currentMax = maxPoints; 
-
-            if (targetFile) {
-                try {
-                    const data = await fetchDraftContent(targetFile.path);
-                    
-                    let assignmentData = null;
-                    if (data && data.assignments) {
-                        if (data.assignments[assId]) {
-                            assignmentData = data.assignments[assId];
-                        } else {
-                            const foundKey = Object.keys(data.assignments).find(k => 
-                                decodeURIComponent(k).trim() === decodeURIComponent(assId).trim()
-                            );
-                            if (foundKey) assignmentData = data.assignments[foundKey];
-                        }
-                    }
-
-                    if (assignmentData) {
-                        let studentParamCount = 0;
-                        Object.values(assignmentData).forEach(subTask => {
-                            if (subTask.questions) studentParamCount += subTask.questions.length;
-                            if (subTask.answers) {
-                                subTask.answers.forEach(a => {
-                                    if (a.answer && a.answer.trim() !== '' && a.answer !== '<p><br></p>') {
-                                        points++;
-                                    }
+            // 1. Get Master Questions
+            let questionsMap = []; 
+            try {
+                const masterRes = await fetch('http://localhost:5000/get_master_assignment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ assignmentId: assId })
+                });
+                if (masterRes.ok) {
+                    const masterAss = await masterRes.json();
+                    if (masterAss.subAssignments) {
+                        Object.keys(masterAss.subAssignments).sort().forEach(subTitle => {
+                            const sub = masterAss.subAssignments[subTitle];
+                            sub.questions.forEach((q, idx) => {
+                                questionsMap.push({
+                                    id: `${subTitle}_${q.id}`, 
+                                    label: `Q${questionsMap.length + 1} (${q.id})`
                                 });
-                            }
+                            });
                         });
-                        if (currentMax === 0) currentMax = studentParamCount;
                     }
-                } catch (e) { /* ignore */ }
+                }
+            } catch (e) { console.error("Export: Master fetch failed", e); }
+
+            // 2. CSV Header
+            const headerRow = ["Name", "Bewertungs-Datum", "Summe Punkte", "Durchschnitt"];
+            questionsMap.forEach(q => headerRow.push(`${q.label} Punkte`));
+            
+            const csvRows = [headerRow.join(";")];
+
+            // 3. Loop Students
+            const students = draftsMap[cls];
+            const studentNames = Object.keys(students).sort();
+
+            for (const name of studentNames) {
+                let row = [name, "-", "0", "0"];
+                let feedbackScores = {}; 
+
+                try {
+                    const fbRes = await fetch('http://localhost:5000/get_feedback', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ className: cls, assignmentId: assId, studentName: name })
+                    });
+                    const fbData = await fbRes.json();
+
+                    if (fbData.found && fbData.data) {
+                        const latest = fbData.data.history ? fbData.data.history[fbData.data.history.length-1] : fbData.data;
+                        row[1] = latest.date_str || "-";
+                        
+                        let totalScore = 0;
+                        let count = 0;
+
+                        if (latest.results) {
+                            latest.results.forEach(r => {
+                                feedbackScores[r.question_id] = r.score;
+                                totalScore += (r.score || 0);
+                                count++;
+                            });
+                        }
+                        row[2] = totalScore;
+                        row[3] = count > 0 ? (totalScore / count).toFixed(2).replace('.', ',') : "0";
+                    }
+                } catch (e) { /* no feedback found */ }
+
+                // Fill columns
+                questionsMap.forEach(q => {
+                    const s = feedbackScores[q.id];
+                    row.push(s !== undefined ? s : "-");
+                });
+
+                csvRows.push(row.join(";"));
             }
 
-            // D. Add Row
-            csvRows.push(`${anmeldename};${vorname};${nachname};${points};${currentMax}`);
-        }
+            // 4. Download
+            const bom = "\uFEFF"; 
+            const csvString = bom + csvRows.join("\n");
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `Analyse_${cls}_${assId}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
 
-        // 3. Download
-        const bom = "\uFEFF"; 
-        const csvString = bom + csvRows.join("\n");
-        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-        
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `${cls}_${assId.replace(/[^a-z0-9]/gi, '_')}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+            exportBtn.textContent = originalText;
+            exportBtn.disabled = false;
+        });
+    }
 
-        downloadBtn.textContent = "📥 Download";
-        downloadBtn.disabled = false;
-    });
+    // --- CSV Download Logic (for raw submissions) ---
+    const downloadBtn = document.getElementById('download-btn');
+    if(downloadBtn) {
+        downloadBtn.addEventListener('click', async () => {
+            const cls = classSelect.value;
+            const assId = assignmentSelect.value;
+            if (!cls || !assId) return;
+
+            downloadBtn.textContent = "Generiere...";
+            downloadBtn.disabled = true;
+
+            // Get Master Total
+            let maxPoints = 0;
+            try {
+                const masterRes = await fetch('http://localhost:5000/get_master_assignment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ assignmentId: assId })
+                });
+                if (masterRes.ok) {
+                    const masterAss = await masterRes.json();
+                    if (masterAss.subAssignments) {
+                        Object.values(masterAss.subAssignments).forEach(subTask => {
+                            if (subTask.questions) maxPoints += subTask.questions.length;
+                        });
+                    }
+                }
+            } catch (e) { }
+
+            const students = draftsMap[cls];
+            const studentNames = Object.keys(students).sort();
+            const csvRows = [];
+            csvRows.push("Anmeldename;Vorname;Nachname;Punkte;Max.");
+
+            for (const name of studentNames) {
+                const nameParts = name.trim().split(/\s+/);
+                let vorname = "";
+                let nachname = name;
+                if (nameParts.length > 1) {
+                    nachname = nameParts.pop();
+                    vorname = nameParts.join(" ");
+                } else {
+                    vorname = name;
+                    nachname = "";
+                }
+                const cleanVorname = vorname.toLowerCase().replace(/\s+/g, '.');
+                const cleanNachname = nachname.toLowerCase().replace(/\s+/g, '.');
+                const anmeldename = `${cleanVorname}.${cleanNachname}`;
+
+                const files = students[name];
+                let targetFile = null;
+                if (files && files.length > 0) {
+                    const sortedFiles = [...files].sort((a, b) => b.name.localeCompare(a.name));
+                    targetFile = sortedFiles.find(f => f.name.replace(/\.json$/i, '').trim() === assId.trim());
+                    if (!targetFile) targetFile = sortedFiles.find(f => f.name.includes(assId));
+                    if (!targetFile) targetFile = sortedFiles[0]; 
+                }
+
+                let points = 0;
+                let currentMax = maxPoints; 
+
+                if (targetFile) {
+                    try {
+                        const data = await fetchDraftContent(targetFile.path);
+                        let assignmentData = null;
+                        if (data && data.assignments) {
+                            if (data.assignments[assId]) {
+                                assignmentData = data.assignments[assId];
+                            } else {
+                                const foundKey = Object.keys(data.assignments).find(k => 
+                                    decodeURIComponent(k).trim() === decodeURIComponent(assId).trim()
+                                );
+                                if (foundKey) assignmentData = data.assignments[foundKey];
+                            }
+                        }
+                        if (assignmentData) {
+                            let studentParamCount = 0;
+                            Object.values(assignmentData).forEach(subTask => {
+                                if (subTask.questions) studentParamCount += subTask.questions.length;
+                                if (subTask.answers) {
+                                    subTask.answers.forEach(a => {
+                                        if (a.answer && a.answer.trim() !== '' && a.answer !== '<p><br></p>') {
+                                            points++;
+                                        }
+                                    });
+                                }
+                            });
+                            if (currentMax === 0) currentMax = studentParamCount;
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+                csvRows.push(`${anmeldename};${vorname};${nachname};${points};${currentMax}`);
+            }
+
+            const bom = "\uFEFF"; 
+            const csvString = bom + csvRows.join("\n");
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `${cls}_${assId.replace(/[^a-z0-9]/gi, '_')}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            downloadBtn.textContent = "📥 Download";
+            downloadBtn.disabled = false;
+        });
+    }
 
     // --- PRINT DIALOG ---
     const showPrintDialog = (onConfirm) => {
@@ -909,6 +1012,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const formattedQuestion = parseSimpleMarkdown(item.question_text);
 
+                // --- CHANGE: Label changed to "Punkte:" here as well ---
                 bodyContent += `
                     <div class="item">
                         <div class="question">${formattedQuestion}</div>
