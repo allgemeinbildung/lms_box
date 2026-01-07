@@ -3,25 +3,26 @@
 //  :::::: F I L E :  d a s h b o a r d / l i v e v i e w . j s ::::::
 // ────────────────────────────────────────────────────────────────
 //
-import { SCRIPT_URL } from '../js/config.js';
+import { state, setDraftsMap } from './modules/state.js';
+import { listDrafts, fetchDraftContent } from './modules/api.js';
+import { initAuth } from './modules/auth.js';
+import { renderLiveGrid } from './modules/renderer.js';
+import { setupAnalysisExport, setupRawDownload } from './modules/exporter.js';
+import { setupBulkAssessment } from './modules/assessment.js';
+import { setupPrintAll } from './modules/printer.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-    
+
     // --- DOM Elements ---
-    const loginOverlay = document.getElementById('login-overlay');
-    const keyInput = document.getElementById('teacher-key-input');
-    const loginBtn = document.getElementById('login-btn');
-    const loginStatus = document.getElementById('login-status');
-    
     const classSelect = document.getElementById('class-select');
     const assignmentSelect = document.getElementById('assignment-select');
     const refreshBtn = document.getElementById('refresh-btn');
     const contentRenderer = document.getElementById('live-content-renderer');
-    
+
     // Header Controls
     const controlsBar = document.getElementById('controls-bar');
     const buttonGroup = controlsBar.querySelector('.button-group');
-    
+
     // Bulk Controls
     const selectAllBtn = document.getElementById('select-all-btn');
     const bulkAssessBtn = document.getElementById('bulk-assess-btn');
@@ -29,16 +30,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const bulkProgressBar = document.getElementById('bulk-progress-bar');
     const bulkProgressText = document.getElementById('bulk-progress-text');
     const cancelBulkBtn = document.getElementById('cancel-bulk-btn');
-    
+
     // Export Button
     const exportBtn = document.getElementById('export-analysis-btn');
 
-    let stopBulkFlag = false;
-
     // Print Button Logic
     let printAllBtn = document.getElementById('print-all-btn');
-    if(!printAllBtn) {
-        // Fallback falls nicht im HTML
+    if (!printAllBtn) {
         printAllBtn = document.createElement('button');
         printAllBtn.id = 'print-all-btn';
         printAllBtn.textContent = '🖨️ Klasse Drucken';
@@ -46,64 +44,31 @@ document.addEventListener('DOMContentLoaded', () => {
         buttonGroup.appendChild(printAllBtn);
     }
 
-    // State
-    let draftsMap = {}; 
-    let currentTeacherKey = '';
+    const downloadBtn = document.getElementById('download-btn');
 
-    // --- 1. Authentication ---
-    const checkAuth = () => {
-        const key = sessionStorage.getItem('teacherKey');
-        if (key) {
-            currentTeacherKey = key;
-            loginOverlay.classList.remove('visible');
-            initDataLoad(); 
-        } else {
-            loginOverlay.classList.add('visible');
-        }
-    };
-
-    const attemptLogin = () => {
-        const key = keyInput.value.trim();
-        if (!key) {
-            loginStatus.textContent = 'Bitte einen Schlüssel eingeben.';
-            return;
-        }
-        sessionStorage.setItem('teacherKey', key);
-        loginStatus.textContent = '';
-        checkAuth();
-    };
-
-    loginBtn.addEventListener('click', attemptLogin);
-    keyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptLogin(); });
-
-    // --- 2. Data Loading ---
+    // --- Data Loading ---
     const initDataLoad = async () => {
         refreshBtn.textContent = 'Lade Liste...';
         refreshBtn.disabled = true;
         try {
-            const response = await fetch(SCRIPT_URL, {
-                method: 'POST',
-                mode: 'cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'listDrafts', teacherKey: currentTeacherKey })
-            });
-            const data = await response.json();
+            const data = await listDrafts();
             if (data.status === 'error') throw new Error(data.message);
-            
-            draftsMap = {};
+
+            const map = {};
             for (const className in data) {
                 const normalizedClass = className.toUpperCase();
-                if (!draftsMap[normalizedClass]) draftsMap[normalizedClass] = {};
-                Object.assign(draftsMap[normalizedClass], data[className]);
+                if (!map[normalizedClass]) map[normalizedClass] = {};
+                Object.assign(map[normalizedClass], data[className]);
             }
+            setDraftsMap(map);
             populateClassSelect();
         } catch (error) {
             console.error(error);
-            if (error.message.includes('Invalid teacher key')) {
+            if (error.message && error.message.includes('Invalid teacher key')) {
                 sessionStorage.removeItem('teacherKey');
-                checkAuth();
+                checkAuth(); // Re-trigger auth
             } else {
-                alert("Fehler beim Laden der Liste: " + error.message);
+                alert("Fehler beim Laden der Liste: " + (error.message || error));
             }
         } finally {
             refreshBtn.textContent = '🔄 Aktualisieren';
@@ -112,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const populateClassSelect = () => {
-        const classes = Object.keys(draftsMap).sort();
+        const classes = Object.keys(state.draftsMap).sort();
         const currentVal = classSelect.value;
         classSelect.innerHTML = '<option value="">-- Klasse wählen --</option>';
         classes.forEach(c => {
@@ -123,200 +88,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         classSelect.disabled = false;
         if (classes.includes(currentVal)) classSelect.value = currentVal;
-        
-        // Disable action buttons if no class
+
         if (exportBtn) exportBtn.disabled = !classSelect.value;
-        const downloadBtn = document.getElementById('download-btn');
-        if(downloadBtn) downloadBtn.disabled = !classSelect.value;
+        if (downloadBtn) downloadBtn.disabled = !classSelect.value;
     };
 
-    // --- Helper Functions ---
-    const parseSimpleMarkdown = (text) => text ? text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') : '';
-    
-    // --- Helper: Inject Feedback into DOM (SHARED FUNCTION) ---
-    const distributeFeedback = (feedbackData, container) => {
-        // Clean existing header
-        const existingHeader = container.querySelector('.feedback-controls-header');
-        if (existingHeader) existingHeader.remove();
+    // --- Auth Chain ---
+    // We get a "checkAuth" function back, but we pass "onSuccess"
+    const checkAuth = initAuth(initDataLoad);
 
-        let currentItem = feedbackData;
-        let previousItem = null;
-        let versionCount = 1;
-
-        // Check for history
-        if (feedbackData.history && Array.isArray(feedbackData.history)) {
-            versionCount = feedbackData.history.length;
-            currentItem = feedbackData.history[versionCount - 1]; 
-            if (versionCount >= 2) {
-                previousItem = feedbackData.history[versionCount - 2];
-            }
-        }
-
-        // --- Delta Logic (History comparison) ---
-        const calculateStats = (results) => {
-            let totalScore = 0;
-            let answeredCount = 0;
-            if (results && Array.isArray(results)) {
-                results.forEach(r => {
-                    totalScore += (r.score || 0);
-                    if (r.score > 0) answeredCount++;
-                });
-            }
-            return { totalScore, answeredCount };
-        };
-
-        let deltaHtml = '';
-        if (previousItem) {
-            const currStats = calculateStats(currentItem.results);
-            const prevStats = calculateStats(previousItem.results);
-            const scoreDiff = currStats.totalScore - prevStats.totalScore;
-            const ansDiff = currStats.answeredCount - prevStats.answeredCount;
-
-            let scoreClass = 'color:#666'; 
-            let scoreSign = '';
-            if (scoreDiff > 0) { scoreClass = 'color:#16a34a'; scoreSign = '▲ +'; }
-            else if (scoreDiff < 0) { scoreClass = 'color:#dc2626'; scoreSign = '▼ '; }
-
-            let ansClass = 'color:#666';
-            let ansSign = '';
-            if (ansDiff > 0) { ansClass = 'color:#16a34a'; ansSign = '▲ +'; }
-            else if (ansDiff < 0) { ansClass = 'color:#dc2626'; ansSign = '▼ '; }
-
-            deltaHtml = `
-                <span style="font-size:0.85em; margin-left:15px; border-left:1px solid #ccc; padding-left:10px;">
-                    <span style="margin-right:8px; font-weight:bold; ${scoreClass}" title="Veränderung Punkte">${scoreSign}${scoreDiff} Pkt</span>
-                    <span style="font-weight:bold; ${ansClass}" title="Veränderung beantwortete Fragen">${ansSign}${ansDiff} Fragen</span>
-                </span>
-            `;
-        }
-
-        const dateStr = currentItem.date_str || "Gespeichert";
-        const versionLabel = versionCount > 1 ? ` <span style="font-size:0.8em; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:10px; margin-left:5px;">v${versionCount}</span>` : "";
-
-        // Create Header
-        const controlsHeader = document.createElement('div');
-        controlsHeader.className = 'feedback-controls-header';
-        controlsHeader.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#f0f9ff; padding:10px; border-radius:6px; margin-bottom:15px; border:1px solid #bae6fd;";
-        
-        controlsHeader.innerHTML = `
-            <div style="font-size:0.9em; color:#0369a1; display:flex; align-items:center;">
-                <strong>⚡ Status:</strong> 
-                <span style="color:#555; margin-left:5px;">${dateStr}</span>
-                ${versionLabel}
-                ${deltaHtml}
-            </div>
-            <button class="print-single-btn" style="border:none; background:none; cursor:pointer; font-size:1.2em;" title="Feedback drucken">🖨️</button>
-        `;
-        
-        // Print Single Feedback Handler
-        controlsHeader.querySelector('.print-single-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            const card = container.closest('.student-card');
-            const sName = card ? card.dataset.studentName : "Student";
-            const assId = document.getElementById('assignment-select').value;
-             
-            if (typeof showPrintDialog === 'function' && typeof printFeedback === 'function') {
-                const printPayload = {
-                    student_name: sName,
-                    date_str: currentItem.date_str,
-                    results: currentItem.results
-                };
-                showPrintDialog((mode) => { printFeedback(sName, assId, printPayload, mode); });
-            }
-        });
-
-        container.prepend(controlsHeader);
-        
-        // Clear slots first
-        container.querySelectorAll('.inline-feedback').forEach(el => {
-            el.innerHTML = ''; 
-            el.style.display = 'none';
-        });
-
-        // Fill slots
-        if (currentItem.results) {
-            currentItem.results.forEach(item => {
-                const targetSlot = container.querySelector(`.inline-feedback[data-qid="${item.question_id}"]`);
-                if (targetSlot) {
-                    let color = '#ef4444'; 
-                    if (item.score === 2) color = '#f59e0b'; 
-                    if (item.score === 3) color = '#22c55e';
-
-                    // --- SIMPLIFIED BADGE DISPLAY (Only Points) ---
-                    targetSlot.innerHTML = `
-                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                            <span style="background:${color}; color:white; padding:1px 6px; border-radius:4px; font-size:0.8em; font-weight:bold;" title="Korrektheit (0-3)">
-                                Punkte: ${item.score}
-                            </span>
-                            <span style="color:#334155; font-weight:600; font-size:0.95em;">${item.concise_feedback}</span>
-                        </div>
-                        <div style="font-size:0.9em; color:#555; background:white; padding:8px; border-left:3px solid #e2e8f0; margin-top:5px;">${item.detailed_feedback}</div>
-                    `;
-                    // ----------------------------------------------
-
-                    targetSlot.dataset.score = item.score;
-                    targetSlot.dataset.concise = item.concise_feedback;
-                    targetSlot.dataset.detailed = item.detailed_feedback;
-                    targetSlot.dataset.qtext = item.question_text;
-                    targetSlot.style.display = 'block';
-                }
-            });
-        }
-    };
-
-    // --- SHARED ASSESSMENT LOGIC (Accessed by Single & Bulk) ---
-    const performAssessment = async (className, assignmentId, studentName, studentData, feedbackBtn, card) => {
-        feedbackBtn.disabled = true;
-        feedbackBtn.textContent = "Analysiere...";
-        feedbackBtn.style.backgroundColor = "#fff3cd";
-
-        try {
-            const response = await fetch('http://localhost:5000/assess', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    className: className,
-                    assignmentId: assignmentId,
-                    studentName: studentName,
-                    studentData: studentData
-                })
-            });
-            const result = await response.json();
-            if (result.error) throw new Error(result.error);
-
-            const contentArea = card.querySelector('.student-card-content');
-            distributeFeedback(result, contentArea);
-            
-            if (!card.classList.contains('open')) card.classList.add('open');
-            feedbackBtn.textContent = "Fertig ✓";
-            feedbackBtn.style.backgroundColor = "#dcfce7";
-
-        } catch (err) {
-            console.error(err);
-            feedbackBtn.textContent = "Fehler ❌";
-            feedbackBtn.style.backgroundColor = "#fee2e2";
-        } finally {
-            // Restore button state
-            setTimeout(() => {
-                // Check if element still exists
-                if (feedbackBtn) {
-                    feedbackBtn.disabled = false;
-                    // Only reset text if it wasn't clicked again in the meantime
-                    if(feedbackBtn.textContent.includes('Fertig') || feedbackBtn.textContent.includes('Fehler')) {
-                        feedbackBtn.textContent = "⚡ Feedback"; 
-                        feedbackBtn.style.backgroundColor = "#fff";
-                    }
-                }
-            }, 3000);
-        }
-    };
-
-    // --- Scan Logic ---
+    // --- Scan Assignments Logic ---
     classSelect.addEventListener('change', async () => {
         const selectedClass = classSelect.value;
-        const dBtn = document.getElementById('download-btn');
-        if(dBtn) dBtn.disabled = !selectedClass;
-        if(exportBtn) exportBtn.disabled = !selectedClass;
+        if (downloadBtn) downloadBtn.disabled = !selectedClass;
+        if (exportBtn) exportBtn.disabled = !selectedClass;
 
         assignmentSelect.innerHTML = '<option value="">Lade Aufgaben...</option>';
         assignmentSelect.disabled = true;
@@ -324,9 +109,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!selectedClass) return;
 
-        const students = draftsMap[selectedClass];
+        const students = state.draftsMap[selectedClass];
         const studentNames = Object.keys(students);
-        
+
         if (studentNames.length === 0) {
             assignmentSelect.innerHTML = '<option value="">Keine Schüler gefunden</option>';
             return;
@@ -334,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const foundAssignments = new Set();
 
-        // STRATEGY 1: Scan ALL filenames
+        // 1. Scan filenames
         Object.values(students).forEach(files => {
             if (Array.isArray(files)) {
                 files.forEach(f => {
@@ -344,8 +129,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // STRATEGY 2: Deep Scan first few
-        const studentsToScan = studentNames.slice(0, 3); 
+        // 2. Deep Scan first few
+        const studentsToScan = studentNames.slice(0, 3);
         const scanPromises = studentsToScan.map(async (name) => {
             const files = students[name];
             if (!Array.isArray(files) || files.length === 0) return;
@@ -361,10 +146,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         await Promise.all(scanPromises);
 
-        // Populate Dropdown
         assignmentSelect.innerHTML = '<option value="">-- Aufgabe wählen --</option>';
         if (foundAssignments.size === 0) {
-             assignmentSelect.innerHTML += '<option value="" disabled>Keine Aufgaben gefunden.</option>';
+            assignmentSelect.innerHTML += '<option value="" disabled>Keine Aufgaben gefunden.</option>';
         } else {
             Array.from(foundAssignments).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })).forEach(assId => {
                 const opt = document.createElement('option');
@@ -376,564 +160,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    assignmentSelect.addEventListener('change', () => renderLiveGrid());
-    refreshBtn.addEventListener('click', () => classSelect.value && assignmentSelect.value ? renderLiveGrid() : initDataLoad());
-
-    // --- BULK SELECTION LOGIC ---
-    const updateBulkButton = () => {
-        const checkedBoxes = document.querySelectorAll('.student-checkbox:checked');
-        if (checkedBoxes.length > 0) {
-            bulkAssessBtn.style.display = 'inline-block';
-            bulkAssessBtn.textContent = `⚡ ${checkedBoxes.length} bewerten`;
-        } else {
-            bulkAssessBtn.style.display = 'none';
-        }
-    };
-
-    selectAllBtn.addEventListener('click', () => {
-        const checkboxes = document.querySelectorAll('.student-checkbox');
-        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-        checkboxes.forEach(cb => cb.checked = !allChecked);
-        updateBulkButton();
-    });
-
-    cancelBulkBtn.addEventListener('click', () => {
-        stopBulkFlag = true;
-        cancelBulkBtn.textContent = "Breche ab...";
-    });
-
-    bulkAssessBtn.addEventListener('click', async () => {
-        const selectedCheckboxes = Array.from(document.querySelectorAll('.student-checkbox:checked'));
-        if (selectedCheckboxes.length === 0) return;
-
-        stopBulkFlag = false;
-        bulkProgressOverlay.style.display = 'flex';
-        cancelBulkBtn.textContent = "Abbrechen";
-        
-        let processed = 0;
-        const total = selectedCheckboxes.length;
-        
-        for (const cb of selectedCheckboxes) {
-            if (stopBulkFlag) break;
-
-            const studentName = cb.dataset.studentName;
-            const card = cb.closest('.student-card');
-            const feedbackBtn = card.querySelector('.live-feedback-btn');
-
-            const studentData = JSON.parse(card.dataset.studentData || "{}");
-            const cls = classSelect.value;
-            const assId = assignmentSelect.value;
-
-            if (studentData && cls && assId) {
-                // Scroll into view
-                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                // Execute logic
-                await performAssessment(cls, assId, studentName, studentData, feedbackBtn, card);
-            }
-
-            processed++;
-            const pct = Math.round((processed / total) * 100);
-            bulkProgressBar.style.width = `${pct}%`;
-            bulkProgressText.textContent = `${processed} / ${total} verarbeitet`;
-        }
-
-        bulkProgressOverlay.style.display = 'none';
-        if (!stopBulkFlag) {
-            document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = false);
-            updateBulkButton();
-        }
-    });
-
-    // --- RENDER GRID ---
-    const renderLiveGrid = async () => {
+    // --- Render Trigger ---
+    const runRender = () => {
         const cls = classSelect.value;
         const assId = assignmentSelect.value;
-        if (!cls || !assId) return;
-        
-        printAllBtn.disabled = false;
-        printAllBtn.style.backgroundColor = "#17a2b8"; 
-        printAllBtn.onclick = () => window.print();
-        
-        if (exportBtn) exportBtn.disabled = false;
-        bulkAssessBtn.style.display = 'none'; // Reset bulk button
-
-        contentRenderer.innerHTML = '<div style="text-align:center; margin-top:2em; color:#666;"><span class="spinner"></span> Lade Master-Daten & Schüler...</div>';
-        
-        // --- 2. Fetch Master Data (Total Questions) ---
-        let masterAss = null;
-        let masterTotalQuestions = 0;
-
-        try {
-            const masterRes = await fetch('http://localhost:5000/get_master_assignment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ assignmentId: assId })
+        if (cls && assId) {
+            renderLiveGrid(cls, assId, contentRenderer, {
+                printAllBtn,
+                exportBtn,
+                bulkAssessBtn
             });
-            if (masterRes.ok) {
-                masterAss = await masterRes.json();
-                if (masterAss.subAssignments) {
-                    Object.values(masterAss.subAssignments).forEach(subTask => {
-                        if (subTask.questions) masterTotalQuestions += subTask.questions.length;
-                    });
-                }
-            }
-        } catch (e) { console.log("Local server offline or master not found."); }
-        
-        const useMasterTotal = masterTotalQuestions > 0;
-
-        // --- 3. Process Students ---
-        const students = draftsMap[cls];
-        const studentNames = Object.keys(students).sort();
-        const grid = document.createElement('div');
-        grid.id = 'live-grid';
-
-        const promises = studentNames.map(async (name) => {
-            const files = students[name];
-            if (!files || files.length === 0) return null;
-            
-            let correctFile = null;
-            let correctData = null;
-            const sortedFiles = [...files].sort((a, b) => b.name.localeCompare(a.name));
-
-            for (const file of sortedFiles) {
-                try {
-                    const data = await fetchDraftContent(file.path);
-                    if (data && data.assignments) {
-                        if (data.assignments[assId]) {
-                            correctFile = file;
-                            correctData = data;
-                            break;
-                        }
-                        const foundKey = Object.keys(data.assignments).find(k => 
-                            decodeURIComponent(k).trim() === decodeURIComponent(assId).trim()
-                        );
-                        if (foundKey) {
-                            correctFile = file;
-                            correctData = data;
-                            break;
-                        }
-                    }
-                } catch (e) { /* continue searching */ }
-            }
-
-            if (correctData) {
-                return { name, data: correctData };
-            } else {
-                return { name, data: null };
-            }
-        });
-
-        const results = await Promise.all(promises);
-
-        results.forEach(res => {
-            if (!res) return;
-
-            // --- 4. Render Student Card ---
-            const card = document.createElement('div');
-            card.className = 'student-card';
-            card.dataset.studentName = res.name;
-            card.dataset.studentData = JSON.stringify(res.data); // IMPORTANT: Store data on DOM for Bulk
-
-            let assignmentData = null;
-            if (res.data && res.data.assignments) {
-                if (res.data.assignments[assId]) {
-                    assignmentData = res.data.assignments[assId];
-                } else {
-                    const foundKey = Object.keys(res.data.assignments).find(k => 
-                        decodeURIComponent(k).trim() === decodeURIComponent(assId).trim()
-                    );
-                    if (foundKey) assignmentData = res.data.assignments[foundKey];
-                }
-            }
-
-            let studentTotalParams = 0;
-            let answeredQuestions = 0;
-            let totalWords = 0;
-
-            if (assignmentData) {
-                Object.values(assignmentData).forEach(subTask => {
-                    if (subTask.questions) studentTotalParams += subTask.questions.length;
-                    if (subTask.answers) subTask.answers.forEach(a => {
-                        if (a.answer && a.answer.trim() !== '' && a.answer !== '<p><br></p>') {
-                            answeredQuestions++;
-                            const textOnly = a.answer.replace(/<[^>]*>/g, ' ').trim();
-                            if(textOnly.length > 0) totalWords += textOnly.split(/\s+/).length;
-                        }
-                    });
-                });
-            }
-            
-            const finalTotal = useMasterTotal ? masterTotalQuestions : studentTotalParams;
-            const progressPercent = finalTotal > 0 ? Math.round((answeredQuestions / finalTotal) * 100) : 0;
-            const progressColor = progressPercent >= 80 ? '#28a745' : progressPercent >= 50 ? '#ffc107' : '#dc3545';
-            
-            let lastUpdateStr = '-';
-            if (res.data && res.data.createdAt) {
-                lastUpdateStr = new Date(res.data.createdAt).toLocaleString('de-DE', {
-                    day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit'
-                });
-            }
-
-            // Header Construction
-            const header = document.createElement('div');
-            header.className = 'student-header';
-            header.innerHTML = `
-                <div class="header-left">
-                    <input type="checkbox" class="student-checkbox" data-student-name="${res.name}">
-                    <span class="toggle-icon">▶</span>
-                    <span class="student-name">${res.name}</span>
-                </div>
-                <div class="student-stats">
-                    <span class="progress-badge" style="background:${progressColor}">${answeredQuestions}/${finalTotal} ✓</span>
-                    <span class="word-count-badge">${totalWords} 📝</span>
-                    <span class="last-update-badge">🕒 ${lastUpdateStr}</span>
-                    <button class="live-feedback-btn" style="margin-left:5px; padding:3px 8px; border-radius:4px; border:1px solid #ccc; background:#fff; cursor:pointer; font-size:0.8em; font-weight:bold; color:#555;">⚡ Feedback</button>
-                </div>
-            `;
-
-            // Toggle Card logic
-            header.addEventListener('click', (e) => {
-                if (e.target.closest('button') || e.target.classList.contains('student-checkbox')) return; 
-                card.classList.toggle('open');
-            });
-
-            // Checkbox logic
-            const cb = header.querySelector('.student-checkbox');
-            cb.addEventListener('change', updateBulkButton);
-
-            // Button Logic
-            const feedbackBtn = header.querySelector('.live-feedback-btn');
-            feedbackBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                await performAssessment(cls, assId, res.name, res.data, feedbackBtn, card);
-            });
-
-            card.appendChild(header);
-
-            // Render Card Body
-            const cardContent = document.createElement('div');
-            cardContent.className = 'student-card-content';
-            
-            if (assignmentData) {
-                const subIds = Object.keys(assignmentData).sort();
-                if (subIds.length === 0) cardContent.innerHTML += '<p style="color:orange;">Keine Teilaufgaben.</p>';
-                subIds.forEach(subId => {
-                    const subTask = assignmentData[subId];
-                    const subBlock = document.createElement('div');
-                    subBlock.className = 'sub-assignment-block';
-                    subBlock.innerHTML = `<div class="sub-title">${subTask.title || subId}</div>`;
-                    
-                    const answerMap = new Map((subTask.answers || []).map(a => [a.questionId, a.answer]));
-                    
-                    (subTask.questions || []).forEach((q, idx) => {
-                        const ans = answerMap.get(q.id);
-                        const qIdString = `${subId}_${q.id}`; 
-                        const qaWrapper = document.createElement('div');
-                        qaWrapper.style.marginBottom = "20px";
-                        
-                        const qTextParsed = (typeof parseSimpleMarkdown === 'function') ? parseSimpleMarkdown(q.text) : q.text;
-                        qaWrapper.innerHTML += `<div class="question-text" style="font-weight:bold; color:#333; margin-bottom:5px;">${idx+1}. ${qTextParsed}</div>`;
-                        
-                        const feedbackSlot = document.createElement('div');
-                        feedbackSlot.className = 'inline-feedback';
-                        feedbackSlot.dataset.qid = qIdString; 
-                        feedbackSlot.style.cssText = "display:none; background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; padding:10px; margin-bottom:10px;";
-                        qaWrapper.appendChild(feedbackSlot);
-
-                        const answerDiv = document.createElement('div');
-                        if(ans) {
-                            answerDiv.className = "read-only-answer ql-editor";
-                            answerDiv.innerHTML = ans;
-                        } else {
-                            answerDiv.className = "empty-answer-placeholder";
-                            answerDiv.textContent = "(Keine Antwort)";
-                        }
-                        qaWrapper.appendChild(answerDiv);
-                        subBlock.appendChild(qaWrapper);
-                    });
-                    cardContent.appendChild(subBlock);
-                });
-            } else {
-                cardContent.innerHTML += '<p style="color:#ccc;">Noch nicht begonnen.</p>';
-            }
-
-            card.appendChild(cardContent);
-            grid.appendChild(card);
-
-            // --- 5. AUTOMATICALLY FETCH SAVED FEEDBACK ---
-            fetch('http://localhost:5000/get_feedback', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ className: cls, assignmentId: assId, studentName: res.name })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.found && data.data) {
-                    distributeFeedback(data.data, cardContent);
-                    feedbackBtn.textContent = "Gespeichert ✓";
-                    feedbackBtn.style.backgroundColor = "#e0f2fe"; 
-                    feedbackBtn.style.borderColor = "#bae6fd";
-                    feedbackBtn.style.color = "#0369a1";
-                }
-            })
-            .catch(e => { });
-        });
-
-        contentRenderer.innerHTML = '';
-        contentRenderer.appendChild(grid);
-    }; 
-    // --- END OF renderLiveGrid ---
-
-    // --- ANALYSE-EXPORT FUNCTION ---
-    if(exportBtn) {
-        exportBtn.addEventListener('click', async () => {
-            const cls = classSelect.value;
-            const assId = assignmentSelect.value;
-            if (!cls || !assId) return;
-
-            const originalText = exportBtn.textContent;
-            exportBtn.textContent = "Lade Daten...";
-            exportBtn.disabled = true;
-
-            // 1. Get Master Questions
-            let questionsMap = []; 
-            try {
-                const masterRes = await fetch('http://localhost:5000/get_master_assignment', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ assignmentId: assId })
-                });
-                if (masterRes.ok) {
-                    const masterAss = await masterRes.json();
-                    if (masterAss.subAssignments) {
-                        Object.keys(masterAss.subAssignments).sort().forEach(subTitle => {
-                            const sub = masterAss.subAssignments[subTitle];
-                            sub.questions.forEach((q, idx) => {
-                                questionsMap.push({
-                                    id: `${subTitle}_${q.id}`, 
-                                    label: `Q${questionsMap.length + 1} (${q.id})`
-                                });
-                            });
-                        });
-                    }
-                }
-            } catch (e) { console.error("Export: Master fetch failed", e); }
-
-            // 2. CSV Header
-            const headerRow = ["Name", "Bewertungs-Datum", "Summe Punkte", "Durchschnitt"];
-            questionsMap.forEach(q => headerRow.push(`${q.label} Punkte`));
-            
-            const csvRows = [headerRow.join(";")];
-
-            // 3. Loop Students
-            const students = draftsMap[cls];
-            const studentNames = Object.keys(students).sort();
-
-            for (const name of studentNames) {
-                let row = [name, "-", "0", "0"];
-                let feedbackScores = {}; 
-
-                try {
-                    const fbRes = await fetch('http://localhost:5000/get_feedback', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ className: cls, assignmentId: assId, studentName: name })
-                    });
-                    const fbData = await fbRes.json();
-
-                    if (fbData.found && fbData.data) {
-                        const latest = fbData.data.history ? fbData.data.history[fbData.data.history.length-1] : fbData.data;
-                        row[1] = latest.date_str || "-";
-                        
-                        let totalScore = 0;
-                        let count = 0;
-
-                        if (latest.results) {
-                            latest.results.forEach(r => {
-                                feedbackScores[r.question_id] = r.score;
-                                totalScore += (r.score || 0);
-                                count++;
-                            });
-                        }
-                        row[2] = totalScore;
-                        row[3] = count > 0 ? (totalScore / count).toFixed(2).replace('.', ',') : "0";
-                    }
-                } catch (e) { /* no feedback found */ }
-
-                // Fill columns
-                questionsMap.forEach(q => {
-                    const s = feedbackScores[q.id];
-                    row.push(s !== undefined ? s : "-");
-                });
-
-                csvRows.push(row.join(";"));
-            }
-
-            // 4. Download
-            const bom = "\uFEFF"; 
-            const csvString = bom + csvRows.join("\n");
-            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            const url = URL.createObjectURL(blob);
-            link.setAttribute("href", url);
-            link.setAttribute("download", `Analyse_${cls}_${assId}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            exportBtn.textContent = originalText;
-            exportBtn.disabled = false;
-        });
-    }
-
-    // --- CSV Download Logic (for raw submissions) ---
-    const downloadBtn = document.getElementById('download-btn');
-    if(downloadBtn) {
-        downloadBtn.addEventListener('click', async () => {
-            const cls = classSelect.value;
-            const assId = assignmentSelect.value;
-            if (!cls || !assId) return;
-
-            downloadBtn.textContent = "Generiere...";
-            downloadBtn.disabled = true;
-
-            // Get Master Total
-            let maxPoints = 0;
-            try {
-                const masterRes = await fetch('http://localhost:5000/get_master_assignment', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ assignmentId: assId })
-                });
-                if (masterRes.ok) {
-                    const masterAss = await masterRes.json();
-                    if (masterAss.subAssignments) {
-                        Object.values(masterAss.subAssignments).forEach(subTask => {
-                            if (subTask.questions) maxPoints += subTask.questions.length;
-                        });
-                    }
-                }
-            } catch (e) { }
-
-            const students = draftsMap[cls];
-            const studentNames = Object.keys(students).sort();
-            const csvRows = [];
-            csvRows.push("Anmeldename;Vorname;Nachname;Punkte;Max.");
-
-            for (const name of studentNames) {
-                const nameParts = name.trim().split(/\s+/);
-                let vorname = "";
-                let nachname = name;
-                if (nameParts.length > 1) {
-                    nachname = nameParts.pop();
-                    vorname = nameParts.join(" ");
-                } else {
-                    vorname = name;
-                    nachname = "";
-                }
-                const cleanVorname = vorname.toLowerCase().replace(/\s+/g, '.');
-                const cleanNachname = nachname.toLowerCase().replace(/\s+/g, '.');
-                const anmeldename = `${cleanVorname}.${cleanNachname}`;
-
-                const files = students[name];
-                let targetFile = null;
-                if (files && files.length > 0) {
-                    const sortedFiles = [...files].sort((a, b) => b.name.localeCompare(a.name));
-                    targetFile = sortedFiles.find(f => f.name.replace(/\.json$/i, '').trim() === assId.trim());
-                    if (!targetFile) targetFile = sortedFiles.find(f => f.name.includes(assId));
-                    if (!targetFile) targetFile = sortedFiles[0]; 
-                }
-
-                let points = 0;
-                let currentMax = maxPoints; 
-
-                if (targetFile) {
-                    try {
-                        const data = await fetchDraftContent(targetFile.path);
-                        let assignmentData = null;
-                        if (data && data.assignments) {
-                            if (data.assignments[assId]) {
-                                assignmentData = data.assignments[assId];
-                            } else {
-                                const foundKey = Object.keys(data.assignments).find(k => 
-                                    decodeURIComponent(k).trim() === decodeURIComponent(assId).trim()
-                                );
-                                if (foundKey) assignmentData = data.assignments[foundKey];
-                            }
-                        }
-                        if (assignmentData) {
-                            let studentParamCount = 0;
-                            Object.values(assignmentData).forEach(subTask => {
-                                if (subTask.questions) studentParamCount += subTask.questions.length;
-                                if (subTask.answers) {
-                                    subTask.answers.forEach(a => {
-                                        if (a.answer && a.answer.trim() !== '' && a.answer !== '<p><br></p>') {
-                                            points++;
-                                        }
-                                    });
-                                }
-                            });
-                            if (currentMax === 0) currentMax = studentParamCount;
-                        }
-                    } catch (e) { /* ignore */ }
-                }
-                csvRows.push(`${anmeldename};${vorname};${nachname};${points};${currentMax}`);
-            }
-
-            const bom = "\uFEFF"; 
-            const csvString = bom + csvRows.join("\n");
-            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            const url = URL.createObjectURL(blob);
-            link.setAttribute("href", url);
-            link.setAttribute("download", `${cls}_${assId.replace(/[^a-z0-9]/gi, '_')}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            downloadBtn.textContent = "📥 Download";
-            downloadBtn.disabled = false;
-        });
-    }
-
-    // --- PRINT DIALOG ---
-    const showPrintDialog = (onConfirm) => {
-        const dialogOverlay = document.createElement('div');
-        dialogOverlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; justify-content:center; align-items:center; z-index:9999;";
-        
-        const dialogBox = document.createElement('div');
-        dialogBox.style.cssText = "background:white; padding:25px; border-radius:8px; width:350px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.2); font-family: sans-serif;";
-        dialogBox.innerHTML = `
-            <h3 style="margin-top:0; color:#333;">Druckoptionen</h3>
-            <p style="color:#666; margin-bottom:20px;">Welchen Detaillierungsgrad möchtest du drucken?</p>
-            <div style="display:flex; flex-direction:column; gap:10px;">
-                <button id="print-full" style="padding:12px; border:1px solid #007bff; background:#e9f3ff; color:#0056b3; border-radius:4px; cursor:pointer; font-weight:bold;">📄 Ausführlicher Bericht (Beides)</button>
-                <button id="print-concise" style="padding:12px; border:1px solid #ccc; background:#fff; color:#333; border-radius:4px; cursor:pointer;">✂️ Kurzbericht (Nur 'Was fehlt')</button>
-            </div>
-            <button id="print-cancel" style="margin-top:20px; border:none; background:transparent; color:#888; cursor:pointer; text-decoration:underline;">Abbrechen</button>
-        `;
-
-        dialogOverlay.appendChild(dialogBox);
-        document.body.appendChild(dialogOverlay);
-
-        const close = () => dialogOverlay.remove();
-        dialogBox.querySelector('#print-full').addEventListener('click', () => { close(); onConfirm('full'); });
-        dialogBox.querySelector('#print-concise').addEventListener('click', () => { close(); onConfirm('concise'); });
-        dialogBox.querySelector('#print-cancel').addEventListener('click', close);
-        dialogOverlay.addEventListener('click', (e) => { if(e.target === dialogOverlay) close(); });
+        }
     };
 
-    // --- PRINTING FUNCTIONS ---
-    const printFeedback = (studentName, assignmentName, feedbackData, mode) => {
-        const printWindow = window.open('', '_blank');
-        const html = generatePrintHTML([feedbackData], assignmentName, mode);
-        printWindow.document.write(html);
-        printWindow.document.close();
-    };
+    assignmentSelect.addEventListener('change', runRender);
+    refreshBtn.addEventListener('click', () => classSelect.value && assignmentSelect.value ? runRender() : initDataLoad());
 
-    printAllBtn.addEventListener('click', () => {
+    // --- Feature Setups ---
+
+    // Bulk
+    setupBulkAssessment({
+        selectAllBtn, bulkAssessBtn, cancelBulkBtn, bulkProgressOverlay,
+        bulkProgressBar, bulkProgressText, classSelect, assignmentSelect
+    });
+
+    // Export/Download
+    if (exportBtn) setupAnalysisExport(exportBtn, () => ({ cls: classSelect.value, assId: assignmentSelect.value }));
+    if (downloadBtn) setupRawDownload(downloadBtn, () => ({ cls: classSelect.value, assId: assignmentSelect.value }));
+
+    // Print
+    setupPrintAll(printAllBtn, () => {
+        // Callback to scrape data for printing
         const cards = document.querySelectorAll('.student-card');
         const allFeedbacks = [];
         const assignmentName = assignmentSelect.value;
@@ -943,17 +200,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (slots.length > 0) {
                 const studentName = card.querySelector('.student-name').textContent;
                 const items = [];
-                
+
                 slots.forEach(slot => {
                     items.push({
-                        question_id: slot.dataset.qid, 
+                        question_id: slot.dataset.qid,
                         question_text: slot.dataset.qtext,
                         score: parseInt(slot.dataset.score),
                         concise_feedback: slot.dataset.concise,
                         detailed_feedback: slot.dataset.detailed
                     });
                 });
-                
+
                 const dateHeader = card.querySelector('.feedback-controls-header span');
                 const dateStr = dateHeader ? dateHeader.textContent : '';
 
@@ -965,121 +222,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        if (allFeedbacks.length === 0) {
-            alert("Es wurden keine Feedbacks gefunden. Bitte erst Feedbacks generieren.");
-            return;
-        }
-
-        showPrintDialog((mode) => {
-            const printWindow = window.open('', '_blank');
-            const html = generatePrintHTML(allFeedbacks, assignmentName, mode);
-            printWindow.document.write(html);
-            printWindow.document.close();
-        });
+        return { feedbackList: allFeedbacks, assignmentName };
     });
 
-    const generatePrintHTML = (feedbackList, assignmentName, mode) => {
-        let bodyContent = '';
-        const date = new Date().toLocaleDateString('de-DE');
-
-        feedbackList.forEach(fb => {
-            bodyContent += `
-            <div class="page">
-                <div class="header">
-                    <h2>Feedback: ${assignmentName}</h2>
-                    <p><strong>Schüler:in:</strong> ${fb.student_name} | <strong>Erstellt am:</strong> ${date}</p>
-                </div>
-                <hr>
-                <div class="feedback-list">`;
-            
-            let lastSection = "";
-
-            fb.results.forEach(item => {
-                let currentSection = "";
-                if (item.question_id) {
-                    const parts = item.question_id.split('_');
-                    if (parts.length > 0) currentSection = parts[0]; 
-                }
-
-                if (currentSection && currentSection !== lastSection) {
-                    bodyContent += `<h3 class="section-header">${currentSection}</h3>`;
-                    lastSection = currentSection;
-                }
-
-                let colorClass = 'score-low';
-                if (item.score === 2) colorClass = 'score-mid';
-                if (item.score === 3) colorClass = 'score-high';
-
-                const formattedQuestion = parseSimpleMarkdown(item.question_text);
-
-                // --- CHANGE: Label changed to "Punkte:" here as well ---
-                bodyContent += `
-                    <div class="item">
-                        <div class="question">${formattedQuestion}</div>
-                        <div class="concise"><span class="badge ${colorClass}">Punkte: ${item.score}</span> ${item.concise_feedback}</div>`;
-                
-                if (mode === 'full') {
-                    bodyContent += `<div class="detailed">${item.detailed_feedback}</div>`;
-                }
-
-                bodyContent += `</div>`;
-            });
-
-            bodyContent += `</div></div>`;
-        });
-
-        return `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Feedback Drucken</title>
-            <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #333; line-height: 1.5; }
-                .page { page-break-after: always; padding: 40px; max-width: 800px; margin: 0 auto; }
-                .header { margin-bottom: 20px; }
-                .header h2 { margin-bottom: 5px; color: #0056b3; }
-                
-                .section-header { 
-                    margin-top: 30px; 
-                    margin-bottom: 15px; 
-                    padding-bottom: 5px; 
-                    border-bottom: 2px solid #0056b3; 
-                    color: #0056b3; 
-                    font-size: 1.2em; 
-                }
-
-                .item { margin-bottom: 25px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
-                .question { margin-bottom: 8px; color: #222; font-size: 1.05em; }
-                .concise { margin-bottom: 8px; font-weight: 600; color: #444; }
-                .detailed { font-size: 0.95em; color: #555; background: #f8f9fa; padding: 12px; border-left: 4px solid #ced4da; border-radius: 4px; margin-top: 8px; }
-                .badge { color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.85em; margin-right: 8px; vertical-align: middle; }
-                .score-low { background-color: #ef4444; }
-                .score-mid { background-color: #f59e0b; }
-                .score-high { background-color: #22c55e; }
-                
-                b, strong { font-weight: 700; color: #000; }
-                
-                @media print { body { -webkit-print-color-adjust: exact; } }
-            </style>
-        </head>
-        <body>${bodyContent}</body>
-        </html>`;
-    };
-
-    // --- HELPER: Fetch Single Draft ---
-    const fetchDraftContent = async (path) => {
-        try {
-            const response = await fetch(SCRIPT_URL, {
-                method: 'POST',
-                mode: 'cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getDraft', teacherKey: currentTeacherKey, draftPath: path })
-            });
-            const data = await response.json();
-            if (data.status === 'error') throw new Error(data.message);
-            return data;
-        } catch (error) { return null; }
-    };
-
+    // Initial Trigger
     checkAuth();
 });
