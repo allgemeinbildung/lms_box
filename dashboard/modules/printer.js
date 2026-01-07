@@ -9,6 +9,14 @@ export const showPrintDialog = (onConfirm) => {
     dialogBox.innerHTML = `
         <h3 style="margin-top:0; color:#333;">Druckoptionen</h3>
         <p style="color:#666; margin-bottom:20px;">Welchen Detaillierungsgrad möchtest du drucken?</p>
+        
+        <div style="margin-bottom:20px; text-align:left; padding-left:20px;">
+             <label style="display:flex; align-items:center; cursor:pointer;">
+                <input type="checkbox" id="print-points-check" checked style="width:18px; height:18px; margin-right:10px;">
+                <span style="font-size:1em; color:#333;">Punkte anzeigen</span>
+            </label>
+        </div>
+
         <div style="display:flex; flex-direction:column; gap:10px;">
             <button id="print-full" style="padding:12px; border:1px solid #007bff; background:#e9f3ff; color:#0056b3; border-radius:4px; cursor:pointer; font-weight:bold;">📄 Ausführlicher Bericht (Beides)</button>
             <button id="print-concise" style="padding:12px; border:1px solid #ccc; background:#fff; color:#333; border-radius:4px; cursor:pointer;">✂️ Kurzbericht (Nur 'Was fehlt')</button>
@@ -20,13 +28,23 @@ export const showPrintDialog = (onConfirm) => {
     document.body.appendChild(dialogOverlay);
 
     const close = () => dialogOverlay.remove();
-    dialogBox.querySelector('#print-full').addEventListener('click', () => { close(); onConfirm('full'); });
-    dialogBox.querySelector('#print-concise').addEventListener('click', () => { close(); onConfirm('concise'); });
+    const getPointsOption = () => dialogBox.querySelector('#print-points-check').checked;
+
+    dialogBox.querySelector('#print-full').addEventListener('click', () => {
+        const includePoints = getPointsOption();
+        close();
+        onConfirm('full', includePoints);
+    });
+    dialogBox.querySelector('#print-concise').addEventListener('click', () => {
+        const includePoints = getPointsOption();
+        close();
+        onConfirm('concise', includePoints);
+    });
     dialogBox.querySelector('#print-cancel').addEventListener('click', close);
     dialogOverlay.addEventListener('click', (e) => { if (e.target === dialogOverlay) close(); });
 };
 
-export const generatePrintHTML = (feedbackList, assignmentName, mode) => {
+export const generatePrintHTML = (feedbackList, assignmentName, mode, includePoints) => {
     let bodyContent = '';
     const date = new Date().toLocaleDateString('de-DE');
 
@@ -60,10 +78,15 @@ export const generatePrintHTML = (feedbackList, assignmentName, mode) => {
 
             const formattedQuestion = parseSimpleMarkdown(item.question_text);
 
+            let scoreBadge = '';
+            if (includePoints) {
+                scoreBadge = `<span class="badge ${colorClass}">Punkte: ${item.score}</span>`;
+            }
+
             bodyContent += `
                 <div class="item">
                     <div class="question">${formattedQuestion}</div>
-                    <div class="concise"><span class="badge ${colorClass}">Punkte: ${item.score}</span> ${item.concise_feedback}</div>`;
+                    <div class="concise">${scoreBadge} ${item.concise_feedback}</div>`;
 
             if (mode === 'full') {
                 bodyContent += `<div class="detailed">${item.detailed_feedback}</div>`;
@@ -113,9 +136,9 @@ export const generatePrintHTML = (feedbackList, assignmentName, mode) => {
     </html>`;
 };
 
-export const printFeedback = (studentName, assignmentName, feedbackData, mode) => {
+export const printFeedback = (studentName, assignmentName, feedbackData, mode, includePoints) => {
     const printWindow = window.open('', '_blank');
-    const html = generatePrintHTML([feedbackData], assignmentName, mode);
+    const html = generatePrintHTML([feedbackData], assignmentName, mode, includePoints);
     printWindow.document.write(html);
     printWindow.document.close();
 };
@@ -129,9 +152,9 @@ export const setupPrintAll = (btn, getFeedbackDataCallback) => {
             return;
         }
 
-        showPrintDialog((mode) => {
+        showPrintDialog((mode, includePoints) => {
             const printWindow = window.open('', '_blank');
-            const html = generatePrintHTML(feedbackList, assignmentName, mode);
+            const html = generatePrintHTML(feedbackList, assignmentName, mode, includePoints);
             printWindow.document.write(html);
             printWindow.document.close();
         });

@@ -1,3 +1,6 @@
 export const parseSimpleMarkdown = (text) => {
-    return text ? text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') : '';
+    if (!text) return '';
+    return text
+        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+        .replace(/\*(.*?)\*/g, '<i>$1</i>');
 };

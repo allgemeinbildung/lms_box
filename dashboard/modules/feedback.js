@@ -87,7 +87,7 @@ export const distributeFeedback = (feedbackData, container) => {
             date_str: currentItem.date_str,
             results: currentItem.results
         };
-        showPrintDialog((mode) => { printFeedback(sName, assId, printPayload, mode); });
+        showPrintDialog((mode, includePoints) => { printFeedback(sName, assId, printPayload, mode, includePoints); });
     });
 
     container.prepend(controlsHeader);
