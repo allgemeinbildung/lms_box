@@ -80,14 +80,14 @@ export const distributeFeedback = (feedbackData, container) => {
         const card = container.closest('.student-card');
         const sName = card ? card.dataset.studentName : "Student";
         // Assuming element exists in DOM
-        const assId = document.getElementById('assignment-select') ? document.getElementById('assignment-select').value : 'Assignment';
+        const cls = document.getElementById('class-select') ? document.getElementById('class-select').value : 'Class';
 
         const printPayload = {
             student_name: sName,
             date_str: currentItem.date_str,
             results: currentItem.results
         };
-        showPrintDialog((mode, includePoints) => { printFeedback(sName, assId, printPayload, mode, includePoints); });
+        showPrintDialog((mode, includePoints) => { printFeedback(cls, sName, assId, printPayload, mode, includePoints); });
     });
 
     container.prepend(controlsHeader);

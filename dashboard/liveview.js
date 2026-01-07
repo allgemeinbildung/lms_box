@@ -45,6 +45,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const downloadBtn = document.getElementById('download-btn');
+    const printTitle = document.getElementById('print-title');
+
+    const updateTitle = () => {
+        const cls = classSelect.value;
+        const assId = assignmentSelect.value;
+        if (cls && assId) {
+            const sanitizedAss = assId.replace(/[\s\W]+/g, '_');
+            document.title = `${cls}_${sanitizedAss}`;
+            if (printTitle) printTitle.textContent = `${cls} - ${assId}`;
+        } else {
+            document.title = "Live View - Ganze Klasse";
+        }
+    };
 
     // --- Data Loading ---
     const initDataLoad = async () => {
@@ -158,6 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             assignmentSelect.disabled = false;
         }
+        updateTitle();
     });
 
     // --- Render Trigger ---
@@ -173,7 +187,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    assignmentSelect.addEventListener('change', runRender);
+    assignmentSelect.addEventListener('change', () => {
+        runRender();
+        updateTitle();
+    });
     refreshBtn.addEventListener('click', () => classSelect.value && assignmentSelect.value ? runRender() : initDataLoad());
 
     // --- Feature Setups ---
@@ -222,7 +239,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        return { feedbackList: allFeedbacks, assignmentName };
+        const allStudentNames = Array.from(cards).map(card => card.querySelector('.student-name').textContent);
+        return { feedbackList: allFeedbacks, className: classSelect.value, assignmentName: assignmentSelect.value, allStudentNames };
     });
 
     // Initial Trigger

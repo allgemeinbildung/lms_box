@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,26 +11,88 @@
     <style>
         /* --- PRINT STYLES --- */
         @media print {
-            body * { visibility: hidden; }
-            #live-grid, #live-grid * { visibility: visible; }
+            body * {
+                visibility: hidden;
+            }
+
+            #live-grid,
+            #live-grid * {
+                visibility: visible;
+            }
+
             #live-grid {
-                position: absolute; left: 0; top: 0; width: 100%;
-                display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 15px;
             }
-            .student-card { break-inside: avoid; border: 1px solid #000; box-shadow: none; margin: 0; padding: 0; }
-            .student-header { background: #fff !important; display: flex; justify-content: space-between; align-items: center; padding: 10px; }
-            .student-card-content, .header-left .toggle-icon, .header-left .student-checkbox, 
-            .student-stats .word-count-badge, .student-stats .last-update-badge, .student-stats .live-feedback-btn { display: none !important; }
-            .student-name { font-size: 16px; font-weight: bold; color: #000; }
+
+            .student-card {
+                break-inside: avoid;
+                border: 1px solid #000;
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+            }
+
+            .student-header {
+                background: #fff !important;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 10px;
+            }
+
+            .student-card-content,
+            .header-left .toggle-icon,
+            .header-left .student-checkbox,
+            .student-stats .word-count-badge,
+            .student-stats .last-update-badge,
+            .student-stats .live-feedback-btn {
+                display: none !important;
+            }
+
+            .student-name {
+                font-size: 16px;
+                font-weight: bold;
+                color: #000;
+            }
+
             .progress-badge {
-                font-size: 14px; font-weight: bold; border: 1px solid #000; color: #000 !important;
-                -webkit-print-color-adjust: exact; print-color-adjust: exact;
+                font-size: 14px;
+                font-weight: bold;
+                border: 1px solid #000;
+                color: #000 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
+
+            #print-header {
+                display: block !important;
+                visibility: visible !important;
+                margin-bottom: 30px;
+                border-bottom: 2px solid #333;
+                padding-bottom: 10px;
+            }
+
+            #print-header h1 {
+                font-size: 24px;
+                margin: 0;
+                color: #000;
+            }
+        }
+
+        #print-header {
+            display: none;
         }
     </style>
 </head>
+
 <body>
-    
+
     <div id="login-overlay" class="visible">
         <div id="login-box">
             <h2>Live View-Zugang</h2>
@@ -40,35 +103,51 @@
         </div>
     </div>
 
-    <div id="bulk-progress-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:2000; flex-direction:column; justify-content:center; align-items:center;">
+    <div id="bulk-progress-overlay"
+        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:2000; flex-direction:column; justify-content:center; align-items:center;">
         <h2 style="color:#333;">Automatische Bewertung läuft...</h2>
-        <div style="width:300px; height:20px; background:#e9ecef; border-radius:10px; overflow:hidden; margin:20px 0; border:1px solid #ced4da;">
+        <div
+            style="width:300px; height:20px; background:#e9ecef; border-radius:10px; overflow:hidden; margin:20px 0; border:1px solid #ced4da;">
             <div id="bulk-progress-bar" style="width:0%; height:100%; background:#007bff; transition:width 0.3s;"></div>
         </div>
         <p id="bulk-progress-text" style="color:#666; font-weight:bold;">0 / 0 verarbeitet</p>
-        <button id="cancel-bulk-btn" style="margin-top:20px; padding:10px 20px; border:1px solid #dc3545; color:#dc3545; background:white; border-radius:4px; cursor:pointer; font-weight:bold;">Abbrechen</button>
+        <button id="cancel-bulk-btn"
+            style="margin-top:20px; padding:10px 20px; border:1px solid #dc3545; color:#dc3545; background:white; border-radius:4px; cursor:pointer; font-weight:bold;">Abbrechen</button>
     </div>
 
     <div id="live-view-container">
+        <div id="print-header">
+            <h1 id="print-title">Live View</h1>
+        </div>
         <header id="live-header">
             <h1 id="main-title">Klassen-Monitor</h1>
             <div id="controls-bar">
                 <div class="control-group">
                     <label>Klasse:</label>
-                    <select id="class-select" disabled><option value="">Lade...</option></select>
+                    <select id="class-select" disabled>
+                        <option value="">Lade...</option>
+                    </select>
                 </div>
                 <div class="control-group">
                     <label>Aufgabe:</label>
-                    <select id="assignment-select" disabled><option value="">-</option></select>
+                    <select id="assignment-select" disabled>
+                        <option value="">-</option>
+                    </select>
                 </div>
                 <div class="button-group">
                     <button id="refresh-btn">🔄 Aktualisieren</button>
-                    
-                    <button id="select-all-btn" style="background-color: #6c757d; margin-top: 18px; margin-left: 10px; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 100%;">☑ Alle</button>
-                    <button id="bulk-assess-btn" style="background-color: #6f42c1; display:none; margin-top: 18px; margin-left: 10px; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 100%;">⚡ Auswahl bewerten</button>
-                    
-                    <button id="export-analysis-btn" style="background-color: #28a745; margin-top: 18px; margin-left: 10px; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 100%;" disabled title="Exportiert Noten und Details">📊 Analyse-Export</button>
-                    
+
+                    <button id="select-all-btn"
+                        style="background-color: #6c757d; margin-top: 18px; margin-left: 10px; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 100%;">☑
+                        Alle</button>
+                    <button id="bulk-assess-btn"
+                        style="background-color: #6f42c1; display:none; margin-top: 18px; margin-left: 10px; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 100%;">⚡
+                        Auswahl bewerten</button>
+
+                    <button id="export-analysis-btn"
+                        style="background-color: #28a745; margin-top: 18px; margin-left: 10px; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 100%;"
+                        disabled title="Exportiert Noten und Details">📊 Analyse-Export</button>
+
                     <button id="print-all-btn" title="Klasse als Übersicht drucken">🖨️ Drucken</button>
                 </div>
             </div>
@@ -79,21 +158,11 @@
                 Bitte wählen Sie eine Klasse und eine Aufgabe aus.<br>
                 <small>Es werden alle Antworten aller Schüler/innen angezeigt.</small>
             </div>
-            </div>
+        </div>
     </div>
 
-    <script src="../js/config.js" type="module"></script>  
+    <script src="../js/config.js" type="module"></script>
     <script src="liveview.js" type="module"></script>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const printBtn = document.getElementById('print-all-btn');
-            if(printBtn) {
-                printBtn.addEventListener('click', () => {
-                    window.print();
-                });
-            }
-        });
-    </script>
 </body>
+
 </html>
