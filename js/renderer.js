@@ -1,3 +1,8 @@
+//
+// ────────────────────────────────────────────────────────────────
+//  :::::: F I L E :   j s / r e n d e r e r . j s ::::::
+// ────────────────────────────────────────────────────────────────
+//
 import { SCRIPT_URL } from './config.js';
 import * as storage from './storage.js';
 
@@ -178,7 +183,8 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
 
         const sanitizedQuestionId = String(question.id).replace(/[^a-zA-Z0-9-_]/g, '-');
         const editorDiv = document.createElement('div');
-        const editorId = `quill-editor-${sanitizedQuestionId}`;
+        // ✅ FIX: Use subId in ID to avoid collisions when multiple assignments are embedded
+        const editorId = `quill-editor-${subId}-${sanitizedQuestionId}`;
         editorDiv.id = editorId;
         questionBlock.appendChild(editorDiv);
         contentRenderer.appendChild(questionBlock);
@@ -186,33 +192,40 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
         const quill = new Quill(`#${editorId}`, { theme: 'snow' });
         const storageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}_q_${question.id}`;
 
-        // --- NEW DATA LOADING LOGIC ---
-        // 1. Prioritize loading from the draft data fetched from the server.
-        const serverAnswer = draftData?.assignments?.[assignmentId]?.[subId]?.answers?.find(a => a.questionId === question.id)?.answer;
-        
-        if (serverAnswer) {
-            quill.root.innerHTML = serverAnswer;
-            // Also update local storage to be in sync
-            storage.set(storageKey, serverAnswer);
-        } else {
-            // 2. Fallback to local IndexedDB storage (for offline changes).
-            storage.get(storageKey).then(savedAnswer => {
+        // --- ✅ FIX PART 1: Async Initialization ---
+        const initializeEditor = async () => {
+            // 1. Prioritize loading from server draft data
+            const serverAnswer = draftData?.assignments?.[assignmentId]?.[subId]?.answers?.find(a => a.questionId === question.id)?.answer;
+            
+            if (serverAnswer) {
+                quill.root.innerHTML = serverAnswer; // Triggers 'text-change' with source='api'
+                // Explicitly sync to local DB so the save logic sees correct data immediately
+                await storage.set(storageKey, serverAnswer);
+            } else {
+                // 2. Fallback to local IndexedDB storage (for offline changes)
+                const savedAnswer = await storage.get(storageKey);
                 if (savedAnswer) {
                     quill.root.innerHTML = savedAnswer;
                 }
-            });
-        }
+            }
+        };
+
+        initializeEditor();
 
         quill.root.addEventListener('paste', (e) => {
             e.preventDefault();
             showTemporaryMessage('Einfügen ist deaktiviert, um die Kreativität und das kritische Denken zu fördern.', quill.root);
         });
 
-        // --- NEW AUTO-SAVE LOGIC ---
-        quill.on('text-change', async () => {
+        // --- ✅ FIX PART 2: Source Check ---
+        quill.on('text-change', async (delta, oldDelta, source) => {
+            // CRITICAL: Only save if the USER made the change.
+            // This prevents the page load (source = 'api') from triggering a save event.
+            if (source !== 'user') return;
+
             const htmlContent = quill.root.innerHTML;
             
-            // Step 1: Save locally immediately for responsiveness and offline safety.
+            // Step 1: Save locally immediately
             if (htmlContent && htmlContent !== '<p><br></p>') {
                 await storage.set(storageKey, htmlContent);
             } else {
@@ -220,7 +233,7 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
             }
             updateSaveStatus('local');
 
-            // Step 2: Trigger the debounced function to save the entire draft to the server.
+            // Step 2: Trigger the debounced function to save to server
             gatherAndSaveDraft(studentKey, assignmentId, mode);
         });
     });
@@ -230,8 +243,6 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
         solutionSection.style.display = 'block';
         
         const unlockedSolutions = JSON.parse(sessionStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
-        
-        // Helper to match IDs between questions and solutions
         const questionMap = new Map(data.questions.map(q => [q.id, q.text]));
 
         if (unlockedSolutions[assignmentId]) {
@@ -266,7 +277,6 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
 
                     let solutionHtml = '<h3>Musterlösung</h3>';
                     data.solution.solutions.forEach(sol => {
-                        // ✅ FIX: Changed sol.questionId to sol.id to match JSON structure
                         const questionText = questionMap.get(sol.id) || 'Frage nicht gefunden';
                         solutionHtml += `<div class="solution-item" style="margin-top: 1em;"><strong>Frage: ${parseMarkdown(questionText)}</strong><div class="answer-box" style="padding: 1em; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #fdfdfd; margin-top: 0.5em;">${sol.answer}</div></div>`;
                     });
