@@ -51,11 +51,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const cls = classSelect.value;
         const assId = assignmentSelect.value;
         if (cls && assId) {
+            const cards = document.querySelectorAll('.student-card');
+            const total = cards.length;
+            const done = Array.from(cards).filter(card => {
+                const feedbackBtn = card.querySelector('.live-feedback-btn');
+                return feedbackBtn && feedbackBtn.textContent.includes('✓');
+            }).length;
+
             const sanitizedAss = assId.replace(/[\s\W]+/g, '_');
             document.title = `${cls}_${sanitizedAss}`;
-            if (printTitle) printTitle.textContent = `${cls} - ${assId}`;
+            if (printTitle) printTitle.textContent = `${cls} - ${assId} (Abgegeben: ${done}/${total})`;
         } else {
             document.title = "Live View - Ganze Klasse";
+            if (printTitle) printTitle.textContent = "Live View";
         }
     };
 
@@ -175,15 +183,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Render Trigger ---
-    const runRender = () => {
+    const runRender = async () => {
         const cls = classSelect.value;
         const assId = assignmentSelect.value;
         if (cls && assId) {
-            renderLiveGrid(cls, assId, contentRenderer, {
+            await renderLiveGrid(cls, assId, contentRenderer, {
                 printAllBtn,
                 exportBtn,
                 bulkAssessBtn
             });
+            updateTitle();
         }
     };
 
@@ -239,8 +248,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        const allStudentNames = Array.from(cards).map(card => card.querySelector('.student-name').textContent);
-        return { feedbackList: allFeedbacks, className: classSelect.value, assignmentName: assignmentSelect.value, allStudentNames };
+        const studentList = Array.from(cards).map(card => ({
+            name: card.querySelector('.student-name').textContent,
+            progress: card.querySelector('.progress-badge').textContent.replace('✓', '').trim()
+        }));
+        return { feedbackList: allFeedbacks, className: classSelect.value, assignmentName: assignmentSelect.value, studentList };
     });
 
     // Initial Trigger

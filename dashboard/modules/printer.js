@@ -44,7 +44,7 @@ export const showPrintDialog = (onConfirm) => {
     dialogOverlay.addEventListener('click', (e) => { if (e.target === dialogOverlay) close(); });
 };
 
-export const generatePrintHTML = (feedbackList, className, assignmentName, mode, includePoints, allStudentNames = []) => {
+export const generatePrintHTML = (feedbackList, className, assignmentName, mode, includePoints, studentList = []) => {
     let bodyContent = '';
     const date = new Date().toLocaleDateString('de-DE');
 
@@ -54,31 +54,36 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
 
     // Cover Page / Global Header
     let studentListHtml = '';
-    if (allStudentNames.length > 0) {
+    if (studentList.length > 0) {
         const withFeedback = new Set(feedbackList.map(f => f.student_name));
         studentListHtml = `
         <div style="margin-top:40px; text-align:left; max-width:600px; margin-left:auto; margin-right:auto;">
             <h3 style="border-bottom:1px solid #eee; padding-bottom:10px;">Teilnehmerübersicht</h3>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.9em;">
-                ${allStudentNames.map(name => {
-            const hasDone = withFeedback.has(name);
+                ${studentList.map(s => {
+            const hasDone = withFeedback.has(s.name);
             return `<div style="color: ${hasDone ? '#000' : '#999'};">
-                        ${hasDone ? '✅' : '❌'} ${name}
+                        ${hasDone ? '✅' : '❌'} ${s.name} <span style="margin-left:5px; font-weight:bold; opacity:0.7;">(${s.progress})</span>
                     </div>`;
         }).join('')}
             </div>
         </div>`;
     }
 
+    const doneCount = feedbackList.length;
+    const totalCount = studentList.length || feedbackList.length;
+
     bodyContent += `
     <div class="page no-print-break" style="text-align:center; padding-top:60px;">
         <h1 style="font-size:3em; color:#0056b3; margin-bottom:10px;">${className}</h1>
         <h2 style="font-size:1.8em; color:#333;">${assignmentName}</h2>
-        <p style="color:#666; font-size:1.2em; margin-top:20px;">Zusammenfassender Bericht - Erstellt am ${date}</p>
-        ${studentListHtml}
-        <div style="margin-top:40px; border-top:1px solid #ccc; padding-top:20px; font-style:italic; color:#888;">
-            Feedbacks exportiert: ${feedbackList.length} / ${allStudentNames.length || feedbackList.length}
+        <div style="margin: 30px 0; font-size: 1.5em; font-weight: bold; color: #0056b3;">
+            <span style="background: #e0f2fe; padding: 10px 20px; border-radius: 50px;">
+                Abgeschlossen: ${doneCount} / ${totalCount}
+            </span>
         </div>
+        <p style="color:#666; font-size:1.1em;">Zusammenfassender Bericht - Erstellt am ${date}</p>
+        ${studentListHtml}
     </div>`;
 
     feedbackList.forEach(fb => {
@@ -171,14 +176,14 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
 
 export const printFeedback = (className, studentName, assignmentName, feedbackData, mode, includePoints) => {
     const printWindow = window.open('', '_blank');
-    const html = generatePrintHTML([feedbackData], className, assignmentName, mode, includePoints, [studentName]);
+    const html = generatePrintHTML([feedbackData], className, studentName, assignmentName, mode, includePoints, [{ name: studentName, progress: '-' }]);
     printWindow.document.write(html);
     printWindow.document.close();
 };
 
 export const setupPrintAll = (btn, getFeedbackDataCallback) => {
     btn.addEventListener('click', () => {
-        const { feedbackList, className, assignmentName, allStudentNames } = getFeedbackDataCallback();
+        const { feedbackList, className, assignmentName, studentList } = getFeedbackDataCallback();
 
         if (!feedbackList || feedbackList.length === 0) {
             alert("Es wurden keine Feedbacks gefunden. Bitte erst Feedbacks generieren.");
@@ -187,7 +192,7 @@ export const setupPrintAll = (btn, getFeedbackDataCallback) => {
 
         showPrintDialog((mode, includePoints) => {
             const printWindow = window.open('', '_blank');
-            const html = generatePrintHTML(feedbackList, className, assignmentName, mode, includePoints, allStudentNames);
+            const html = generatePrintHTML(feedbackList, className, assignmentName, mode, includePoints, studentList);
             printWindow.document.write(html);
             printWindow.document.close();
         });
