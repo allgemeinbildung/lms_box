@@ -14,7 +14,7 @@ const SOLUTION_KEYS_STORE = 'modular-assignment-keys-store';
 
 function debounce(func, wait) {
     let timeout;
-    return function(...args) {
+    return function (...args) {
         clearTimeout(timeout);
         timeout = setTimeout(() => func.apply(this, args), wait);
     };
@@ -98,11 +98,11 @@ function updateSaveStatus(status) {
  */
 const gatherAndSaveDraft = debounce(async (studentKey, assignmentId, mode) => {
     updateSaveStatus('saving');
-    
+
     const allStoredData = await storage.getAll();
     const dataMap = new Map(allStoredData.map(item => [item.key, item.value]));
     const answerRegex = new RegExp(`^${ANSWER_PREFIX}${assignmentId}_sub_(.+)_q_(.+)$`);
-    
+
     const allDataPayload = {};
     allDataPayload[assignmentId] = {};
 
@@ -110,7 +110,7 @@ const gatherAndSaveDraft = debounce(async (studentKey, assignmentId, mode) => {
         const match = key.match(answerRegex);
         if (match) {
             const [, subId, questionId] = match;
-            
+
             if (!allDataPayload[assignmentId][subId]) {
                 const title = dataMap.get(`${TITLE_PREFIX}${assignmentId}_sub_${subId}`) || subId;
                 const type = dataMap.get(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`) || 'quill';
@@ -119,7 +119,7 @@ const gatherAndSaveDraft = debounce(async (studentKey, assignmentId, mode) => {
 
                 allDataPayload[assignmentId][subId] = { title, type, questions, answers: [] };
             }
-            
+
             allDataPayload[assignmentId][subId].answers.push({
                 questionId: questionId,
                 answer: value || ''
@@ -147,7 +147,7 @@ const gatherAndSaveDraft = debounce(async (studentKey, assignmentId, mode) => {
         if (!response.ok) throw new Error('Server response was not OK');
         const result = await response.json();
         if (result.status !== 'success') throw new Error(result.message);
-        
+
         updateSaveStatus('cloud');
     } catch (error) {
         console.error("Failed to save draft to server:", error);
@@ -182,21 +182,22 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
         questionBlock.appendChild(questionText);
 
         const sanitizedQuestionId = String(question.id).replace(/[^a-zA-Z0-9-_]/g, '-');
+        const sanitizedSubId = String(subId).replace(/[^a-zA-Z0-9-_]/g, '-');
         const editorDiv = document.createElement('div');
         // ✅ FIX: Use subId in ID to avoid collisions when multiple assignments are embedded
-        const editorId = `quill-editor-${subId}-${sanitizedQuestionId}`;
+        const editorId = `quill-editor-${sanitizedSubId}-${sanitizedQuestionId}`;
         editorDiv.id = editorId;
         questionBlock.appendChild(editorDiv);
         contentRenderer.appendChild(questionBlock);
 
-        const quill = new Quill(`#${editorId}`, { theme: 'snow' });
+        const quill = new Quill(editorDiv, { theme: 'snow' });
         const storageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}_q_${question.id}`;
 
         // --- ✅ FIX PART 1: Async Initialization ---
         const initializeEditor = async () => {
             // 1. Prioritize loading from server draft data
             const serverAnswer = draftData?.assignments?.[assignmentId]?.[subId]?.answers?.find(a => a.questionId === question.id)?.answer;
-            
+
             if (serverAnswer) {
                 quill.root.innerHTML = serverAnswer; // Triggers 'text-change' with source='api'
                 // Explicitly sync to local DB so the save logic sees correct data immediately
@@ -224,7 +225,7 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
             if (source !== 'user') return;
 
             const htmlContent = quill.root.innerHTML;
-            
+
             // Step 1: Save locally immediately
             if (htmlContent && htmlContent !== '<p><br></p>') {
                 await storage.set(storageKey, htmlContent);
@@ -241,20 +242,20 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
     // --- Solution Unlock Logic ---
     if (data.solution && Array.isArray(data.solution.solutions) && data.solution.solutions.length > 0) {
         solutionSection.style.display = 'block';
-        
+
         const unlockedSolutions = JSON.parse(sessionStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
         const questionMap = new Map(data.questions.map(q => [q.id, q.text]));
 
         if (unlockedSolutions[assignmentId]) {
             solutionUnlockContainer.style.display = 'none';
-            
+
             let solutionHtml = '<h3>Musterlösung</h3>';
             data.solution.solutions.forEach(sol => {
                 // ✅ FIX: Changed sol.questionId to sol.id to match JSON structure
                 const questionText = questionMap.get(sol.id) || 'Frage nicht gefunden';
                 solutionHtml += `<div class="solution-item" style="margin-top: 1em;"><strong>Frage: ${parseMarkdown(questionText)}</strong><div class="answer-box" style="padding: 1em; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #fdfdfd; margin-top: 0.5em;">${sol.answer}</div></div>`;
             });
-            
+
             solutionDisplayContainer.innerHTML = solutionHtml;
             solutionDisplayContainer.style.display = 'block';
         } else {
