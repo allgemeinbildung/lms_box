@@ -40,7 +40,7 @@ function showLoginDialog() {
         const statusEl = document.getElementById('auth-status');
 
         const attemptLogin = () => {
-            const key = keyInput.value.trim();
+            const key = keyInput.value.trim().toLowerCase();
             if (!key) {
                 statusEl.textContent = 'Bitte gib einen Schlüssel ein.';
                 return;
