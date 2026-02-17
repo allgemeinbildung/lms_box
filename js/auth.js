@@ -22,9 +22,13 @@ function showLoginDialog() {
                 <div style="background: #f8f9fa; border-left: 4px solid #007bff; padding: 0.8em; margin-bottom: 1em; font-size: 0.85em;">
                     <p style="margin: 0; font-weight: bold;">Code-Zusammensetzung:</p>
                     <p style="margin: 4px 0 0 0; font-family: monospace; background: #eee; padding: 4px; border-radius: 3px; word-break: break-all;">[Klasse]-[Vorname]-[Nachname]-[Nummer]</p>
-                    <p style="margin: 8px 0 0 0; color: #666; line-height: 1.3;">
+                    <p style="margin: 8px 0 0 0; color: #666; line-height: 1.4;">
                         Beispiel: <code style="color: #d63384;">pk21a-hans-muster-123456</code><br>
-                        <small><em>ID oder OLAT Institutionsnummer verwenden.</em></small>
+                        <span style="display: block; margin-top: 5px;">
+                            <em>Die Nummer findest du:</em><br>
+                            • Auf dem <strong>Studentenausweis</strong> unter dem Barcode.<br>
+                            • Bei <strong>OLAT</strong> im Profil unter "Institutionsnummer (Matrikelnummer)".
+                        </span>
                     </p>
                 </div>
 
