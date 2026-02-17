@@ -19,8 +19,10 @@ function showLoginDialog() {
                 <h3 style="margin-top: 0; text-align: center; color: #333; font-size: 1.2em;">Anmeldung</h3>
                 <p style="margin-bottom: 1em; text-align: center; color: #555; font-size: 0.95em;">Bitte gib deinen Schülerschlüssel ein.</p>
                 
-                <div style="background: #f8f9fa; border-left: 4px solid #007bff; padding: 0.8em; margin-bottom: 1em; font-size: 0.85em;">
-                    <p style="margin: 0; font-weight: bold;">Code-Zusammensetzung:</p>
+                <input type="text" id="student-key-input" placeholder="Dein Schlüssel..." style="width: 100%; padding: 10px; margin-bottom: 1em; border: 2px solid #ddd; border-radius: 6px; box-sizing: border-box; font-family: monospace; font-size: 1em;">
+
+                <div style="background: #f8f9fa; border-left: 4px solid #007bff; padding: 0.8em; margin-bottom: 1.5em; font-size: 0.85em;">
+                    <p style="margin: 0; font-weight: bold;">Schülerschlüssel:</p>
                     <p style="margin: 4px 0 0 0; font-family: monospace; background: #eee; padding: 4px; border-radius: 3px; word-break: break-all;">[Klasse]-[Vorname]-[Nachname]-[Nummer]</p>
                     <p style="margin: 8px 0 0 0; color: #666; line-height: 1.4;">
                         Beispiel: <code style="color: #d63384;">pk21a-hans-muster-123456</code><br>
@@ -32,8 +34,7 @@ function showLoginDialog() {
                     </p>
                 </div>
 
-                <input type="text" id="student-key-input" placeholder="Dein Schlüssel..." style="width: 100%; padding: 10px; margin-bottom: 0.8em; border: 2px solid #ddd; border-radius: 6px; box-sizing: border-box; font-family: monospace; font-size: 1em;">
-                <button id="login-key-btn" style="width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1em; transition: background 0.2s;">Anmelden</button>
+                <button id="login-key-btn" style="width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1em; transition: background 0.2s;">Anmelden</button>
                 <p id="auth-status" style="color: #d9534f; min-height: 1.2em; margin-top: 0.8em; text-align: center; font-size: 0.85em;"></p>
             </div>
         `;
