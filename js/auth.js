@@ -10,26 +10,27 @@ function showLoginDialog() {
         dialog.style.cssText = `
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: rgba(0,0,0,0.7); display: flex;
-            justify-content: center; align-items: center; z-index: 3000; font-family: sans-serif;
+            justify-content: center; align-items: flex-start; z-index: 3000; font-family: sans-serif;
+            overflow-y: auto; padding: 20px; box-sizing: border-box;
         `;
 
         dialog.innerHTML = `
-            <div style="background: white; padding: 2.5em; border-radius: 12px; text-align: left; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); line-height: 1.5;">
-                <h3 style="margin-top: 0; text-align: center; color: #333;">Anmeldung</h3>
-                <p style="margin-bottom: 1.5em; text-align: center; color: #555;">Bitte gib deinen persönlichen Schülerschlüssel ein, um auf deine Arbeit zuzugreifen.</p>
+            <div style="background: white; padding: 1.5em; border-radius: 12px; text-align: left; width: 100%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); line-height: 1.4; margin: auto;">
+                <h3 style="margin-top: 0; text-align: center; color: #333; font-size: 1.2em;">Anmeldung</h3>
+                <p style="margin-bottom: 1em; text-align: center; color: #555; font-size: 0.95em;">Bitte gib deinen Schülerschlüssel ein.</p>
                 
-                <div style="background: #f8f9fa; border-left: 4px solid #007bff; padding: 1em; margin-bottom: 1.5em; font-size: 0.9em;">
-                    <p style="margin: 0; font-weight: bold;">So setzt sich dein Code zusammen:</p>
-                    <p style="margin: 5px 0 0 0; font-family: monospace; background: #eee; padding: 5px; border-radius: 3px;">[Klasse]-[Vorname]-[Nachname]-[Matrikelnummer]</p>
-                    <p style="margin: 10px 0 0 0; color: #666;">
+                <div style="background: #f8f9fa; border-left: 4px solid #007bff; padding: 0.8em; margin-bottom: 1em; font-size: 0.85em;">
+                    <p style="margin: 0; font-weight: bold;">Code-Zusammensetzung:</p>
+                    <p style="margin: 4px 0 0 0; font-family: monospace; background: #eee; padding: 4px; border-radius: 3px; word-break: break-all;">[Klasse]-[Vorname]-[Nachname]-[Nummer]</p>
+                    <p style="margin: 8px 0 0 0; color: #666; line-height: 1.3;">
                         Beispiel: <code style="color: #d63384;">pk21a-hans-muster-123456</code><br>
-                        <em>Die Matrikelnummer findest du auf deinem Studentenausweis oder bei OLAT im Profil (Institutionsnummer).</em>
+                        <small><em>ID oder OLAT Institutionsnummer verwenden.</em></small>
                     </p>
                 </div>
 
-                <input type="text" id="student-key-input" placeholder="Dein Schlüssel..." style="width: 100%; padding: 12px; margin-bottom: 1em; border: 2px solid #ddd; border-radius: 6px; box-sizing: border-box; font-family: monospace;">
-                <button id="login-key-btn" style="width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1em; transition: background 0.2s;">Anmelden</button>
-                <p id="auth-status" style="color: #d9534f; min-height: 1.2em; margin-top: 1em; text-align: center; font-size: 0.9em;"></p>
+                <input type="text" id="student-key-input" placeholder="Dein Schlüssel..." style="width: 100%; padding: 10px; margin-bottom: 0.8em; border: 2px solid #ddd; border-radius: 6px; box-sizing: border-box; font-family: monospace; font-size: 1em;">
+                <button id="login-key-btn" style="width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1em; transition: background 0.2s;">Anmelden</button>
+                <p id="auth-status" style="color: #d9534f; min-height: 1.2em; margin-top: 0.8em; text-align: center; font-size: 0.85em;"></p>
             </div>
         `;
         document.body.appendChild(dialog);
