@@ -14,12 +14,22 @@ function showLoginDialog() {
         `;
 
         dialog.innerHTML = `
-            <div style="background: white; padding: 2em; border-radius: 8px; text-align: center; max-width: 400px;">
-                <h3 style="margin-top: 0;">Anmeldung</h3>
-                <p>Bitte gib deinen persönlichen Schülerschlüssel ein, um auf deine Arbeit zuzugreifen.</p>
-                <input type="text" id="student-key-input" placeholder="Dein Schlüssel..." style="width: 90%; padding: 10px; margin: 1em 0; border: 1px solid #ccc; border-radius: 4px;">
-                <button id="login-key-btn" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">Anmelden</button>
-                <p id="auth-status" style="color: #d9534f; min-height: 1.2em; margin-top: 1em;"></p>
+            <div style="background: white; padding: 2.5em; border-radius: 12px; text-align: left; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); line-height: 1.5;">
+                <h3 style="margin-top: 0; text-align: center; color: #333;">Anmeldung</h3>
+                <p style="margin-bottom: 1.5em; text-align: center; color: #555;">Bitte gib deinen persönlichen Schülerschlüssel ein, um auf deine Arbeit zuzugreifen.</p>
+                
+                <div style="background: #f8f9fa; border-left: 4px solid #007bff; padding: 1em; margin-bottom: 1.5em; font-size: 0.9em;">
+                    <p style="margin: 0; font-weight: bold;">So setzt sich dein Code zusammen:</p>
+                    <p style="margin: 5px 0 0 0; font-family: monospace; background: #eee; padding: 5px; border-radius: 3px;">[Klasse]-[Vorname]-[Nachname]-[Matrikelnummer]</p>
+                    <p style="margin: 10px 0 0 0; color: #666;">
+                        Beispiel: <code style="color: #d63384;">pk21a-hans-muster-123456</code><br>
+                        <em>Die Matrikelnummer findest du auf deinem Studentenausweis oder bei OLAT im Profil (Institutionsnummer).</em>
+                    </p>
+                </div>
+
+                <input type="text" id="student-key-input" placeholder="Dein Schlüssel..." style="width: 100%; padding: 12px; margin-bottom: 1em; border: 2px solid #ddd; border-radius: 6px; box-sizing: border-box; font-family: monospace;">
+                <button id="login-key-btn" style="width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1em; transition: background 0.2s;">Anmelden</button>
+                <p id="auth-status" style="color: #d9534f; min-height: 1.2em; margin-top: 1em; text-align: center; font-size: 0.9em;"></p>
             </div>
         `;
         document.body.appendChild(dialog);
