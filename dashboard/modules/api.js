@@ -55,15 +55,29 @@ export const getFeedback = async (className, assignmentId, studentName) => {
 };
 
 export const assessStudent = async (className, assignmentId, studentName, studentData) => {
-    const response = await fetch('http://localhost:5000/assess', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            className,
-            assignmentId,
-            studentName,
-            studentData
-        })
-    });
-    return await response.json();
+    const controller = new AbortController();
+    const timeoutMs = 120000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const response = await fetch('http://localhost:5000/assess', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+                className,
+                assignmentId,
+                studentName,
+                studentData
+            })
+        });
+        return await response.json();
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            return { error: `Timeout nach ${Math.round(timeoutMs / 1000)}s bei der Bewertung.` };
+        }
+        return { error: error.message || 'Netzwerkfehler bei /assess' };
+    } finally {
+        clearTimeout(timeoutId);
+    }
 };

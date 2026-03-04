@@ -4,6 +4,68 @@ import { performAssessment, updateBulkButton } from './assessment.js';
 import { distributeFeedback } from './feedback.js';
 import { parseSimpleMarkdown } from './utils.js';
 
+const pickFirstNonEmpty = (...values) => {
+    for (const value of values) {
+        if (value === undefined || value === null) continue;
+        if (typeof value === 'object') continue;
+        const str = String(value).trim();
+        if (str && str !== 'undefined' && str !== 'null') {
+            return str;
+        }
+    }
+    return '';
+};
+
+const normalizePart = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    try {
+        return decodeURIComponent(raw).trim().toLowerCase();
+    } catch {
+        return raw.toLowerCase();
+    }
+};
+
+const makeSolutionKey = (subId, questionId) => `${normalizePart(subId)}::${normalizePart(questionId)}`;
+
+const findParsedSolution = (question, subTask) => {
+    const fromQuestion = pickFirstNonEmpty(
+        question?.parsed_solution,
+        question?.parsedSolution,
+        question?.correct_solution,
+        question?.correctSolution,
+        question?.model_solution,
+        question?.modelSolution,
+        question?.expected_answer,
+        question?.expectedAnswer,
+        question?.solution,
+        question?.answer
+    );
+    if (fromQuestion) return fromQuestion;
+
+    const solutionList = subTask?.solution?.solutions;
+    if (!Array.isArray(solutionList)) return '';
+
+    const entry = solutionList.find(sol =>
+        String(sol?.id || '') === String(question?.id || '') ||
+        String(sol?.questionId || '') === String(question?.id || '')
+    );
+    if (!entry) return '';
+
+    return pickFirstNonEmpty(
+        entry.parsed_solution,
+        entry.parsedSolution,
+        entry.correct_solution,
+        entry.correctSolution,
+        entry.model_solution,
+        entry.modelSolution,
+        entry.expected_answer,
+        entry.expectedAnswer,
+        entry.solution,
+        entry.answer
+    );
+};
+
 export const renderLiveGrid = async (cls, assId, container, ui) => {
     const { printAllBtn, exportBtn, bulkAssessBtn } = ui;
 
@@ -14,15 +76,56 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
     if (exportBtn) exportBtn.disabled = false;
     bulkAssessBtn.style.display = 'none';
 
-    container.innerHTML = '<div style="text-align:center; margin-top:2em; color:#666;"><span class="spinner"></span> Lade Master-Daten & Schüler...</div>';
+    container.innerHTML = '<div style="text-align:center; margin-top:2em; color:#666;"><span class="spinner"></span> Lade Master-Daten & Sch\u00fcler...</div>';
 
     // --- 2. Fetch Master Data (Total Questions) ---
     let masterTotalQuestions = 0;
+    const masterSolutionMap = new Map();
     try {
         const masterAss = await getMasterAssignment(assId);
         if (masterAss && masterAss.subAssignments) {
-            Object.values(masterAss.subAssignments).forEach(subTask => {
+            Object.entries(masterAss.subAssignments).forEach(([subTitle, subTask]) => {
                 if (subTask.questions) masterTotalQuestions += subTask.questions.length;
+
+                const solvedById = new Map();
+                const solutionEntries = Array.isArray(subTask?.solution?.solutions) ? subTask.solution.solutions : [];
+                solutionEntries.forEach(sol => {
+                    const solutionQuestionId = pickFirstNonEmpty(sol?.id, sol?.questionId);
+                    if (!solutionQuestionId) return;
+                    solvedById.set(
+                        makeSolutionKey(subTitle, solutionQuestionId),
+                        pickFirstNonEmpty(
+                            sol?.parsed_solution,
+                            sol?.parsedSolution,
+                            sol?.correct_solution,
+                            sol?.correctSolution,
+                            sol?.model_solution,
+                            sol?.modelSolution,
+                            sol?.expected_answer,
+                            sol?.expectedAnswer,
+                            sol?.solution,
+                            sol?.answer
+                        )
+                    );
+                });
+
+                (subTask.questions || []).forEach(question => {
+                    const key = makeSolutionKey(subTitle, question?.id);
+                    const parsedSolution = pickFirstNonEmpty(
+                        solvedById.get(key),
+                        question?.parsed_solution,
+                        question?.parsedSolution,
+                        question?.correct_solution,
+                        question?.correctSolution,
+                        question?.model_solution,
+                        question?.modelSolution,
+                        question?.expected_answer,
+                        question?.expectedAnswer,
+                        question?.solution,
+                        question?.answer
+                    );
+                    if (parsedSolution) masterSolutionMap.set(key, parsedSolution);
+                });
             });
         }
     } catch (e) { console.log("Local server offline or master not found."); }
@@ -73,6 +176,7 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
         const card = document.createElement('div');
         card.className = 'student-card';
         card.dataset.studentName = res.name;
+        card._studentData = res.data;
         card.dataset.studentData = JSON.stringify(res.data);
 
         let assignmentData = null;
@@ -107,6 +211,9 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
         const finalTotal = useMasterTotal ? masterTotalQuestions : studentTotalParams;
         const progressPercent = finalTotal > 0 ? Math.round((answeredQuestions / finalTotal) * 100) : 0;
         const progressColor = progressPercent >= 80 ? '#28a745' : progressPercent >= 50 ? '#ffc107' : '#dc3545';
+        card.dataset.progressDone = String(answeredQuestions);
+        card.dataset.progressTotal = String(finalTotal);
+        card.dataset.progressPercent = String(progressPercent);
 
         let lastUpdateStr = '-';
         if (res.data && res.data.createdAt) {
@@ -126,6 +233,12 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
             </div>
             <div class="student-stats">
                 <span class="progress-badge" style="background:${progressColor}">${answeredQuestions}/${finalTotal} ✓</span>
+                <span class="progress-export-wrap" title="Fortschritt">
+                    <span class="progress-export-bar">
+                        <span class="progress-export-fill" style="width:${progressPercent}%; background:${progressColor};"></span>
+                    </span>
+                    <span class="progress-export-label">${progressPercent}%</span>
+                </span>
                 <span class="word-count-badge">${totalWords} 📝</span>
                 <span class="last-update-badge">🕒 ${lastUpdateStr}</span>
                 <button class="live-feedback-btn" style="margin-left:5px; padding:3px 8px; border-radius:4px; border:1px solid #ccc; background:#fff; cursor:pointer; font-size:0.8em; font-weight:bold; color:#555;">⚡ Feedback</button>
@@ -141,9 +254,13 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
         cb.addEventListener('change', () => updateBulkButton(bulkAssessBtn));
 
         const feedbackBtn = header.querySelector('.live-feedback-btn');
+        const runAssessment = async () => {
+            await performAssessment(cls, assId, res.name, res.data, feedbackBtn, card);
+        };
+        card._runAssessment = runAssessment;
         feedbackBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            await performAssessment(cls, assId, res.name, res.data, feedbackBtn, card);
+            await runAssessment();
         });
 
         card.appendChild(header);
@@ -166,6 +283,10 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
                 (subTask.questions || []).forEach((q, idx) => {
                     const ans = answerMap.get(q.id);
                     const qIdString = `${subId}_${q.id}`;
+                    const parsedSolution = pickFirstNonEmpty(
+                        masterSolutionMap.get(makeSolutionKey(subId, q.id)),
+                        findParsedSolution(q, subTask)
+                    );
                     const qaWrapper = document.createElement('div');
                     qaWrapper.style.marginBottom = "20px";
 
@@ -175,6 +296,9 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
                     const feedbackSlot = document.createElement('div');
                     feedbackSlot.className = 'inline-feedback';
                     feedbackSlot.dataset.qid = qIdString;
+                    feedbackSlot.dataset.qtext = q.text || '';
+                    feedbackSlot.dataset.originalAnswer = ans || '';
+                    feedbackSlot.dataset.correctSolution = parsedSolution || '';
                     feedbackSlot.style.cssText = "display:none; background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; padding:10px; margin-bottom:10px;";
                     qaWrapper.appendChild(feedbackSlot);
 
@@ -202,7 +326,7 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
         getFeedback(cls, assId, res.name).then(data => {
             if (data && data.found && data.data) {
                 distributeFeedback(data.data, cardContent);
-                feedbackBtn.textContent = "Gespeichert ✓";
+                feedbackBtn.textContent = "Gespeichert \u2713";
                 feedbackBtn.style.backgroundColor = "#e0f2fe";
                 feedbackBtn.style.borderColor = "#bae6fd";
                 feedbackBtn.style.color = "#0369a1";
@@ -210,6 +334,24 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
         });
     });
 
+    // Print-only ranking: most completed tasks first.
+    const cardsForPrintOrder = Array.from(grid.querySelectorAll('.student-card'));
+    cardsForPrintOrder.sort((a, b) => {
+        const doneA = parseInt(a.dataset.progressDone || '0', 10);
+        const doneB = parseInt(b.dataset.progressDone || '0', 10);
+        if (doneB !== doneA) return doneB - doneA;
+
+        const pctA = parseInt(a.dataset.progressPercent || '0', 10);
+        const pctB = parseInt(b.dataset.progressPercent || '0', 10);
+        if (pctB !== pctA) return pctB - pctA;
+
+        return (a.dataset.studentName || '').localeCompare(b.dataset.studentName || '', 'de', { sensitivity: 'base' });
+    });
+    cardsForPrintOrder.forEach((card, index) => {
+        card.style.setProperty('--print-order', String(index));
+    });
+
     container.innerHTML = '';
     container.appendChild(grid);
 };
+

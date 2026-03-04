@@ -9,6 +9,10 @@
     <link rel="stylesheet" href="teacher.css">
 
     <style>
+        .progress-export-wrap {
+            display: none;
+        }
+
         /* --- PRINT STYLES --- */
         @media print {
             body * {
@@ -26,8 +30,8 @@
                 top: 0;
                 width: 100%;
                 display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 15px;
+                grid-template-columns: 1fr;
+                gap: 8px;
             }
 
             .student-card {
@@ -36,6 +40,7 @@
                 box-shadow: none;
                 margin: 0;
                 padding: 0;
+                order: var(--print-order, 0);
             }
 
             .student-header {
@@ -66,8 +71,44 @@
                 font-weight: bold;
                 border: 1px solid #000;
                 color: #000 !important;
+                background: #fff !important;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
+            }
+
+            .student-stats {
+                gap: 10px;
+            }
+
+            .progress-export-wrap {
+                display: inline-flex !important;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .progress-export-bar {
+                width: 110px;
+                height: 10px;
+                border: 1px solid #666;
+                background: #f3f4f6;
+                border-radius: 999px;
+                overflow: hidden;
+            }
+
+            .progress-export-fill {
+                display: block;
+                height: 100%;
+                background: #2563eb;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .progress-export-label {
+                font-size: 11px;
+                font-weight: 700;
+                color: #222;
+                min-width: 38px;
+                text-align: right;
             }
 
             #print-header {

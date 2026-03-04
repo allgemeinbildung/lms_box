@@ -77,15 +77,34 @@ export const setupBulkAssessment = (ui) => {
 
             const studentName = cb.dataset.studentName;
             const card = cb.closest('.student-card');
+            if (!card) continue;
             const feedbackBtn = card.querySelector('.live-feedback-btn');
 
-            const studentData = JSON.parse(card.dataset.studentData || "{}");
             const cls = classSelect.value;
             const assId = assignmentSelect.value;
 
-            if (studentData && cls && assId) {
-                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                await performAssessment(cls, assId, studentName, studentData, feedbackBtn, card);
+            if (cls && assId) {
+                bulkProgressText.textContent = `${processed + 1} / ${total} - ${studentName}`;
+                card.scrollIntoView({ behavior: 'auto', block: 'center' });
+
+                if (typeof card._runAssessment === 'function') {
+                    await card._runAssessment();
+                } else {
+                    let studentData = card ? card._studentData : null;
+                    if (!studentData && card && card.dataset && card.dataset.studentData) {
+                        try {
+                            studentData = JSON.parse(card.dataset.studentData);
+                        } catch (e) {
+                            console.warn(`Bulk assess: invalid studentData for ${studentName}`, e);
+                            studentData = null;
+                        }
+                    }
+                    if (studentData) {
+                        await performAssessment(cls, assId, studentName, studentData, feedbackBtn, card);
+                    } else {
+                        console.warn(`Bulk assess: no student data for ${studentName}`);
+                    }
+                }
             }
 
             processed++;

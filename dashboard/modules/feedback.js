@@ -1,5 +1,45 @@
 import { showPrintDialog, printFeedback } from './printer.js';
 
+const pickFirstNonEmpty = (...values) => {
+    for (const value of values) {
+        if (value === undefined || value === null) continue;
+        if (typeof value === 'object') continue;
+        const str = String(value).trim();
+        if (str && str !== 'undefined' && str !== 'null') {
+            return str;
+        }
+    }
+    return '';
+};
+
+const getOriginalAnswerFromResult = (item, fallbackSlot) => {
+    return pickFirstNonEmpty(
+        item.original_answer,
+        item.originalAnswer,
+        item.student_answer,
+        item.studentAnswer,
+        item.student_response,
+        item.studentResponse,
+        item.answer,
+        fallbackSlot?.dataset.originalAnswer
+    );
+};
+
+const getSolutionFromResult = (item, fallbackSlot) => {
+    return pickFirstNonEmpty(
+        item.correct_solution,
+        item.correctSolution,
+        item.parsed_correct_solution,
+        item.parsedCorrectSolution,
+        item.model_solution,
+        item.modelSolution,
+        item.expected_answer,
+        item.expectedAnswer,
+        item.solution,
+        fallbackSlot?.dataset.correctSolution
+    );
+};
+
 export const distributeFeedback = (feedbackData, container) => {
     // Clean existing header
     const existingHeader = container.querySelector('.feedback-controls-header');
@@ -81,11 +121,21 @@ export const distributeFeedback = (feedbackData, container) => {
         const sName = card ? card.dataset.studentName : "Student";
         // Assuming element exists in DOM
         const cls = document.getElementById('class-select') ? document.getElementById('class-select').value : 'Class';
+        const assId = document.getElementById('assignment-select') ? document.getElementById('assignment-select').value : 'Aufgabe';
+        const slotsByQid = new Map(Array.from(container.querySelectorAll('.inline-feedback')).map(slot => [slot.dataset.qid, slot]));
 
         const printPayload = {
             student_name: sName,
             date_str: currentItem.date_str,
-            results: currentItem.results
+            results: (currentItem.results || []).map(item => {
+                const slot = slotsByQid.get(item.question_id);
+                return {
+                    ...item,
+                    question_text: pickFirstNonEmpty(item.question_text, slot?.dataset.qtext),
+                    original_answer: getOriginalAnswerFromResult(item, slot),
+                    correct_solution: getSolutionFromResult(item, slot)
+                };
+            })
         };
         showPrintDialog((mode, includePoints) => { printFeedback(cls, sName, assId, printPayload, mode, includePoints); });
     });
@@ -120,7 +170,13 @@ export const distributeFeedback = (feedbackData, container) => {
                 targetSlot.dataset.score = item.score;
                 targetSlot.dataset.concise = item.concise_feedback;
                 targetSlot.dataset.detailed = item.detailed_feedback;
-                targetSlot.dataset.qtext = item.question_text;
+                const questionText = pickFirstNonEmpty(item.question_text, targetSlot.dataset.qtext);
+                const originalAnswer = getOriginalAnswerFromResult(item, targetSlot);
+                const correctSolution = getSolutionFromResult(item, targetSlot);
+
+                targetSlot.dataset.qtext = questionText;
+                targetSlot.dataset.originalAnswer = originalAnswer;
+                targetSlot.dataset.correctSolution = correctSolution;
                 targetSlot.style.display = 'block';
             }
         });

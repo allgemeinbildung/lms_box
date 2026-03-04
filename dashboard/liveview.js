@@ -233,7 +233,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         question_text: slot.dataset.qtext,
                         score: parseInt(slot.dataset.score),
                         concise_feedback: slot.dataset.concise,
-                        detailed_feedback: slot.dataset.detailed
+                        detailed_feedback: slot.dataset.detailed,
+                        original_answer: slot.dataset.originalAnswer || '',
+                        correct_solution: slot.dataset.correctSolution || ''
                     });
                 });
 
