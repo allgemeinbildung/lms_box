@@ -9,8 +9,8 @@ body {
 
 #assignment-container {
     max-width: 900px;
-    margin: 2em auto;
-    padding: 2em;
+    margin: 1em auto;
+    padding: 1.5em;
     background-color: #fff;
     border-radius: 8px;
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.07);
@@ -24,10 +24,19 @@ body {
 /* Style subtitle with small margin at top */
 #sub-title {
     margin-top: 0.5em;
-    margin-bottom: 1em;
+    margin-bottom: 0.5em;
     font-size: 1.2em;
     font-weight: 600;
     color: #495057;
+}
+
+.question-block {
+    margin-bottom: 1.2em;
+}
+
+.question-block p {
+    margin-top: 0;
+    margin-bottom: 0.5em;
 }
 
 #assignment-header h2 {

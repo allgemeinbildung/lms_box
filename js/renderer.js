@@ -174,7 +174,6 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
     data.questions.forEach((question, index) => {
         const questionBlock = document.createElement('div');
         questionBlock.className = 'question-block';
-        questionBlock.style.marginBottom = '2.5em';
 
         const questionText = document.createElement('p');
         questionText.innerHTML = `<strong>${index + 1}.</strong> ${parseMarkdown(question.text)}`;

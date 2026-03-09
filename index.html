@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,21 +8,22 @@
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
 </head>
+
 <body>
     <div id="assignment-container">
         <header id="assignment-header">
             <h2 id="main-title">Lade Aufgabe...</h2>
             <h3 id="sub-title"></h3>
         </header>
-        
+
         <main id="content-renderer"></main>
-        
+
         <!-- ✅ AKTUALISIERT: Diese Sektion wird nun immer angezeigt, wenn eine Lösung existiert. -->
         <!-- Das <details>-Element ist standardmässig geschlossen. -->
-        <div id="solution-section" style="display: none; margin-top: 20px;">
+        <div id="solution-section" style="display: none; margin-top: 10px;">
             <details id="solution-dropdown">
                 <summary>Musterlösung anzeigen</summary>
-                
+
                 <div id="solution-unlock-container" style="margin-top: 10px;">
                     <!-- Das Eingabefeld wird von renderer.js hier eingefügt -->
                 </div>
@@ -32,7 +34,7 @@
             </details>
         </div>
 
-        <div id="action-container" style="margin-top: 20px;">
+        <div id="action-container" style="margin-top: 10px;">
             <button id="print-answers">PDF 🖨</button>
         </div>
     </div>
@@ -40,4 +42,5 @@
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
     <script src="js/app.js" type="module"></script>
 </body>
+
 </html>
