@@ -190,7 +190,14 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
         questionBlock.appendChild(editorDiv);
         contentRenderer.appendChild(questionBlock);
 
-        const quill = new Quill(editorDiv, { theme: 'snow' });
+        const quill = new Quill(editorDiv, {
+            theme: 'snow',
+            placeholder: 'Deine Antwort...',
+            modules: {
+                toolbar: false
+            },
+            formats: []
+        });
         const storageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}_q_${question.id}`;
 
         // --- ✅ FIX PART 1: Async Initialization ---
