@@ -10,6 +10,7 @@ import { renderLiveGrid } from './modules/renderer.js';
 import { setupAnalysisExport, setupRawDownload } from './modules/exporter.js';
 import { setupBulkAssessment } from './modules/assessment.js';
 import { setupPrintAll } from './modules/printer.js';
+import { setupBulkFreigabe } from './modules/bulkFreigabe.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -33,6 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Export Button
     const exportBtn = document.getElementById('export-analysis-btn');
+
+    // Bulk Freigabe Button
+    const bulkFreigabeBtn = document.getElementById('bulk-freigabe-btn');
 
     // Print Button Logic
     let printAllBtn = document.getElementById('print-all-btn');
@@ -204,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Feature Setups ---
 
-    // Bulk
+    // Bulk Assessment
     setupBulkAssessment({
         selectAllBtn, bulkAssessBtn, cancelBulkBtn, bulkProgressOverlay,
         bulkProgressBar, bulkProgressText, classSelect, assignmentSelect
@@ -213,6 +217,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Export/Download
     if (exportBtn) setupAnalysisExport(exportBtn, () => ({ cls: classSelect.value, assId: assignmentSelect.value }));
     if (downloadBtn) setupRawDownload(downloadBtn, () => ({ cls: classSelect.value, assId: assignmentSelect.value }));
+
+    // Bulk Freigabe (release all feedback at once)
+    if (bulkFreigabeBtn) setupBulkFreigabe(bulkFreigabeBtn, () => assignmentSelect.value);
 
     // Print
     setupPrintAll(printAllBtn, () => {

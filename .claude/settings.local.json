@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import json; d=json.load\\(open\\(''d:/OneDrive - bbw.ch/+GIT/+ORGs/lms_json/1.1 Schule und Betrieb.json'', encoding=''utf-8''\\)\\); print\\(json.dumps\\({k: d[k] if k != ''subAssignments'' else {sk: {kk: vv if kk != ''questions'' else vv[:1] for kk, vv in sv.items\\(\\)} for sk, sv in list\\(d[k].items\\(\\)\\)[:1]}, ''solution_keys'': d.get\\(''solution_keys''\\)}, indent=2, ensure_ascii=False\\)[:2000]\\)\")"
+    ]
+  }
+}

@@ -1,4 +1,5 @@
 import { showPrintDialog, printFeedback } from './printer.js';
+import { publishFeedback } from './api.js';
 
 const pickFirstNonEmpty = (...values) => {
     for (const value of values) {
@@ -38,6 +39,97 @@ const getSolutionFromResult = (item, fallbackSlot) => {
         item.solution,
         fallbackSlot?.dataset.correctSolution
     );
+};
+
+const getCurrentFeedbackItem = (feedbackData) => {
+    if (feedbackData.history && Array.isArray(feedbackData.history) && feedbackData.history.length > 0) {
+        return feedbackData.history[feedbackData.history.length - 1];
+    }
+    return { results: feedbackData.results, date_str: feedbackData.date_str };
+};
+
+export const showPublishPanel = (card, feedbackData, assignmentId, isPublished = false, existingSettings = null) => {
+    const studentKey = card.dataset.studentKey;
+    if (!studentKey) return;
+    // Always keep the latest feedbackData accessible for bulk-freigabe
+    card._feedbackData = feedbackData;
+
+    const existing = card.querySelector('.publish-panel');
+    if (existing) existing.remove();
+
+    const defaults = { kurzbericht: true, ausfuehrlich: true, punkte: true, loesung: false };
+    const settings = existingSettings || defaults;
+    const isReleased = { value: isPublished };
+
+    const panel = document.createElement('div');
+    panel.className = 'publish-panel';
+    panel.style.cssText = 'background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:8px 12px; margin:4px 0 0 0; display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:0.82em;';
+
+    panel.innerHTML = `
+        <span style="font-weight:600; color:#92400e;">Freigeben:</span>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer; color:#555;">
+            <input type="checkbox" class="release-check-kurz" ${settings.kurzbericht !== false ? 'checked' : ''}> Kurzbericht
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer; color:#555;">
+            <input type="checkbox" class="release-check-detail" ${settings.ausfuehrlich !== false ? 'checked' : ''}> Ausführlich
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer; color:#555;">
+            <input type="checkbox" class="release-check-punkte" ${settings.punkte !== false ? 'checked' : ''}> Punkte
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; cursor:pointer; color:#555;">
+            <input type="checkbox" class="release-check-loesung" ${settings.loesung ? 'checked' : ''}> Lösungsschlüssel
+        </label>
+        <button class="release-toggle-btn" style="padding:3px 10px; border-radius:4px; border:none; cursor:pointer; font-weight:bold; background:${isPublished ? '#dc2626' : '#16a34a'}; color:white;">
+            ${isPublished ? '🔒 Zurückziehen' : '🔓 Freigeben'}
+        </button>
+        <span class="release-status" style="color:#666;"></span>
+    `;
+
+    const btn = panel.querySelector('.release-toggle-btn');
+    const statusEl = panel.querySelector('.release-status');
+
+    const getCurrentSettings = () => ({
+        kurzbericht: panel.querySelector('.release-check-kurz').checked,
+        ausfuehrlich: panel.querySelector('.release-check-detail').checked,
+        punkte: panel.querySelector('.release-check-punkte').checked,
+        loesung: panel.querySelector('.release-check-loesung').checked
+    });
+
+    // Auto-save settings when a checkbox changes (only if already released)
+    panel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', async () => {
+            if (!isReleased.value) return;
+            statusEl.textContent = '⏳ Speichere...';
+            const currentItem = getCurrentFeedbackItem(feedbackData);
+            const result = await publishFeedback(studentKey, assignmentId, currentItem, getCurrentSettings(), true);
+            statusEl.textContent = result.status === 'success' ? '✓ Gespeichert' : '❌ Fehler';
+        });
+    });
+
+    btn.addEventListener('click', async () => {
+        const newState = !isReleased.value;
+        btn.disabled = true;
+        btn.textContent = '⏳ ...';
+        statusEl.textContent = '';
+
+        const currentItem = getCurrentFeedbackItem(feedbackData);
+        const result = await publishFeedback(studentKey, assignmentId, currentItem, getCurrentSettings(), newState);
+
+        if (result.status === 'success') {
+            isReleased.value = newState;
+            btn.disabled = false;
+            btn.style.background = newState ? '#dc2626' : '#16a34a';
+            btn.textContent = newState ? '🔒 Zurückziehen' : '🔓 Freigeben';
+            statusEl.textContent = newState ? '✓ Freigegeben' : '✓ Zurückgezogen';
+        } else {
+            btn.disabled = false;
+            btn.textContent = isReleased.value ? '🔒 Zurückziehen' : '🔓 Freigeben';
+            statusEl.textContent = '❌ Fehler';
+        }
+    });
+
+    const header = card.querySelector('.student-header');
+    if (header) header.insertAdjacentElement('afterend', panel);
 };
 
 export const distributeFeedback = (feedbackData, container) => {

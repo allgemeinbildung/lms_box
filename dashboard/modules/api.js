@@ -54,6 +54,47 @@ export const getFeedback = async (className, assignmentId, studentName) => {
     }
 };
 
+export const publishFeedback = async (targetStudentKey, assignmentId, feedbackData, releaseSettings, released) => {
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'saveFeedback',
+                teacherKey: state.currentTeacherKey,
+                targetStudentKey,
+                assignmentId,
+                feedbackData,
+                releaseSettings,
+                released
+            })
+        });
+        return await response.json();
+    } catch (e) {
+        return { status: 'error', message: e.message };
+    }
+};
+
+export const getPublishedFeedbackStatus = async (targetStudentKey, assignmentId) => {
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'getFeedbackStatus',
+                teacherKey: state.currentTeacherKey,
+                targetStudentKey,
+                assignmentId
+            })
+        });
+        return await response.json();
+    } catch (e) {
+        return { found: false, released: false, releaseSettings: {} };
+    }
+};
+
 export const assessStudent = async (className, assignmentId, studentName, studentData) => {
     const controller = new AbortController();
     const timeoutMs = 120000;

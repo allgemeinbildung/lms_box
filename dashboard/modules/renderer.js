@@ -1,7 +1,7 @@
 import { state } from './state.js';
-import { fetchDraftContent, getMasterAssignment, getFeedback } from './api.js';
+import { fetchDraftContent, getMasterAssignment, getFeedback, getPublishedFeedbackStatus } from './api.js';
 import { performAssessment, updateBulkButton } from './assessment.js';
-import { distributeFeedback } from './feedback.js';
+import { distributeFeedback, showPublishPanel } from './feedback.js';
 import { parseSimpleMarkdown } from './utils.js';
 
 const pickFirstNonEmpty = (...values) => {
@@ -164,7 +164,8 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
             } catch (e) { /* continue searching */ }
         }
 
-        return { name, data: correctData };
+        const studentKey = files[0]?.path?.split('/')[1] || '';
+        return { name, data: correctData, studentKey };
     });
 
     const results = await Promise.all(promises);
@@ -178,6 +179,8 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
         card.dataset.studentName = res.name;
         card._studentData = res.data;
         card.dataset.studentData = JSON.stringify(res.data);
+        const studentKey = res.studentKey || '';
+        card.dataset.studentKey = studentKey;
 
         let assignmentData = null;
         if (res.data && res.data.assignments) {
@@ -326,10 +329,17 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
         getFeedback(cls, assId, res.name).then(data => {
             if (data && data.found && data.data) {
                 distributeFeedback(data.data, cardContent);
+                card._feedbackData = data.data; // stored for bulk-freigabe
                 feedbackBtn.textContent = "Gespeichert \u2713";
                 feedbackBtn.style.backgroundColor = "#e0f2fe";
                 feedbackBtn.style.borderColor = "#bae6fd";
                 feedbackBtn.style.color = "#0369a1";
+
+                if (studentKey) {
+                    getPublishedFeedbackStatus(studentKey, assId).then(status => {
+                        showPublishPanel(card, data.data, assId, status.released || false, status.releaseSettings || null);
+                    });
+                }
             }
         });
     });

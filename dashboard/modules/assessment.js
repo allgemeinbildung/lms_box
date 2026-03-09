@@ -1,5 +1,5 @@
 import { assessStudent } from './api.js';
-import { distributeFeedback } from './feedback.js';
+import { distributeFeedback, showPublishPanel } from './feedback.js';
 
 let stopBulkFlag = false;
 
@@ -14,6 +14,7 @@ export const performAssessment = async (className, assignmentId, studentName, st
 
         const contentArea = card.querySelector('.student-card-content');
         distributeFeedback(result, contentArea);
+        showPublishPanel(card, result, assignmentId, false, null);
 
         if (!card.classList.contains('open')) card.classList.add('open');
         feedbackBtn.textContent = "Fertig ✓";

@@ -3,6 +3,7 @@ import { renderSubAssignment } from './renderer.js';
 import { printAssignmentAnswers } from './printer.js';
 import { submitAllAssignments } from './submission.js';
 import { authenticate } from './auth.js';
+import { fetchAndRenderStudentFeedback } from './studentFeedback.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -52,6 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!subAssignmentData) throw new Error(`Teilaufgabe "${subId}" nicht gefunden.`);
         
         renderSubAssignment(assignmentData, assignmentId, subId, studentKey, mode, draftData);
+        fetchAndRenderStudentFeedback(SCRIPT_URL, studentKey, assignmentId, subId, mode);
 
     } catch (error) {
         console.error('Fehler beim Laden der Aufgabe:', error);
