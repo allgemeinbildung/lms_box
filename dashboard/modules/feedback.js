@@ -48,7 +48,7 @@ const getCurrentFeedbackItem = (feedbackData) => {
     return { results: feedbackData.results, date_str: feedbackData.date_str };
 };
 
-export const showPublishPanel = (card, feedbackData, assignmentId, isPublished = false, existingSettings = null) => {
+export const showPublishPanel = (card, feedbackData, assignmentId, isPublished = false, existingSettings = null, versionIndex = null) => {
     const studentKey = card.dataset.studentKey;
     if (!studentKey) return;
     // Always keep the latest feedbackData accessible for bulk-freigabe
@@ -95,13 +95,20 @@ export const showPublishPanel = (card, feedbackData, assignmentId, isPublished =
         loesung: panel.querySelector('.release-check-loesung').checked
     });
 
+    const getVersionToPublish = () => {
+        if (versionIndex !== null && feedbackData.history && feedbackData.history[versionIndex]) {
+            return feedbackData.history[versionIndex];
+        }
+        return getCurrentFeedbackItem(feedbackData);
+    };
+
     // Auto-save settings when a checkbox changes (only if already released)
     panel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
         cb.addEventListener('change', async () => {
             if (!isReleased.value) return;
             statusEl.textContent = '⏳ Speichere...';
-            const currentItem = getCurrentFeedbackItem(feedbackData);
-            const result = await publishFeedback(studentKey, assignmentId, currentItem, getCurrentSettings(), true);
+            const item = getVersionToPublish();
+            const result = await publishFeedback(studentKey, assignmentId, item, getCurrentSettings(), true);
             statusEl.textContent = result.status === 'success' ? '✓ Gespeichert' : '❌ Fehler';
         });
     });
@@ -112,8 +119,8 @@ export const showPublishPanel = (card, feedbackData, assignmentId, isPublished =
         btn.textContent = '⏳ ...';
         statusEl.textContent = '';
 
-        const currentItem = getCurrentFeedbackItem(feedbackData);
-        const result = await publishFeedback(studentKey, assignmentId, currentItem, getCurrentSettings(), newState);
+        const item = getVersionToPublish();
+        const result = await publishFeedback(studentKey, assignmentId, item, getCurrentSettings(), newState);
 
         if (result.status === 'success') {
             isReleased.value = newState;
@@ -132,7 +139,7 @@ export const showPublishPanel = (card, feedbackData, assignmentId, isPublished =
     if (header) header.insertAdjacentElement('afterend', panel);
 };
 
-export const distributeFeedback = (feedbackData, container) => {
+export const distributeFeedback = (feedbackData, container, versionIndex = null) => {
     // Clean existing header
     const existingHeader = container.querySelector('.feedback-controls-header');
     if (existingHeader) existingHeader.remove();
@@ -142,13 +149,35 @@ export const distributeFeedback = (feedbackData, container) => {
     let versionCount = 1;
 
     // Check for history
-    if (feedbackData.history && Array.isArray(feedbackData.history)) {
+    const historyFlags = feedbackData.history && Array.isArray(feedbackData.history);
+    if (historyFlags) {
         versionCount = feedbackData.history.length;
-        currentItem = feedbackData.history[versionCount - 1];
-        if (versionCount >= 2) {
-            previousItem = feedbackData.history[versionCount - 2];
+        // If versionIndex is specified, use it (0-indexed)
+        const activeIdx = (versionIndex !== null && versionIndex >= 0 && versionIndex < versionCount) 
+            ? versionIndex 
+            : (versionCount - 1);
+        
+        currentItem = feedbackData.history[activeIdx];
+        if (activeIdx > 0) {
+            previousItem = feedbackData.history[activeIdx - 1];
         }
     }
+
+    // --- Version Selector UI ---
+    let versionSelectorHtml = '';
+    if (historyFlags && versionCount > 1) {
+        const activeIdx = (versionIndex !== null) ? versionIndex : (versionCount - 1);
+        versionSelectorHtml = `
+            <div class="version-selector" style="display:flex; gap:4px; margin-left:10px; align-items:center;">
+                ${feedbackData.history.map((h, i) => {
+                    const isActive = i === activeIdx;
+                    return `<span class="v-tag" data-idx="${i}" style="cursor:pointer; font-size:0.75em; padding:2px 6px; border-radius:10px; font-weight:bold; transition:all 0.2s; 
+                        ${isActive ? 'background:#0369a1; color:white; scale:1.1;' : 'background:#e0f2fe; color:#0369a1; opacity:0.7;'}">v${i + 1}</span>`;
+                }).join('')}
+            </div>
+        `;
+    }
+
 
     // --- Delta Logic (History comparison) ---
     const calculateStats = (results) => {
@@ -189,7 +218,7 @@ export const distributeFeedback = (feedbackData, container) => {
     }
 
     const dateStr = currentItem.date_str || "Gespeichert";
-    const versionLabel = versionCount > 1 ? ` <span style="font-size:0.8em; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:10px; margin-left:5px;">v${versionCount}</span>` : "";
+    const versionLabel = (versionCount > 1 && !historyFlags) ? ` <span style="font-size:0.8em; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:10px; margin-left:5px;">v${versionCount}</span>` : "";
 
     // Create Header
     const controlsHeader = document.createElement('div');
@@ -199,8 +228,9 @@ export const distributeFeedback = (feedbackData, container) => {
     controlsHeader.innerHTML = `
         <div style="font-size:0.9em; color:#0369a1; display:flex; align-items:center;">
             <strong>⚡ Status:</strong> 
-            <span style="color:#555; margin-left:5px;">${dateStr}</span>
+            <span style="color:#555; margin-left:5px; margin-right:5px;">${dateStr}</span>
             ${versionLabel}
+            ${versionSelectorHtml}
             ${deltaHtml}
         </div>
         <button class="print-single-btn" style="border:none; background:none; cursor:pointer; font-size:1.2em;" title="Feedback drucken">🖨️</button>
@@ -230,6 +260,29 @@ export const distributeFeedback = (feedbackData, container) => {
             })
         };
         showPrintDialog((mode, includePoints) => { printFeedback(cls, sName, assId, printPayload, mode, includePoints); });
+    });
+
+    // Version Selection Handler
+    controlsHeader.querySelectorAll('.v-tag').forEach(tag => {
+        tag.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const idx = parseInt(tag.dataset.idx);
+            distributeFeedback(feedbackData, container, idx);
+            // Also notify the card about the "visible" version so Freigeben works correctly
+            const card = container.closest('.student-card');
+            if (card) {
+                // We update the publish panel too
+                const studentKey = card.dataset.studentKey;
+                const assId = document.getElementById('assignment-select')?.value;
+                if (studentKey && assId) {
+                    import('./api.js').then(({ getPublishedFeedbackStatus }) => {
+                        getPublishedFeedbackStatus(studentKey, assId).then(status => {
+                            showPublishPanel(card, feedbackData, assId, status.released || false, status.releaseSettings || null, idx);
+                        });
+                    });
+                }
+            }
+        });
     });
 
     container.prepend(controlsHeader);
