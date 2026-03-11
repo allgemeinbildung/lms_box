@@ -71,6 +71,7 @@ export const showPrintDialog = (onConfirm) => {
         </div>
 
         <div style="display:flex; flex-direction:column; gap:10px;">
+            <button id="print-list" style="padding:12px; border:1px solid #28a745; background:#eafff0; color:#1a7a2e; border-radius:4px; cursor:pointer; font-weight:bold;">Nur Namensliste (Name + Stand)</button>
             <button id="print-full" style="padding:12px; border:1px solid #007bff; background:#e9f3ff; color:#0056b3; border-radius:4px; cursor:pointer; font-weight:bold;">Ausf&uuml;hrlicher Bericht (Beides)</button>
             <button id="print-full-context" style="padding:12px; border:1px solid #0056b3; background:#dbeafe; color:#003f8a; border-radius:4px; cursor:pointer; font-weight:bold;">Ausf&uuml;hrlich + Originalantwort + Musterl&ouml;sung</button>
             <button id="print-concise" style="padding:12px; border:1px solid #ccc; background:#fff; color:#333; border-radius:4px; cursor:pointer;">Kurzbericht (Nur 'Was fehlt')</button>
@@ -84,6 +85,10 @@ export const showPrintDialog = (onConfirm) => {
     const close = () => dialogOverlay.remove();
     const getPointsOption = () => dialogBox.querySelector('#print-points-check').checked;
 
+    dialogBox.querySelector('#print-list').addEventListener('click', () => {
+        close();
+        onConfirm('list', false);
+    });
     dialogBox.querySelector('#print-full').addEventListener('click', () => {
         const includePoints = getPointsOption();
         close();
@@ -106,12 +111,13 @@ export const showPrintDialog = (onConfirm) => {
 export const generatePrintHTML = (feedbackList, className, assignmentName, mode, includePoints, studentList = []) => {
     let bodyContent = '';
     const date = new Date().toLocaleDateString('de-DE');
-    const showDetailed = mode === 'full' || mode === 'full_with_context';
-    const showContext = mode === 'full_with_context';
+    const isListMode = mode === 'list';
+    const showDetailed = (mode === 'full' || mode === 'full_with_context') && !isListMode;
+    const showContext = mode === 'full_with_context' && !isListMode;
 
     const safeAssignmentName = assignmentName || 'Aufgabe';
     const sanitizedAssignment = safeAssignmentName.replace(/[\s\W]+/g, '_');
-    const pageTitle = `${className}_${sanitizedAssignment}`;
+    const pageTitle = isListMode ? `Liste_${className}_${sanitizedAssignment}` : `${className}_${sanitizedAssignment}`;
 
     let studentListHtml = '';
     if (studentList.length > 0) {
@@ -128,13 +134,22 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
             });
 
         studentListHtml = `
-        <div style="margin-top:40px; text-align:left; max-width:600px; margin-left:auto; margin-right:auto;">
-            <h3 style="border-bottom:1px solid #eee; padding-bottom:10px;">Teilnehmer&uuml;bersicht</h3>
+        <div style="margin-top:40px; text-align:left; max-width:${isListMode ? '500px' : '600px'}; margin-left:auto; margin-right:auto;">
+            <h3 style="border-bottom:1px solid #eee; padding-bottom:10px;">Lernende</h3>
             <div class="overview-list">
                 ${rankedStudents.map(s => {
-                    const hasDone = withFeedback.has(s.name);
-                    const barColor = s.percent >= 80 ? '#22c55e' : s.percent >= 50 ? '#f59e0b' : '#ef4444';
-                    return `
+            const hasDone = withFeedback.has(s.name);
+            const barColor = s.percent >= 80 ? '#22c55e' : s.percent >= 50 ? '#f59e0b' : '#ef4444';
+
+            if (isListMode) {
+                return `
+                        <div class="overview-row list-only" style="justify-content: space-between; border: none; border-bottom: 1px solid #f0f0f0; border-radius: 0; padding: 6px 0;">
+                            <span class="overview-name" style="font-size: 1.1em; color: #333;">${s.name}</span>
+                            <span class="overview-score" style="font-size: 1.1em; font-weight: bold; color: #000;">${s.done}/${s.total} ${hasDone ? '✓' : ''}</span>
+                        </div>`;
+            }
+
+            return `
                     <div class="overview-row ${hasDone ? 'is-done' : 'is-pending'}">
                         <div class="overview-left">
                             <span class="overview-status">${hasDone ? 'OK' : 'X'}</span>
@@ -148,7 +163,7 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
                             <span class="overview-percent">${s.percent}%</span>
                         </div>
                     </div>`;
-                }).join('')}
+        }).join('')}
             </div>
         </div>`;
     }
@@ -157,20 +172,21 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
     const totalCount = studentList.length || feedbackList.length;
 
     bodyContent += `
-    <div class="page no-print-break" style="text-align:center; padding-top:60px;">
-        <h1 style="font-size:3em; color:#0056b3; margin-bottom:10px;">${className}</h1>
-        <h2 style="font-size:1.8em; color:#333;">${safeAssignmentName}</h2>
-        <div style="margin: 30px 0; font-size: 1.5em; font-weight: bold; color: #0056b3;">
-            <span style="background: #e0f2fe; padding: 10px 20px; border-radius: 50px;">
+    <div class="page no-print-break" style="text-align:center; padding-top:${isListMode ? '20px' : '60px'};">
+        <h1 style="font-size:${isListMode ? '2em' : '3em'}; color:#0056b3; margin-bottom:10px;">${className}</h1>
+        <h2 style="font-size:${isListMode ? '1.2em' : '1.8em'}; color:#333;">${safeAssignmentName}</h2>
+        <div style="margin: ${isListMode ? '15px' : '30px'} 0; font-size: ${isListMode ? '1.1em' : '1.5em'}; font-weight: bold; color: #0056b3;">
+            <span style="background: #e0f2fe; padding: ${isListMode ? '5px 15px' : '10px 20px'}; border-radius: 50px;">
                 Abgeschlossen: ${doneCount} / ${totalCount}
             </span>
         </div>
-        <p style="color:#666; font-size:1.1em;">Zusammenfassender Bericht - Erstellt am ${date}</p>
+        <p style="color:#666; font-size:${isListMode ? '0.9em' : '1.1em'};">${date}</p>
         ${studentListHtml}
     </div>`;
 
-    feedbackList.forEach(fb => {
-        bodyContent += `
+    if (!isListMode) {
+        feedbackList.forEach(fb => {
+            bodyContent += `
         <div class="page">
             <div class="header">
                 <h2>Feedback: ${safeAssignmentName}</h2>
@@ -179,44 +195,44 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
             <hr>
             <div class="feedback-list">`;
 
-        let lastSection = "";
+            let lastSection = "";
 
-        (fb.results || []).forEach(item => {
-            let currentSection = "";
-            if (item.question_id) {
-                const parts = item.question_id.split('_');
-                if (parts.length > 0) currentSection = parts[0];
-            }
+            (fb.results || []).forEach(item => {
+                let currentSection = "";
+                if (item.question_id) {
+                    const parts = item.question_id.split('_');
+                    if (parts.length > 0) currentSection = parts[0];
+                }
 
-            if (currentSection && currentSection !== lastSection) {
-                bodyContent += `<h3 class="section-header">${currentSection}</h3>`;
-                lastSection = currentSection;
-            }
+                if (currentSection && currentSection !== lastSection) {
+                    bodyContent += `<h3 class="section-header">${currentSection}</h3>`;
+                    lastSection = currentSection;
+                }
 
-            let colorClass = 'score-low';
-            if (item.score === 2) colorClass = 'score-mid';
-            if (item.score === 3) colorClass = 'score-high';
+                let colorClass = 'score-low';
+                if (item.score === 2) colorClass = 'score-mid';
+                if (item.score === 3) colorClass = 'score-high';
 
-            const formattedQuestion = parseSimpleMarkdown(item.question_text || '');
-            let scoreBadge = '';
-            if (includePoints) {
-                scoreBadge = `<span class="badge ${colorClass}">Punkte: ${item.score}</span>`;
-            }
+                const formattedQuestion = parseSimpleMarkdown(item.question_text || '');
+                let scoreBadge = '';
+                if (includePoints) {
+                    scoreBadge = `<span class="badge ${colorClass}">Punkte: ${item.score}</span>`;
+                }
 
-            bodyContent += `
+                bodyContent += `
                 <div class="item">
                     <div class="question">${formattedQuestion}</div>
                     <div class="concise">${scoreBadge} ${item.concise_feedback || ''}</div>`;
 
-            if (showDetailed) {
-                bodyContent += `<div class="detailed">${item.detailed_feedback || ''}</div>`;
-            }
+                if (showDetailed) {
+                    bodyContent += `<div class="detailed">${item.detailed_feedback || ''}</div>`;
+                }
 
-            if (showContext) {
-                const originalAnswer = formatReportContent(getOriginalAnswer(item));
-                const correctSolution = formatReportContent(getCorrectSolution(item));
+                if (showContext) {
+                    const originalAnswer = formatReportContent(getOriginalAnswer(item));
+                    const correctSolution = formatReportContent(getCorrectSolution(item));
 
-                bodyContent += `
+                    bodyContent += `
                     <div class="context-box">
                         <div class="context-title">Originalantwort Sch&uuml;ler:in</div>
                         <div class="context-body ${originalAnswer ? '' : 'context-empty'}">${originalAnswer || 'Keine Antwort vorhanden.'}</div>
@@ -225,13 +241,14 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
                         <div class="context-title">Musterl&ouml;sung (geparst)</div>
                         <div class="context-body ${correctSolution ? '' : 'context-empty'}">${correctSolution || 'Keine Musterl&ouml;sung gefunden.'}</div>
                     </div>`;
-            }
+                }
 
-            bodyContent += `</div>`;
+                bodyContent += `</div>`;
+            });
+
+            bodyContent += `</div></div>`;
         });
-
-        bodyContent += `</div></div>`;
-    });
+    }
 
     return `
     <!DOCTYPE html>
