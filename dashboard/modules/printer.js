@@ -145,7 +145,7 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
                 return `
                         <div class="overview-row list-only" style="justify-content: space-between; border: none; border-bottom: 1px solid #f0f0f0; border-radius: 0; padding: 6px 0;">
                             <span class="overview-name" style="font-size: 1.1em; color: #333;">${s.name}</span>
-                            <span class="overview-score" style="font-size: 1.1em; font-weight: bold; color: #000;">${s.done}/${s.total} ${hasDone ? '✓' : ''}</span>
+                            <span class="overview-score" style="font-size: 1.1em; font-weight: bold; color: #000;">${s.done}/${s.total}</span>
                         </div>`;
             }
 
@@ -160,7 +160,7 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
                             <span class="overview-bar">
                                 <span class="overview-fill" style="width:${s.percent}%; background:${barColor};"></span>
                             </span>
-                            <span class="overview-percent">${s.percent}%</span>
+                            <span class="overview-percent"></span>
                         </div>
                     </div>`;
         }).join('')}
@@ -177,7 +177,7 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
         <h2 style="font-size:${isListMode ? '1.2em' : '1.8em'}; color:#333;">${safeAssignmentName}</h2>
         <div style="margin: ${isListMode ? '15px' : '30px'} 0; font-size: ${isListMode ? '1.1em' : '1.5em'}; font-weight: bold; color: #0056b3;">
             <span style="background: #e0f2fe; padding: ${isListMode ? '5px 15px' : '10px 20px'}; border-radius: 50px;">
-                Abgeschlossen: ${doneCount} / ${totalCount}
+                ${doneCount} / ${totalCount}
             </span>
         </div>
         <p style="color:#666; font-size:${isListMode ? '0.9em' : '1.1em'};">${date}</p>
