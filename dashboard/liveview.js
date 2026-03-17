@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Bulk Controls
     const selectAllBtn = document.getElementById('select-all-btn');
+    const selectUpdatedBtn = document.getElementById('select-updated-btn');
     const bulkAssessBtn = document.getElementById('bulk-assess-btn');
     const bulkProgressOverlay = document.getElementById('bulk-progress-overlay');
     const bulkProgressBar = document.getElementById('bulk-progress-bar');
@@ -210,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Bulk Assessment
     setupBulkAssessment({
-        selectAllBtn, bulkAssessBtn, cancelBulkBtn, bulkProgressOverlay,
+        selectAllBtn, selectUpdatedBtn, bulkAssessBtn, cancelBulkBtn, bulkProgressOverlay,
         bulkProgressBar, bulkProgressText, classSelect, assignmentSelect
     });
 

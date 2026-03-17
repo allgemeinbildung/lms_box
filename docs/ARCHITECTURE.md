@@ -247,28 +247,31 @@ const TEACHER_SOLUTION_KEY = 'lehrer-master-2025';     // ← for Musterlösung 
 2. Select **Aufgabe** (assignment) → renders a card per student showing their answers.
 3. Each card shows: progress badge (answered/total), word count, last save time.
 4. **⚡ Feedback** button → calls `localhost:5000/assess` → displays scored feedback inline.
+   - If the student has updated answers since the last feedback, only the **changed questions** are sent to the LLM (selective re-assessment).
+   - An orange **"N neu"** badge on the card header indicates how many answers changed. Changed questions are highlighted with an orange left border inside the card.
 5. **Freigeben panel** appears after assessment:
    - Checkboxes: Kurzbericht / Ausführlich / Punkte / Lösungsschlüssel
    - **🔓 Freigeben** → saves to GCS via `saveFeedback` (released: true)
    - **🔒 Zurückziehen** → same call with (released: false)
    - Checkboxes auto-save while feedback is already released.
-6. **⚡ Auswahl bewerten** → bulk assess selected students in sequence.
-7. **📊 Analyse-Export** → CSV with scores per student per question.
-8. **🖨️ Drucken** → print-formatted class overview.
+6. **🔄 Aktualisierte** → auto-selects only students whose answers changed since last feedback.
+7. **⚡ Auswahl bewerten** → bulk assess selected students; sends only changed questions per student if changes were detected.
+8. **📊 Analyse-Export** → CSV with scores per student per question.
+9. **🖨️ Drucken** → print-formatted class overview.
 
 **Module structure (`dashboard/modules/`):**
 
 | File | Responsibility |
 |---|---|
 | `api.js` | All network calls (Cloud Function + localhost:5000) |
-| `renderer.js` | Builds student card grid, fetches drafts + feedback |
-| `assessment.js` | Triggers LLM assessment, handles bulk mode |
+| `renderer.js` | Builds student card grid, fetches drafts + feedback; detects changed answers after feedback load |
+| `assessment.js` | Triggers LLM assessment, handles bulk mode; filters studentData to changed questions only |
 | `feedback.js` | Renders feedback in cards, shows Freigeben panel |
 | `printer.js` | Print dialog and PDF generation |
 | `exporter.js` | CSV analysis export |
 | `auth.js` | Teacher login overlay |
 | `state.js` | Shared mutable state (teacherKey, draftsMap) |
-| `utils.js` | Markdown parser and other helpers |
+| `utils.js` | Markdown parser, `normalizeAnswer()`, `detectUpdatedAnswers()` |
 
 ---
 
@@ -336,13 +339,17 @@ Teacher opens liveview.html → enters teacherKey
   → Student cards rendered with answers
 
 Teacher clicks ⚡ Feedback on a student card
+  → If prior feedback exists AND answers have changed since last assessment:
+       filterStudentDataToChanges() strips unchanged questions from studentData
   → POST localhost:5000/assess { className, assignmentId, studentName, studentData }
+       (studentData contains only changed questions, or all if no prior feedback)
   → live_server.py reads solution file from lms_json/
   → AssignmentEvaluator builds prompt (question + student answer + solution)
   → Gemini API returns JSON assessment array
   → live_server.py appends to local history file, returns full payload
   → feedback.js renders scores + feedback inline in the student card
   → showPublishPanel() appears with Freigeben controls
+  → "N neu" badge and orange question highlights are cleared from the card
 ```
 
 ### Flow 3: Teacher releases feedback to student
@@ -681,3 +688,4 @@ lms_json/   (D:\...\lms_json\)    ← assignment source files (also upload to GC
 ---
 
 *Generated: 2026-03-04 — Reflects the state of the system after the student feedback release feature was added.*
+*Updated: 2026-03-17 — Added selective re-assessment: changed-answer detection, "Aktualisierte" selection button, per-question filtering before LLM calls.*

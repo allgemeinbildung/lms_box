@@ -534,3 +534,38 @@ body {
     margin-top: 18px; 
     margin-left: 10px;
 }
+
+/* --- Updated Answer Indicators --- */
+.updated-badge {
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: bold;
+    color: white;
+    background-color: #f97316;
+    cursor: help;
+}
+
+.question-updated {
+    border-left: 3px solid #f97316;
+    padding-left: 8px;
+    background-color: #fff7ed;
+    border-radius: 4px;
+}
+
+#select-updated-btn {
+    background-color: #f97316;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    height: 100%;
+    margin-top: 18px;
+    margin-left: 10px;
+}
+
+#select-updated-btn:hover {
+    background-color: #ea580c;
+}

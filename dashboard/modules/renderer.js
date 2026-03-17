@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { fetchDraftContent, getMasterAssignment, getFeedback, getPublishedFeedbackStatus } from './api.js';
 import { performAssessment, updateBulkButton } from './assessment.js';
 import { distributeFeedback, showPublishPanel } from './feedback.js';
-import { parseSimpleMarkdown } from './utils.js';
+import { parseSimpleMarkdown, detectUpdatedAnswers } from './utils.js';
 
 const pickFirstNonEmpty = (...values) => {
     for (const value of values) {
@@ -258,7 +258,10 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
 
         const feedbackBtn = header.querySelector('.live-feedback-btn');
         const runAssessment = async () => {
-            await performAssessment(cls, assId, res.name, res.data, feedbackBtn, card);
+            const changedIds = (card._hasUpdatedAnswers && card._changedQuestionIds)
+                ? card._changedQuestionIds
+                : null;
+            await performAssessment(cls, assId, res.name, res.data, feedbackBtn, card, changedIds);
         };
         card._runAssessment = runAssessment;
         feedbackBtn.addEventListener('click', async (e) => {
@@ -291,6 +294,7 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
                         findParsedSolution(q, subTask)
                     );
                     const qaWrapper = document.createElement('div');
+                    qaWrapper.className = 'qa-wrapper';
                     qaWrapper.style.marginBottom = "20px";
 
                     const qTextParsed = parseSimpleMarkdown(q.text);
@@ -334,6 +338,27 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
                 feedbackBtn.style.backgroundColor = "#e0f2fe";
                 feedbackBtn.style.borderColor = "#bae6fd";
                 feedbackBtn.style.color = "#0369a1";
+
+                // --- DETECT UPDATED ANSWERS ---
+                if (assignmentData) {
+                    const { hasChanges, changedQuestionIds } = detectUpdatedAnswers(assignmentData, data.data);
+                    card._hasUpdatedAnswers = hasChanges;
+                    card._changedQuestionIds = changedQuestionIds;
+
+                    if (hasChanges) {
+                        const statsDiv = card.querySelector('.student-stats');
+                        const badge = document.createElement('span');
+                        badge.className = 'updated-badge';
+                        badge.textContent = `${changedQuestionIds.size} neu`;
+                        badge.title = `${changedQuestionIds.size} Antwort(en) seit letztem Feedback geändert`;
+                        statsDiv.insertBefore(badge, feedbackBtn);
+
+                        changedQuestionIds.forEach(qid => {
+                            const slot = cardContent.querySelector(`.inline-feedback[data-qid="${qid}"]`);
+                            if (slot) slot.closest('.qa-wrapper')?.classList.add('question-updated');
+                        });
+                    }
+                }
 
                 if (studentKey) {
                     getPublishedFeedbackStatus(studentKey, assId).then(status => {

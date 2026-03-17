@@ -145,7 +145,7 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
                 return `
                         <div class="overview-row list-only" style="justify-content: space-between; border: none; border-bottom: 1px solid #f0f0f0; border-radius: 0; padding: 6px 0;">
                             <span class="overview-name" style="font-size: 1.1em; color: #333;">${s.name}</span>
-                            <span class="overview-score" style="font-size: 1.1em; font-weight: bold; color: #000;">${s.done}/${s.total}</span>
+                            <span class="overview-score" style="font-size: 1.1em; font-weight: bold; color: #000;">${s.percent}%</span>
                         </div>`;
             }
 

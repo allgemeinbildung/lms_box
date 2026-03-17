@@ -3,13 +3,65 @@ import { distributeFeedback, showPublishPanel } from './feedback.js';
 
 let stopBulkFlag = false;
 
-export const performAssessment = async (className, assignmentId, studentName, studentData, feedbackBtn, card) => {
+/**
+ * Filters studentData to only include questions that changed since last feedback.
+ * Returns a deep clone of studentData where only changed sub-assignments/questions remain.
+ */
+export const filterStudentDataToChanges = (studentData, assId, changedQuestionIds) => {
+    if (!studentData || !changedQuestionIds || changedQuestionIds.size === 0) return studentData;
+
+    const filtered = JSON.parse(JSON.stringify(studentData));
+    const assignments = filtered.assignments;
+    if (!assignments) return filtered;
+
+    let assKey = assId;
+    if (!assignments[assId]) {
+        assKey = Object.keys(assignments).find(k =>
+            decodeURIComponent(k).trim() === decodeURIComponent(assId).trim()
+        );
+    }
+    if (!assKey || !assignments[assKey]) return filtered;
+
+    const assignmentData = assignments[assKey];
+    Object.keys(assignmentData).forEach(subId => {
+        const subTask = assignmentData[subId];
+        if (subTask.answers) {
+            subTask.answers = subTask.answers.filter(a =>
+                changedQuestionIds.has(`${subId}_${a.questionId}`)
+            );
+        }
+        if (subTask.questions) {
+            const remainingIds = new Set((subTask.answers || []).map(a => a.questionId));
+            subTask.questions = subTask.questions.filter(q => remainingIds.has(q.id));
+        }
+        if ((!subTask.answers || subTask.answers.length === 0) &&
+            (!subTask.questions || subTask.questions.length === 0)) {
+            delete assignmentData[subId];
+        }
+    });
+
+    return filtered;
+};
+
+const clearUpdateIndicators = (card) => {
+    card._hasUpdatedAnswers = false;
+    card._changedQuestionIds = null;
+    const badge = card.querySelector('.updated-badge');
+    if (badge) badge.remove();
+    card.querySelectorAll('.question-updated').forEach(el => el.classList.remove('question-updated'));
+};
+
+export const performAssessment = async (className, assignmentId, studentName, studentData, feedbackBtn, card, changedQuestionIds = null) => {
     feedbackBtn.disabled = true;
     feedbackBtn.textContent = "Analysiere...";
     feedbackBtn.style.backgroundColor = "#fff3cd";
 
+    const dataToSend = (changedQuestionIds && changedQuestionIds.size > 0)
+        ? filterStudentDataToChanges(studentData, assignmentId, changedQuestionIds)
+        : studentData;
+
     try {
-        const result = await assessStudent(className, assignmentId, studentName, studentData);
+        const result = await assessStudent(className, assignmentId, studentName, dataToSend);
         if (result.error) throw new Error(result.error);
 
         const contentArea = card.querySelector('.student-card-content');
@@ -19,6 +71,8 @@ export const performAssessment = async (className, assignmentId, studentName, st
         if (!card.classList.contains('open')) card.classList.add('open');
         feedbackBtn.textContent = "Fertig ✓";
         feedbackBtn.style.backgroundColor = "#dcfce7";
+
+        clearUpdateIndicators(card);
 
     } catch (err) {
         console.error(err);
@@ -48,7 +102,7 @@ export const updateBulkButton = (bulkAssessBtn) => {
 };
 
 export const setupBulkAssessment = (ui) => {
-    const { selectAllBtn, bulkAssessBtn, cancelBulkBtn, bulkProgressOverlay, bulkProgressBar, bulkProgressText, classSelect, assignmentSelect } = ui;
+    const { selectAllBtn, selectUpdatedBtn, bulkAssessBtn, cancelBulkBtn, bulkProgressOverlay, bulkProgressBar, bulkProgressText, classSelect, assignmentSelect } = ui;
 
     selectAllBtn.addEventListener('click', () => {
         const checkboxes = document.querySelectorAll('.student-checkbox');
@@ -56,6 +110,18 @@ export const setupBulkAssessment = (ui) => {
         checkboxes.forEach(cb => cb.checked = !allChecked);
         updateBulkButton(bulkAssessBtn);
     });
+
+    if (selectUpdatedBtn) {
+        selectUpdatedBtn.addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('.student-checkbox');
+            checkboxes.forEach(cb => cb.checked = false);
+            checkboxes.forEach(cb => {
+                const card = cb.closest('.student-card');
+                if (card && card._hasUpdatedAnswers) cb.checked = true;
+            });
+            updateBulkButton(bulkAssessBtn);
+        });
+    }
 
     cancelBulkBtn.addEventListener('click', () => {
         stopBulkFlag = true;
@@ -88,23 +154,18 @@ export const setupBulkAssessment = (ui) => {
                 bulkProgressText.textContent = `${processed + 1} / ${total} - ${studentName}`;
                 card.scrollIntoView({ behavior: 'auto', block: 'center' });
 
-                if (typeof card._runAssessment === 'function') {
-                    await card._runAssessment();
+                let studentData = card._studentData || null;
+                if (!studentData && card.dataset.studentData) {
+                    try { studentData = JSON.parse(card.dataset.studentData); } catch (e) { studentData = null; }
+                }
+
+                if (studentData) {
+                    const changedIds = (card._hasUpdatedAnswers && card._changedQuestionIds)
+                        ? card._changedQuestionIds
+                        : null;
+                    await performAssessment(cls, assId, studentName, studentData, feedbackBtn, card, changedIds);
                 } else {
-                    let studentData = card ? card._studentData : null;
-                    if (!studentData && card && card.dataset && card.dataset.studentData) {
-                        try {
-                            studentData = JSON.parse(card.dataset.studentData);
-                        } catch (e) {
-                            console.warn(`Bulk assess: invalid studentData for ${studentName}`, e);
-                            studentData = null;
-                        }
-                    }
-                    if (studentData) {
-                        await performAssessment(cls, assId, studentName, studentData, feedbackBtn, card);
-                    } else {
-                        console.warn(`Bulk assess: no student data for ${studentName}`);
-                    }
+                    console.warn(`Bulk assess: no student data for ${studentName}`);
                 }
             }
 
