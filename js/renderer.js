@@ -199,13 +199,18 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
         });
         const storageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}_q_${question.id}`;
 
+        // Guard flag: setting innerHTML via DOM triggers Quill's MutationObserver with
+        // source='user', which would fire gatherAndSaveDraft on every page load.
+        // We block saves until initialization is complete.
+        let isInitializing = true;
+
         // --- ✅ FIX PART 1: Async Initialization ---
         const initializeEditor = async () => {
             // 1. Prioritize loading from server draft data
             const serverAnswer = draftData?.assignments?.[assignmentId]?.[subId]?.answers?.find(a => a.questionId === question.id)?.answer;
 
             if (serverAnswer) {
-                quill.root.innerHTML = serverAnswer; // Triggers 'text-change' with source='api'
+                quill.root.innerHTML = serverAnswer;
                 // Explicitly sync to local DB so the save logic sees correct data immediately
                 await storage.set(storageKey, serverAnswer);
             } else {
@@ -215,6 +220,7 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
                     quill.root.innerHTML = savedAnswer;
                 }
             }
+            isInitializing = false;
         };
 
         initializeEditor();
@@ -224,11 +230,10 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
             showTemporaryMessage('Einfügen ist deaktiviert, um die Kreativität und das kritische Denken zu fördern.', quill.root);
         });
 
-        // --- ✅ FIX PART 2: Source Check ---
         quill.on('text-change', async (delta, oldDelta, source) => {
-            // CRITICAL: Only save if the USER made the change.
-            // This prevents the page load (source = 'api') from triggering a save event.
-            if (source !== 'user') return;
+            // Block saves during initialization: setting innerHTML triggers Quill's
+            // MutationObserver with source='user', which must not cause a cloud save.
+            if (isInitializing || source !== 'user') return;
 
             const htmlContent = quill.root.innerHTML;
 
@@ -304,6 +309,41 @@ function renderQuill(data, assignmentId, subId, studentKey, mode, draftData, ass
             keyInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') unlockAction();
             });
+        }
+    }
+}
+
+/**
+ * Syncs the entire cloud draft to the local IndexedDB.
+ * This ensures that when the student saves any part of the assignment,
+ * the other parts (which might not be rendered right now) are not lost.
+ * @param {string} assignmentId - The ID of the assignment.
+ * @param {object} draftData - The pre-fetched draft data from the server.
+ */
+export async function syncDraftToStorage(assignmentId, draftData) {
+    if (!draftData || !draftData.assignments || !draftData.assignments[assignmentId]) return;
+
+    const subAssignments = draftData.assignments[assignmentId];
+    for (const subId in subAssignments) {
+        const subData = subAssignments[subId];
+        
+        // Sync answers
+        if (subData.answers && Array.isArray(subData.answers)) {
+            for (const ans of subData.answers) {
+                const storageKey = `${ANSWER_PREFIX}${assignmentId}_sub_${subId}_q_${ans.questionId}`;
+                await storage.set(storageKey, ans.answer);
+            }
+        }
+        
+        // Sync metadata (needed for printer and offline support)
+        if (subData.questions) {
+            await storage.set(`${QUESTIONS_PREFIX}${assignmentId}_sub_${subId}`, JSON.stringify(subData.questions));
+        }
+        if (subData.title) {
+            await storage.set(`${TITLE_PREFIX}${assignmentId}_sub_${subId}`, subData.title);
+        }
+        if (subData.type) {
+            await storage.set(`${TYPE_PREFIX}${assignmentId}_sub_${subId}`, subData.type);
         }
     }
 }

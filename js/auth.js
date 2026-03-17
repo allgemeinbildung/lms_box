@@ -5,6 +5,10 @@ function showLoginDialog() {
         const existingDialog = document.getElementById('auth-dialog');
         if (existingDialog) existingDialog.remove();
 
+        // Another iframe may have already authenticated while this one was setting up.
+        const earlyKey = localStorage.getItem(STUDENT_KEY_STORAGE);
+        if (earlyKey) { resolve(earlyKey); return; }
+
         const dialog = document.createElement('div');
         dialog.id = 'auth-dialog';
         dialog.style.cssText = `
@@ -44,12 +48,24 @@ function showLoginDialog() {
         const loginBtn = document.getElementById('login-key-btn');
         const statusEl = document.getElementById('auth-status');
 
+        // When another iframe/tab authenticates successfully it writes to localStorage,
+        // which fires the 'storage' event here. Use that key and close this dialog.
+        const onOtherFrameAuth = (e) => {
+            if (e.key === STUDENT_KEY_STORAGE && e.newValue) {
+                window.removeEventListener('storage', onOtherFrameAuth);
+                dialog.remove();
+                resolve(e.newValue);
+            }
+        };
+        window.addEventListener('storage', onOtherFrameAuth);
+
         const attemptLogin = () => {
             const key = keyInput.value.trim().toLowerCase();
             if (!key) {
                 statusEl.textContent = 'Bitte gib einen Schlüssel ein.';
                 return;
             }
+            window.removeEventListener('storage', onOtherFrameAuth);
             dialog.remove();
             resolve(key);
         };

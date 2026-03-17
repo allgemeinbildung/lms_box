@@ -1,5 +1,5 @@
 import { SCRIPT_URL } from './config.js';
-import { renderSubAssignment } from './renderer.js';
+import { renderSubAssignment, syncDraftToStorage } from './renderer.js';
 import { printAssignmentAnswers } from './printer.js';
 import { submitAllAssignments } from './submission.js';
 import { authenticate } from './auth.js';
@@ -48,6 +48,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (assignmentData.status === 'error') throw new Error(assignmentData.message);
         document.getElementById('main-title').textContent = assignmentData.assignmentTitle;
+        
+        // ✅ FIX: Sync ALL answers from the cloud to local storage before rendering.
+        // This prevents data loss when saving one sub-assignment from overwriting others.
+        await syncDraftToStorage(assignmentId, draftData);
         
         const subAssignmentData = assignmentData.subAssignments[subId];
         if (!subAssignmentData) throw new Error(`Teilaufgabe "${subId}" nicht gefunden.`);
