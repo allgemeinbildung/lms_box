@@ -103,7 +103,9 @@ Firebase Auth is the identity layer. It runs on the same GCP project as the Clou
 | Student enters key string | Student signs in with email/password via Firebase Auth SDK |
 | `POST authenticateStudent { studentKey }` | Firebase ID token sent in `Authorization: Bearer` header on every request |
 | `TEACHER_KEY` check in Cloud Function | Middleware verifies token + checks Firestore role |
-| `sessionStorage` key | Firebase Auth SDK manages token refresh automatically |
+| `localStorage` key (shared across same-origin iframes) | Firebase Auth SDK manages token and session natively — no per-iframe dialog |
+
+> **V1 known issue this resolves:** In V1, when multiple `index.html` iframes are embedded on the same parent page (same `assignmentId`, different `subId`), all iframes check `localStorage` simultaneously on load before any of them has stored a key. This caused every iframe to show its own login dialog. A `storage` event listener was added as a V1 hotfix so that when one iframe authenticates, the others auto-dismiss their dialogs. Firebase Auth in V2 eliminates this entirely — the SDK's auth state is shared across all same-origin contexts natively.
 
 **Files affected:**
 - `js/auth.js` — replaced with Firebase Auth SDK calls
@@ -529,6 +531,8 @@ This contract means:
 | `feedbackDisplay.js` | Fetch released feedback, inject below `.question-block` | Yes |
 | `submissionHandler.js` | Final submit, PDF print | Yes |
 
+> **Critical implementation note for `draftManager.js`:** When populating a Quill editor with saved content via `quill.root.innerHTML = answer`, Quill's internal MutationObserver fires `text-change` with `source='user'` — not `'api'` as one might expect. This causes `saveDraft` to be triggered on every page load, not just on user input, and can overwrite the GCS draft with partial data if IndexedDB is not yet fully populated. The V1 fix is an `isInitializing` flag per editor that blocks all saves until `initializeEditor()` completes. **`draftManager.js` must preserve this pattern.** All layout renderers that wire up Quill editors must set `isInitializing = true` before setting `innerHTML` and `= false` only after all async initialization (including `storage.set`) is done.
+
 The `feedbackDisplay.js` injector works on any layout as long as question wrappers use the class `.question-block` and Quill editors use the ID convention `quill-editor-{sanitizedSubId}-{sanitizedQuestionId}`. This convention is documented as a **layout contract** that all renderers must follow.
 
 ---
@@ -814,3 +818,4 @@ These are not planned for V2 but are now structurally possible once the above ph
 ---
 
 *Generated: 2026-03-05 — Reflects V1 state as documented in ARCHITECTURE.md and the 5 structural improvements identified for V2.*
+*Updated: 2026-03-17 — Added V1 known issue notes: multi-iframe auth dialog race condition (resolved by Firebase Auth in Phase 2) and Quill MutationObserver `isInitializing` guard requirement (must be preserved in `draftManager.js` in Phase 3).*

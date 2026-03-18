@@ -182,16 +182,20 @@ The full loop:
 | `mode` | `live` (real submission) or `test` (uses test key file) |
 
 **Authentication flow (`js/auth.js`):**
-- On load, checks `sessionStorage` for a saved key.
-- If none, prompts the student for their key.
+- On load, checks `localStorage` for a saved key (persists across tabs and sessions).
+- If none, shows a login dialog. If another iframe on the same page authenticates first, its `localStorage.setItem` fires a `storage` event that dismisses all other iframes' dialogs automatically — the student only needs to enter their key once.
 - Calls `authenticateStudent` on the Cloud Function to validate.
 - Returns `{ key, studentInfo: { klasse, name, email } }`.
 
+> **Multi-iframe note:** When multiple `index.html` iframes are embedded on a single parent page (same `assignmentId`, different `subId`), all iframes share `localStorage` (same origin). The first iframe to authenticate stores the key; all others detect it via the `storage` event and skip their dialog.
+
 **Answer saving:**
 - Each question gets a Quill rich-text editor (`js/renderer.js`).
-- On any change (source=`'user'` only), saves to **IndexedDB** immediately.
-- After 2 seconds of inactivity, pushes a full draft to GCS via `saveDraft`.
-- On load, fetches the saved draft from GCS and pre-fills the editors.
+- On any change (`source='user'` only, **and** only after editor initialization is complete), saves to **IndexedDB** immediately.
+- After 2 seconds of inactivity, pushes a full draft to GCS via `saveDraft`. The draft contains **all** sub-assignments for the `assignmentId` (gathered from IndexedDB), not just the visible one.
+- On load, fetches the saved draft from GCS, syncs all sub-assignments into IndexedDB (`syncDraftToStorage`), then pre-fills the editors.
+
+> **`isInitializing` guard:** Setting `quill.root.innerHTML` to load saved content triggers Quill's internal MutationObserver with `source='user'`, which would otherwise fire `gatherAndSaveDraft` on every page load. An `isInitializing` flag blocks all saves until `initializeEditor()` completes.
 
 **Feedback display (`js/studentFeedback.js`):**
 - After the assignment renders, calls `getFeedback` on the Cloud Function.
@@ -689,3 +693,4 @@ lms_json/   (D:\...\lms_json\)    ← assignment source files (also upload to GC
 
 *Generated: 2026-03-04 — Reflects the state of the system after the student feedback release feature was added.*
 *Updated: 2026-03-17 — Added selective re-assessment: changed-answer detection, "Aktualisierte" selection button, per-question filtering before LLM calls.*
+*Updated: 2026-03-17 — Fixed multi-iframe data loss: `isInitializing` guard in renderer.js prevents Quill MutationObserver from triggering cloud saves on page load; `storage` event listener in auth.js ensures single login dialog across all same-page iframes.*
