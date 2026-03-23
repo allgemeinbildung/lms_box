@@ -253,6 +253,10 @@ const TEACHER_SOLUTION_KEY = 'lehrer-master-2025';     // ← for Musterlösung 
 4. **⚡ Feedback** button → calls `localhost:5000/assess` → displays scored feedback inline.
    - If the student has updated answers since the last feedback, only the **changed questions** are sent to the LLM (selective re-assessment).
    - An orange **"N neu"** badge on the card header indicates how many answers changed. Changed questions are highlighted with an orange left border inside the card.
+   - Each feedback slot has inline editing controls (teacher-only):
+     - **✔️ OK** — one-click: sets score to 3, overwrites feedback with "✔️ Alles korrekt.", saves to local disk, re-publishes to GCS if already released. An **↩️ Undo** button appears immediately after to revert.
+     - **✏️** — opens an inline edit form (score dropdown 0–3, concise input, detailed textarea). Save persists to local disk and re-syncs GCS if published. Edited items show a grey ✏️ marker.
+     - Edits overwrite the latest history entry via `POST /update_feedback`; no new version is created. The `manually_edited: true` flag is set on the result.
 5. **Freigeben panel** appears after assessment:
    - Checkboxes: Kurzbericht / Ausführlich / Punkte / Lösungsschlüssel
    - **🔓 Freigeben** → saves to GCS via `saveFeedback` (released: true)
@@ -267,10 +271,10 @@ const TEACHER_SOLUTION_KEY = 'lehrer-master-2025';     // ← for Musterlösung 
 
 | File | Responsibility |
 |---|---|
-| `api.js` | All network calls (Cloud Function + localhost:5000) |
+| `api.js` | All network calls (Cloud Function + localhost:5000); includes `updateFeedback()` for manual edits |
 | `renderer.js` | Builds student card grid, fetches drafts + feedback; detects changed answers after feedback load |
 | `assessment.js` | Triggers LLM assessment, handles bulk mode; filters studentData to changed questions only |
-| `feedback.js` | Renders feedback in cards, shows Freigeben panel |
+| `feedback.js` | Renders feedback in cards, shows Freigeben panel; inline editing (✔️ OK, ↩️ Undo, ✏️ edit form) |
 | `printer.js` | Print dialog and PDF generation |
 | `exporter.js` | CSV analysis export |
 | `auth.js` | Teacher login overlay |
@@ -299,6 +303,7 @@ const TEACHER_SOLUTION_KEY = 'lehrer-master-2025';     // ← for Musterlösung 
 | `POST /assess` | `{ className, assignmentId, studentName, studentData }` | Calls Gemini, saves result locally with history, returns full payload |
 | `POST /get_feedback` | `{ className, assignmentId, studentName }` | Returns saved local feedback JSON |
 | `POST /get_master_assignment` | `{ assignmentId }` | Returns the solution JSON for teacher view (model answers) |
+| `POST /update_feedback` | `{ className, assignmentId, studentName, questionId, score, concise_feedback, detailed_feedback }` | Overwrites a single question's fields in the latest history entry; sets `manually_edited: true` |
 
 **Local feedback storage path:**
 ```
@@ -694,3 +699,4 @@ lms_json/   (D:\...\lms_json\)    ← assignment source files (also upload to GC
 *Generated: 2026-03-04 — Reflects the state of the system after the student feedback release feature was added.*
 *Updated: 2026-03-17 — Added selective re-assessment: changed-answer detection, "Aktualisierte" selection button, per-question filtering before LLM calls.*
 *Updated: 2026-03-17 — Fixed multi-iframe data loss: `isInitializing` guard in renderer.js prevents Quill MutationObserver from triggering cloud saves on page load; `storage` event listener in auth.js ensures single login dialog across all same-page iframes.*
+*Updated: 2026-03-18 — Added manual feedback editing in liveview: `POST /update_feedback` endpoint on local server; inline ✔️ OK (one-click correct), ↩️ Undo, and ✏️ full edit form per feedback slot. Edits overwrite the latest history entry and auto-re-publish to GCS if feedback is already released.*

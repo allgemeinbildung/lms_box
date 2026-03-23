@@ -1,5 +1,5 @@
 import { showPrintDialog, printFeedback } from './printer.js';
-import { publishFeedback } from './api.js';
+import { publishFeedback, updateFeedback } from './api.js';
 
 const pickFirstNonEmpty = (...values) => {
     for (const value of values) {
@@ -169,7 +169,7 @@ export const distributeFeedback = (feedbackData, container, versionIndex = null)
         const activeIdx = (versionIndex !== null) ? versionIndex : (versionCount - 1);
         versionSelectorHtml = `
             <div class="version-selector" style="display:flex; gap:4px; margin-left:10px; align-items:center;">
-                ${feedbackData.history.map((h, i) => {
+                ${feedbackData.history.map((_h, i) => {
                     const isActive = i === activeIdx;
                     return `<span class="v-tag" data-idx="${i}" style="cursor:pointer; font-size:0.75em; padding:2px 6px; border-radius:10px; font-weight:bold; transition:all 0.2s; 
                         ${isActive ? 'background:#0369a1; color:white; scale:1.1;' : 'background:#e0f2fe; color:#0369a1; opacity:0.7;'}">v${i + 1}</span>`;
@@ -298,32 +298,209 @@ export const distributeFeedback = (feedbackData, container, versionIndex = null)
         currentItem.results.forEach(item => {
             const targetSlot = container.querySelector(`.inline-feedback[data-qid="${item.question_id}"]`);
             if (targetSlot) {
-                let color = '#ef4444';
-                if (item.score === 2) color = '#f59e0b';
-                if (item.score === 3) color = '#22c55e';
-
-                targetSlot.innerHTML = `
-                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                        <span style="background:${color}; color:white; padding:1px 6px; border-radius:4px; font-size:0.8em; font-weight:bold;" title="Korrektheit (0-3)">
-                            Punkte: ${item.score}
-                        </span>
-                        <span style="color:#334155; font-weight:600; font-size:0.95em;">${item.concise_feedback}</span>
-                    </div>
-                    <div style="font-size:0.9em; color:#555; background:white; padding:8px; border-left:3px solid #e2e8f0; margin-top:5px;">${item.detailed_feedback}</div>
-                `;
-
-                targetSlot.dataset.score = item.score;
-                targetSlot.dataset.concise = item.concise_feedback;
-                targetSlot.dataset.detailed = item.detailed_feedback;
                 const questionText = pickFirstNonEmpty(item.question_text, targetSlot.dataset.qtext);
                 const originalAnswer = getOriginalAnswerFromResult(item, targetSlot);
                 const correctSolution = getSolutionFromResult(item, targetSlot);
 
+                targetSlot.dataset.score = item.score;
+                targetSlot.dataset.concise = item.concise_feedback;
+                targetSlot.dataset.detailed = item.detailed_feedback;
                 targetSlot.dataset.qtext = questionText;
                 targetSlot.dataset.originalAnswer = originalAnswer;
                 targetSlot.dataset.correctSolution = correctSolution;
                 targetSlot.style.display = 'block';
+
+                renderFeedbackSlot(targetSlot, item, feedbackData, container);
             }
         });
     }
 };
+
+function renderFeedbackSlot(slot, item, feedbackData, container, prevSnapshot = null) {
+    let color = '#ef4444';
+    if (item.score === 2) color = '#f59e0b';
+    if (item.score === 3) color = '#22c55e';
+
+    const editedMark = item.manually_edited
+        ? `<span style="font-size:0.7em; color:#9ca3af; margin-left:6px;" title="Manuell bearbeitet">✏️</span>`
+        : '';
+
+    const undoBtn = prevSnapshot
+        ? `<button class="feedback-undo-btn" title="Rückgängig" style="background:none; border:1px solid #e5e7eb; cursor:pointer; font-size:0.75em; color:#6b7280; padding:1px 6px; border-radius:3px; line-height:1.4; white-space:nowrap;">↩️ Undo</button>`
+        : '';
+
+    slot.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+            <span style="background:${color}; color:white; padding:1px 6px; border-radius:4px; font-size:0.8em; font-weight:bold;" title="Korrektheit (0-3)">
+                Punkte: ${item.score}
+            </span>
+            <span style="color:#334155; font-weight:600; font-size:0.95em;">${item.concise_feedback}</span>
+            ${editedMark}
+            ${undoBtn}
+            <button class="feedback-ok-btn" title="Alles korrekt (Score 3)" style="margin-left:auto; background:none; border:1px solid #d1fae5; cursor:pointer; font-size:0.75em; color:#16a34a; padding:1px 6px; border-radius:3px; line-height:1.4; white-space:nowrap;">✔️ OK</button>
+            <button class="feedback-edit-btn" title="Feedback bearbeiten" style="background:none; border:none; cursor:pointer; font-size:0.85em; color:#9ca3af; padding:1px 5px; border-radius:3px; line-height:1;">✏️</button>
+        </div>
+        <div style="font-size:0.9em; color:#555; background:white; padding:8px; border-left:3px solid #e2e8f0; margin-top:5px;">${item.detailed_feedback}</div>
+    `;
+
+    slot.querySelector('.feedback-edit-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        renderFeedbackEditMode(slot, item, feedbackData, container);
+    });
+
+    if (prevSnapshot) {
+        slot.querySelector('.feedback-undo-btn').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const btn = slot.querySelector('.feedback-undo-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳';
+
+            const card = container.closest('.student-card');
+            const className = document.getElementById('class-select')?.value || '';
+            const assignmentId = document.getElementById('assignment-select')?.value || '';
+            const studentName = card?.dataset.studentName || '';
+
+            const result = await updateFeedback(className, assignmentId, studentName, item.question_id, prevSnapshot.score, prevSnapshot.concise_feedback, prevSnapshot.detailed_feedback);
+
+            if (result.error) {
+                btn.disabled = false;
+                btn.textContent = '❌';
+                return;
+            }
+
+            item.score = prevSnapshot.score;
+            item.concise_feedback = prevSnapshot.concise_feedback;
+            item.detailed_feedback = prevSnapshot.detailed_feedback;
+            item.manually_edited = prevSnapshot.manually_edited;
+            slot.dataset.score = prevSnapshot.score;
+            slot.dataset.concise = prevSnapshot.concise_feedback;
+            slot.dataset.detailed = prevSnapshot.detailed_feedback;
+
+            await republishIfReleased(card, assignmentId, feedbackData);
+            renderFeedbackSlot(slot, item, feedbackData, container); // no prevSnapshot = undo button gone
+        });
+    }
+
+    slot.querySelector('.feedback-ok-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const btn = slot.querySelector('.feedback-ok-btn');
+        btn.disabled = true;
+        btn.textContent = '⏳';
+
+        const card = container.closest('.student-card');
+        const className = document.getElementById('class-select')?.value || '';
+        const assignmentId = document.getElementById('assignment-select')?.value || '';
+        const studentName = card?.dataset.studentName || '';
+
+        // Snapshot before overwriting
+        const prev = { score: item.score, concise_feedback: item.concise_feedback, detailed_feedback: item.detailed_feedback, manually_edited: item.manually_edited };
+
+        const result = await updateFeedback(className, assignmentId, studentName, item.question_id, 3, '✔️ Alles korrekt.', '✔️ Alles korrekt.');
+
+        if (result.error) {
+            btn.disabled = false;
+            btn.textContent = '❌';
+            return;
+        }
+
+        item.score = 3;
+        item.concise_feedback = '✔️ Alles korrekt.';
+        item.detailed_feedback = '✔️ Alles korrekt.';
+        item.manually_edited = true;
+        slot.dataset.score = 3;
+        slot.dataset.concise = '✔️ Alles korrekt.';
+        slot.dataset.detailed = '✔️ Alles korrekt.';
+
+        await republishIfReleased(card, assignmentId, feedbackData);
+        renderFeedbackSlot(slot, item, feedbackData, container, prev);
+    });
+}
+
+async function republishIfReleased(card, assignmentId, feedbackData) {
+    const publishPanel = card?.querySelector('.publish-panel');
+    const releaseBtn = publishPanel?.querySelector('.release-toggle-btn');
+    if (releaseBtn && releaseBtn.textContent.includes('Zurückziehen')) {
+        const studentKey = card.dataset.studentKey;
+        const settings = {
+            kurzbericht: publishPanel.querySelector('.release-check-kurz')?.checked ?? true,
+            ausfuehrlich: publishPanel.querySelector('.release-check-detail')?.checked ?? true,
+            punkte: publishPanel.querySelector('.release-check-punkte')?.checked ?? true,
+            loesung: publishPanel.querySelector('.release-check-loesung')?.checked ?? false,
+        };
+        await publishFeedback(studentKey, assignmentId, getCurrentFeedbackItem(feedbackData), settings, true);
+    }
+}
+
+function renderFeedbackEditMode(slot, item, feedbackData, container) {
+    const scoreOptions = [0, 1, 2, 3].map(v =>
+        `<option value="${v}" ${v === item.score ? 'selected' : ''}>${v}</option>`
+    ).join('');
+
+    slot.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:6px; padding:8px; background:#fffbeb; border:1px solid #fcd34d; border-radius:6px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <label style="font-size:0.8em; font-weight:600; color:#92400e; white-space:nowrap;">Punkte (0–3):</label>
+                <select class="edit-score" style="padding:2px 6px; border-radius:4px; border:1px solid #d1d5db; font-weight:bold;">
+                    ${scoreOptions}
+                </select>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+                <label style="font-size:0.8em; font-weight:600; color:#92400e;">Kurzbericht:</label>
+                <input class="edit-concise" type="text" value="${item.concise_feedback.replace(/"/g, '&quot;')}"
+                    style="padding:4px 6px; border-radius:4px; border:1px solid #d1d5db; font-size:0.9em; width:100%; box-sizing:border-box;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+                <label style="font-size:0.8em; font-weight:600; color:#92400e;">Ausführlicher Bericht:</label>
+                <textarea class="edit-detailed" rows="4"
+                    style="padding:4px 6px; border-radius:4px; border:1px solid #d1d5db; font-size:0.9em; width:100%; box-sizing:border-box; resize:vertical;">${item.detailed_feedback}</textarea>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button class="edit-save-btn" style="background:#0369a1; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer; font-weight:bold; font-size:0.85em;">💾 Speichern</button>
+                <button class="edit-cancel-btn" style="background:#6b7280; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer; font-size:0.85em;">✖ Abbrechen</button>
+                <span class="edit-status" style="font-size:0.8em; color:#666;"></span>
+            </div>
+        </div>
+    `;
+
+    slot.querySelector('.edit-cancel-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        renderFeedbackSlot(slot, item, feedbackData, container);
+    });
+
+    slot.querySelector('.edit-save-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const statusEl = slot.querySelector('.edit-status');
+        const newScore = parseInt(slot.querySelector('.edit-score').value);
+        const newConcise = slot.querySelector('.edit-concise').value.trim();
+        const newDetailed = slot.querySelector('.edit-detailed').value.trim();
+
+        statusEl.textContent = '⏳ Speichere...';
+
+        // Get context from card
+        const card = container.closest('.student-card');
+        const className = document.getElementById('class-select')?.value || '';
+        const assignmentId = document.getElementById('assignment-select')?.value || '';
+        const studentName = card?.dataset.studentName || '';
+
+        const result = await updateFeedback(className, assignmentId, studentName, item.question_id, newScore, newConcise, newDetailed);
+
+        if (result.error) {
+            statusEl.textContent = `❌ ${result.error}`;
+            return;
+        }
+
+        // Update in-memory item
+        item.score = newScore;
+        item.concise_feedback = newConcise;
+        item.detailed_feedback = newDetailed;
+        item.manually_edited = true;
+
+        // Update dataset
+        slot.dataset.score = newScore;
+        slot.dataset.concise = newConcise;
+        slot.dataset.detailed = newDetailed;
+
+        await republishIfReleased(card, assignmentId, feedbackData);
+        renderFeedbackSlot(slot, item, feedbackData, container);
+    });
+}

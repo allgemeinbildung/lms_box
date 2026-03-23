@@ -95,6 +95,27 @@ export const getPublishedFeedbackStatus = async (targetStudentKey, assignmentId)
     }
 };
 
+export const updateFeedback = async (className, assignmentId, studentName, questionId, score, conciseFeedback, detailedFeedback) => {
+    try {
+        const response = await fetch('http://localhost:5000/update_feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                className,
+                assignmentId,
+                studentName,
+                questionId,
+                score,
+                concise_feedback: conciseFeedback,
+                detailed_feedback: detailedFeedback
+            })
+        });
+        return await response.json();
+    } catch (e) {
+        return { error: e.message || 'Netzwerkfehler bei /update_feedback' };
+    }
+};
+
 export const assessStudent = async (className, assignmentId, studentName, studentData) => {
     const controller = new AbortController();
     const timeoutMs = 120000;

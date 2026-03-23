@@ -58,8 +58,8 @@ The following parts of V1 are **kept as-is** in V2. Do not refactor them unless 
 |---|---|
 | **Quill.js editors** | The student answer input mechanism is unchanged |
 | **Assignment JSON structure** | The format is stabilized (see Change 5 for schema formalization) |
-| **Local evaluator server** | `evaluator/live_server.py`, `evaluator.py`, Gemini prompt logic — untouched |
-| **Teacher live view UX** | The student card grid, ⚡ Feedback button, Freigeben panel — same UI |
+| **Local evaluator server** | `evaluator/live_server.py`, `evaluator.py`, Gemini prompt logic — core unchanged; `POST /update_feedback` added for manual teacher corrections |
+| **Teacher live view UX** | The student card grid, ⚡ Feedback button, Freigeben panel — same UI; inline editing controls (✔️ OK, ↩️ Undo, ✏️) added per feedback slot |
 | **Feedback release logic** | The 4-checkbox release model (Kurzbericht/Ausführlich/Punkte/Lösungsschlüssel) is kept |
 | **Auto-save draft behavior** | IndexedDB + 2s debounce + GCS write is preserved |
 | **Print and export** | PDF print, CSV export — unchanged |
@@ -819,3 +819,4 @@ These are not planned for V2 but are now structurally possible once the above ph
 
 *Generated: 2026-03-05 — Reflects V1 state as documented in ARCHITECTURE.md and the 5 structural improvements identified for V2.*
 *Updated: 2026-03-17 — Added V1 known issue notes: multi-iframe auth dialog race condition (resolved by Firebase Auth in Phase 2) and Quill MutationObserver `isInitializing` guard requirement (must be preserved in `draftManager.js` in Phase 3).*
+*Updated: 2026-03-18 — Noted V1 additions to local evaluator (`/update_feedback`) and liveview feedback editing UI. These carry forward unchanged to V2.*
