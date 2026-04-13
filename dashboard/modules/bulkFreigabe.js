@@ -9,6 +9,7 @@
  */
 
 import { publishFeedback } from './api.js';
+import { getFilteredFeedbackData } from './feedback.js';
 
 // ─── Internal helpers ──────────────────────────────────────────────────────
 
@@ -226,8 +227,10 @@ export const setupBulkFreigabe = (triggerBtn, getAssId) => {
                 } else {
                     feedbackItem = { results: feedbackData.results, date_str: feedbackData.date_str };
                 }
-
-                const result = await publishFeedback(studentKey, assId, feedbackItem, settings, released);
+                
+                // Filter out empty answers before publishing to student
+                const filteredItem = getFilteredFeedbackData(feedbackItem, card);
+                const result = await publishFeedback(studentKey, assId, filteredItem, settings, released);
 
                 if (result.status === 'success') {
                     successCount++;

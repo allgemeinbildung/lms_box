@@ -26,6 +26,30 @@ const getOriginalAnswerFromResult = (item, fallbackSlot) => {
     );
 };
 
+/**
+ * Returns a copy of the feedback item with results filtered to exclude those with empty student answers.
+ * This is used to ensure students don't see feedbacks like "Keine Antwort" for questions they skipped.
+ */
+export const getFilteredFeedbackData = (item, card) => {
+    if (!item || !item.results || !Array.isArray(item.results)) return item;
+
+    // Find all feedback slots to get the original student answers (as fallback)
+    const slotsByQid = new Map(
+        Array.from(card.querySelectorAll('.inline-feedback')).map(slot => [slot.dataset.qid, slot])
+    );
+
+    const filteredResults = item.results.filter(res => {
+        const slot = slotsByQid.get(res.question_id);
+        const studentAnswer = getOriginalAnswerFromResult(res, slot);
+        return studentAnswer && studentAnswer.trim() !== '' && studentAnswer !== '<p><br></p>';
+    });
+
+    return {
+        ...item,
+        results: filteredResults
+    };
+};
+
 const getSolutionFromResult = (item, fallbackSlot) => {
     return pickFirstNonEmpty(
         item.correct_solution,
@@ -108,7 +132,9 @@ export const showPublishPanel = (card, feedbackData, assignmentId, isPublished =
             if (!isReleased.value) return;
             statusEl.textContent = '⏳ Speichere...';
             const item = getVersionToPublish();
-            const result = await publishFeedback(studentKey, assignmentId, item, getCurrentSettings(), true);
+            // Filter out empty answers before publishing to student
+            const filteredItem = getFilteredFeedbackData(item, card);
+            const result = await publishFeedback(studentKey, assignmentId, filteredItem, getCurrentSettings(), true);
             statusEl.textContent = result.status === 'success' ? '✓ Gespeichert' : '❌ Fehler';
         });
     });
@@ -120,7 +146,9 @@ export const showPublishPanel = (card, feedbackData, assignmentId, isPublished =
         statusEl.textContent = '';
 
         const item = getVersionToPublish();
-        const result = await publishFeedback(studentKey, assignmentId, item, getCurrentSettings(), newState);
+        // Filter out empty answers before publishing to student
+        const filteredItem = getFilteredFeedbackData(item, card);
+        const result = await publishFeedback(studentKey, assignmentId, filteredItem, getCurrentSettings(), newState);
 
         if (result.status === 'success') {
             isReleased.value = newState;
@@ -427,7 +455,10 @@ async function republishIfReleased(card, assignmentId, feedbackData) {
             punkte: publishPanel.querySelector('.release-check-punkte')?.checked ?? true,
             loesung: publishPanel.querySelector('.release-check-loesung')?.checked ?? false,
         };
-        await publishFeedback(studentKey, assignmentId, getCurrentFeedbackItem(feedbackData), settings, true);
+        const item = getCurrentFeedbackItem(feedbackData);
+        // Filter out empty answers before publishing to student
+        const filteredItem = getFilteredFeedbackData(item, card);
+        await publishFeedback(studentKey, assignmentId, filteredItem, settings, true);
     }
 }
 
