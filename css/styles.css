@@ -122,7 +122,8 @@ body {
 .formativ-part .formativ-badge { color: #a04d00; }
 .formativ-miss .formativ-badge { color: #b02a37; }
 .formativ-na .formativ-badge { color: #6c757d; }
-.formativ-label { font-size: 0.9em; }
-.formativ-hint { font-size: 0.88em; color: #343a40; margin-top: 2px; }
+.formativ-line { display: flex; align-items: baseline; gap: 8px; }
+.formativ-line .formativ-badge { flex: none; margin-right: 0; }
+.formativ-hint { font-size: 0.9em; color: #343a40; }
 .formativ-quote { font-size: 0.82em; color: #6c757d; font-style: italic; margin-top: 2px; }
 .formativ-foot, .formativ-note { font-size: 0.78em; color: #6c757d; margin: 4px 0 0; }

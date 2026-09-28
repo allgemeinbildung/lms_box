@@ -45,10 +45,12 @@ function renderResult(panel, result, at) {
     for (const k of result.kriterien || []) {
         const st = STATUS[k.status] || STATUS.nicht_beurteilbar;
         const li = el('li', `formativ-item formativ-${st.cls}`);
-        const badge = el('span', 'formativ-badge', `${st.icon} ${st.text}`);
-        li.appendChild(badge);
-        li.appendChild(el('strong', 'formativ-label', k.label));
-        if (k.hinweis) li.appendChild(el('div', 'formativ-hint', k.hinweis));
+        // Status and hint on one line; the criterion label is not shown (it
+        // only repeated the question right above).
+        const line = el('div', 'formativ-line');
+        line.appendChild(el('span', 'formativ-badge', `${st.icon} ${st.text}`));
+        if (k.hinweis) line.appendChild(el('span', 'formativ-hint', k.hinweis));
+        li.appendChild(line);
         if (k.beleg) li.appendChild(el('div', 'formativ-quote', `«${k.beleg}»`));
         list.appendChild(li);
     }
