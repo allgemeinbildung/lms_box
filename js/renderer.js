@@ -346,7 +346,9 @@ export async function syncDraftToStorage(assignmentId, draftData) {
 export async function renderSubAssignment(assignmentData, assignmentId, subId, studentKey, mode, draftData) {
     const subAssignmentData = assignmentData.subAssignments[subId];
 
-    document.getElementById('sub-title').textContent = subId;
+    // `titel` is an optional display title. The key (subId) must stay unchanged:
+    // saved drafts and the Obsidian embeds refer to it, typos included.
+    document.getElementById('sub-title').textContent = subAssignmentData.titel || subId;
     document.getElementById('content-renderer').innerHTML = '';
 
     // Save metadata to IndexedDB for other modules (like the printer)
