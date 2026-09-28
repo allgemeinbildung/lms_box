@@ -58,6 +58,15 @@ function renderResult(panel, result, at) {
     panel.appendChild(el('p', 'formativ-foot', 'Die Rückmeldung ist ein Hinweis zum Weiterarbeiten, keine Note. Sie bezieht sich auf deinen Text zum Zeitpunkt der Anfrage.'));
 }
 
+/** Scrolls the page's own container so the panel is visible. Deliberately not
+ *  scrollIntoView(): inside an iframe that can also scroll the host page. */
+function revealInContainer(el) {
+    const box = document.getElementById('assignment-container');
+    if (!box) return;
+    const bottom = el.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom;
+    if (bottom > 0) box.scrollTop += bottom + 12;
+}
+
 function attach({ question, subId, assignmentId, studentKey, mode, slot }) {
     const editorDiv = document.getElementById(`quill-editor-${sanitize(subId)}-${sanitize(question.id)}`);
     const block = editorDiv?.closest('.question-block');
@@ -128,6 +137,7 @@ function attach({ question, subId, assignmentId, studentKey, mode, slot }) {
             markUsed();
             live.textContent = 'Rückmeldung erhalten.';
             renderResult(panel, res.result, new Date().toISOString());
+            revealInContainer(panel);
         } catch (e) {
             if (e.code === 'already_used') {
                 markUsed();

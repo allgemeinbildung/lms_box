@@ -7,7 +7,16 @@ body {
     color: #212529;
 }
 
+/* The page is embedded as an iframe with a fixed height and scrolling="no"
+   (Obsidian Publish). Content taller than the frame, e.g. after feedback, was
+   cut off. The container scrolls inside instead; the frame never needs to. */
+html, body { height: 100%; overflow: hidden; }
+
 #assignment-container {
+    box-sizing: border-box;
+    max-height: calc(100% - 2em);
+    overflow-y: auto;
+    overscroll-behavior: auto;
     max-width: 900px;
     margin: 1em auto;
     padding: 1.5em;
