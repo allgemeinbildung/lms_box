@@ -1,11 +1,8 @@
-export const fetchAndRenderStudentFeedback = async (scriptUrl, studentKey, assignmentId, subId, mode) => {
+import { getReleasedFeedback } from './api.js';
+
+export const fetchAndRenderStudentFeedback = async (studentKey, assignmentId, subId, mode) => {
     try {
-        const response = await fetch(scriptUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'getFeedback', studentKey, assignmentId, mode })
-        });
-        const data = await response.json();
+        const data = await getReleasedFeedback(studentKey, assignmentId, mode);
         if (!data.found || !data.data) return;
 
         const results = (data.data.results || []).filter(r =>

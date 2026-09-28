@@ -3,7 +3,7 @@
 //  :::::: F I L E :   j s / r e n d e r e r . j s ::::::
 // ────────────────────────────────────────────────────────────────
 //
-import { SCRIPT_URL } from './config.js';
+import { saveDraft } from './api.js';
 import * as storage from './storage.js';
 
 const ANSWER_PREFIX = 'modular-answer_';
@@ -133,21 +133,7 @@ const gatherAndSaveDraft = debounce(async (studentKey, assignmentId, mode) => {
     };
 
     try {
-        const response = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'saveDraft',
-                studentKey: studentKey,
-                assignmentId: assignmentId,
-                payload: submissionPayload,
-                mode: mode
-            })
-        });
-        if (!response.ok) throw new Error('Server response was not OK');
-        const result = await response.json();
-        if (result.status !== 'success') throw new Error(result.message);
-
+        await saveDraft(studentKey, assignmentId, submissionPayload, mode);
         updateSaveStatus('cloud');
     } catch (error) {
         console.error("Failed to save draft to server:", error);

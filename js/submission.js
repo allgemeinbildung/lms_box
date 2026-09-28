@@ -5,6 +5,7 @@
 //  Handles the FINAL submission of all student work to the server.
 //
 import { SCRIPT_URL } from './config.js';
+import { submitAssignments } from './api.js';
 import * as storage from './storage.js';
 
 const ANSWER_PREFIX = 'modular-answer_';
@@ -142,26 +143,8 @@ export async function submitAllAssignments(studentKey, studentInfo, mode) {
         // which is more appropriate for the teacher dashboard's folder structure.
         const legacyIdentifier = `${studentInfo.klasse}_${studentInfo.name}`;
 
-        const response = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            mode: 'cors',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                action: 'submit',
-                identifier: legacyIdentifier, // Use legacy identifier for folder name
-                payload: payload,
-                mode: mode // Pass mode for consistency, though 'submit' may not use it
-            })
-        });
-        const result = await response.json();
-
-        if (response.ok && result.status === 'success') {
-            alert('Daten wurden erfolgreich und final übermittelt.');
-        } else {
-            throw new Error(result.message || 'Ein unbekannter Server-Fehler ist aufgetreten.');
-        }
+        await submitAssignments(legacyIdentifier, payload, mode);
+        alert('Daten wurden erfolgreich und final übermittelt.');
     } catch (error) {
         console.error('Submission failed:', error);
         alert(`Fehler beim Senden der Daten.\n\nFehler: ${error.message}`);

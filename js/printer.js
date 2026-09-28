@@ -1,4 +1,4 @@
-import { SCRIPT_URL } from './config.js';
+import { getAssignment } from './api.js';
 import * as storage from './storage.js';
 
 const ANSWER_PREFIX = 'modular-answer_';
@@ -18,10 +18,7 @@ async function gatherAssignmentData(assignmentId) {
 
     // 1. Primary Source: Fetch full assignment data from the server
     try {
-        const response = await fetch(`${SCRIPT_URL}?assignmentId=${assignmentId}`);
-        if (!response.ok) throw new Error(`Server responded with status ${response.status}`);
-        const data = await response.json();
-        if (data.status === 'error') throw new Error(data.message);
+        const data = await getAssignment(assignmentId);
 
         if (data.assignmentTitle) mainTitle = data.assignmentTitle;
         if (data.subAssignments && typeof data.subAssignments === 'object') {

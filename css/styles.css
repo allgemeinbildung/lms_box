@@ -98,3 +98,31 @@ body {
 #solution-unlock-container button:hover {
     background-color: #e9ecef;
 }
+
+/* formativ: feedback under a Quill editor. Meaning never by colour alone. */
+.formativ { margin-top: 8px; }
+.formativ-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.formativ-button { padding: 5px 12px; border: 1px solid #0d6efd; background: #fff; color: #0d6efd; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+.formativ-button:hover:not(:disabled) { background: #e7f1ff; }
+.formativ-button:focus-visible { outline: 2px solid #0d6efd; outline-offset: 2px; }
+.formativ-button:disabled { border-color: #adb5bd; color: #6c757d; cursor: default; }
+.formativ-info, .formativ-live { font-size: 0.85em; color: #6c757d; }
+.formativ-live:empty { display: none; }
+.formativ-panel:empty { display: none; }
+.formativ-panel { margin-top: 8px; border: 1px solid #dee2e6; border-radius: 6px; padding: 8px 12px; background: #fcfcfd; }
+.formativ-head { font-weight: 600; font-size: 0.9em; color: #343a40; }
+.formativ-time { font-weight: 400; color: #6c757d; }
+.formativ-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.formativ-item { padding: 6px 0 6px 10px; border-left: 3px solid #adb5bd; margin-bottom: 6px; }
+.formativ-ok { border-left-color: #198754; }
+.formativ-part { border-left-color: #fd7e14; }
+.formativ-miss { border-left-color: #dc3545; }
+.formativ-badge { display: inline-block; font-size: 0.78em; font-weight: 600; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; margin-right: 6px; }
+.formativ-ok .formativ-badge { color: #146c43; }
+.formativ-part .formativ-badge { color: #a04d00; }
+.formativ-miss .formativ-badge { color: #b02a37; }
+.formativ-na .formativ-badge { color: #6c757d; }
+.formativ-label { font-size: 0.9em; }
+.formativ-hint { font-size: 0.88em; color: #343a40; margin-top: 2px; }
+.formativ-quote { font-size: 0.82em; color: #6c757d; font-style: italic; margin-top: 2px; }
+.formativ-foot, .formativ-note { font-size: 0.78em; color: #6c757d; margin: 4px 0 0; }

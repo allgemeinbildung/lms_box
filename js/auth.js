@@ -1,3 +1,4 @@
+import { authenticateStudent } from './api.js';
 const STUDENT_KEY_STORAGE = 'student-auth-key';
 
 function showLoginDialog() {
@@ -75,7 +76,7 @@ function showLoginDialog() {
     });
 }
 
-export async function authenticate(SCRIPT_URL, mode) {
+export async function authenticate(mode) {
     let key = localStorage.getItem(STUDENT_KEY_STORAGE);
 
     if (!key) {
@@ -84,16 +85,7 @@ export async function authenticate(SCRIPT_URL, mode) {
     }
 
     try {
-        const response = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'authenticateStudent',
-                studentKey: key,
-                mode: mode // Pass the mode to the backend
-            })
-        });
-        const result = await response.json();
+        const result = await authenticateStudent(key, mode);
 
         if (result.status === 'success') {
             localStorage.setItem(STUDENT_KEY_STORAGE, key);
@@ -104,6 +96,6 @@ export async function authenticate(SCRIPT_URL, mode) {
     } catch (error) {
         localStorage.removeItem(STUDENT_KEY_STORAGE);
         alert(`Anmeldung fehlgeschlagen: ${error.message}\nBitte versuche es erneut.`);
-        return await authenticate(SCRIPT_URL, mode); // Retry on failure
+        return await authenticate(mode); // Retry on failure
     }
 }

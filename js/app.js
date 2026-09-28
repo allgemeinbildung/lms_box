@@ -1,9 +1,10 @@
-import { SCRIPT_URL } from './config.js';
+import { getAssignment, getDraft } from './api.js';
 import { renderSubAssignment, syncDraftToStorage } from './renderer.js';
 import { printAssignmentAnswers } from './printer.js';
 import { submitAllAssignments } from './submission.js';
 import { authenticate } from './auth.js';
 import { fetchAndRenderStudentFeedback } from './studentFeedback.js';
+import { initFormativ } from './formativ.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -17,7 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    const authData = await authenticate(SCRIPT_URL, mode);
+    const authData = await authenticate(mode);
     if (!authData) {
         document.body.innerHTML = '<h1>Anmeldung erforderlich</h1><p>Der Anmeldevorgang wurde abgebrochen. Bitte lade die Seite neu.</p>';
         return;
@@ -29,22 +30,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('print-answers').addEventListener('click', () => printAssignmentAnswers(assignmentId));
 
     try {
-        const assignmentResponse = await fetch(`${SCRIPT_URL}?assignmentId=${assignmentId}`);
-        if (!assignmentResponse.ok) throw new Error(`Network error: ${assignmentResponse.statusText}`);
-        const assignmentData = await assignmentResponse.json();
-
-        const draftResponse = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'getDraft',
-                studentKey: studentKey,
-                assignmentId: assignmentId,
-                mode: mode
-            })
-        });
-        if (!draftResponse.ok) throw new Error('Could not fetch draft.');
-        const draftData = await draftResponse.json();
+        const assignmentData = await getAssignment(assignmentId);
+        const draftData = await getDraft(studentKey, assignmentId, mode);
 
         if (assignmentData.status === 'error') throw new Error(assignmentData.message);
         document.getElementById('main-title').textContent = assignmentData.assignmentTitle;
@@ -56,8 +43,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const subAssignmentData = assignmentData.subAssignments[subId];
         if (!subAssignmentData) throw new Error(`Teilaufgabe "${subId}" nicht gefunden.`);
         
-        renderSubAssignment(assignmentData, assignmentId, subId, studentKey, mode, draftData);
-        fetchAndRenderStudentFeedback(SCRIPT_URL, studentKey, assignmentId, subId, mode);
+        await renderSubAssignment(assignmentData, assignmentId, subId, studentKey, mode, draftData);
+        fetchAndRenderStudentFeedback(studentKey, assignmentId, subId, mode);
+        initFormativ(assignmentData, assignmentId, subId, studentKey, mode);
 
     } catch (error) {
         console.error('Fehler beim Laden der Aufgabe:', error);
