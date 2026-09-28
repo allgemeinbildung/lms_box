@@ -1,4 +1,4 @@
-import { getAssignment } from './api.js';
+import { getAssignment, getFormativStatus } from './api.js';
 import * as storage from './storage.js';
 
 const ANSWER_PREFIX = 'modular-answer_';
@@ -92,6 +92,18 @@ async function gatherAssignmentData(assignmentId) {
     return { studentIdentifier, assignmentTitle: mainTitle, subAssignments: finalSubAssignments };
 }
 
+const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const FORMATIV_STATUS = { erfuellt: '✓ erfüllt', teilweise: '◐ teilweise', fehlt: '✗ fehlt', nicht_beurteilbar: '– nicht beurteilbar' };
+
+/** The formativ feedback of one question as print HTML (all text escaped). */
+function formativPrintHTML(slot) {
+    if (!slot || slot.state !== 'done' || !slot.result) return '';
+    const when = slot.at ? new Date(slot.at).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    const items = (slot.result.kriterien || []).map((k) =>
+        `<li><strong>${escapeHtml(FORMATIV_STATUS[k.status] || k.status)}</strong> ${escapeHtml(k.hinweis || '')}${k.beleg ? `<br><em>«${escapeHtml(k.beleg)}»</em>` : ''}</li>`).join('');
+    return `<div class="formativ-box"><h4>Rückmeldung (formativ${when ? ', ' + when : ''}):</h4><ul>${items}</ul></div>`;
+}
+
 function convertMarkdownToHTML(text) {
     if (!text) return text;
     text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
@@ -129,6 +141,7 @@ function generatePrintHTML(data) {
                 } else {
                     bodyContent += `<div class="answer-box">${answer}</div>`;
                 }
+                bodyContent += formativPrintHTML(data.formativ?.[`${subId}::${q.id}`]);
                 bodyContent += `</div>`;
             });
         }
@@ -159,6 +172,10 @@ function generatePrintHTML(data) {
             color: #aaa; font-size: 0.9em; font-style: italic;
         }
         hr { border: 0; border-top: 1px solid #ccc; }
+        .formativ-box { margin-top: 0.6em; padding: 6px 10px; border-left: 3px solid #0d6efd; background: #f5f8ff; }
+        .formativ-box h4 { margin: 0 0 0.3em; }
+        .formativ-box ul { margin: 0; padding-left: 1.2em; }
+        .formativ-box li { margin-bottom: 0.3em; }
         @media print { 
             h2 { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; } 
         }
@@ -167,9 +184,14 @@ function generatePrintHTML(data) {
     return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Druckansicht: ${data.assignmentTitle}</title><style>${css}</style></head><body>${bodyContent}</body></html>`;
 }
 
-export async function printAssignmentAnswers(assignmentId) {
-    const data = await gatherAssignmentData(assignmentId);
-    if (!data) return;
+export async function printAssignmentAnswers(assignmentId, studentKey = null, mode = 'live') {
+    const data = await gatherAssignmentData(assignmentId);
+    if (!data) return;
+    // formativ feedback received so far; printing works without it.
+    data.formativ = {};
+    if (studentKey) {
+        try { data.formativ = (await getFormativStatus(studentKey, assignmentId, mode)).slots || {}; } catch { /* print without */ }
+    }
 
     const htmlContent = generatePrintHTML(data);
     const printWindow = window.open('', '_blank');

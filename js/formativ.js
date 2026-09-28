@@ -103,7 +103,6 @@ function attach({ question, subId, assignmentId, studentKey, mode, slot }) {
         return;
     }
 
-    let armed = false;
     button.addEventListener('click', async () => {
         const text = quill.root.innerHTML;
         const words = quill.getText().trim().split(/\s+/).filter(Boolean).length;
@@ -111,21 +110,7 @@ function attach({ question, subId, assignmentId, studentKey, mode, slot }) {
             live.textContent = 'Schreibe zuerst eine Antwort (mindestens 5 Wörter).';
             return;
         }
-        // Two-step: the one attempt should not be spent by accident.
-        if (!armed) {
-            armed = true;
-            button.textContent = 'Wirklich jetzt? Nochmals klicken';
-            info.textContent = 'Danach gibt es für diese Frage keine weitere Rückmeldung.';
-            setTimeout(() => {
-                if (armed && !button.disabled) {
-                    armed = false;
-                    button.textContent = 'Rückmeldung holen';
-                    info.textContent = 'Nur einmal pro Frage möglich.';
-                }
-            }, 6000);
-            return;
-        }
-        armed = false;
+        // One click starts it directly (decided 28.09.2026: no confirmation step).
         button.disabled = true;
         button.textContent = 'Wird erstellt …';
         info.textContent = '';

@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log(`Authenticated as ${studentInfo.name} in ${mode} mode.`);
 
     // ✅ FIX: The line referencing 'submit-all' is correctly removed.
-    document.getElementById('print-answers').addEventListener('click', () => printAssignmentAnswers(assignmentId));
+    document.getElementById('print-answers').addEventListener('click', () => printAssignmentAnswers(assignmentId, studentKey, mode));
 
     try {
         const assignmentData = await getAssignment(assignmentId);
