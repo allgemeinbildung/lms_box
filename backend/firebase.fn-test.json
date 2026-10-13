@@ -11,7 +11,7 @@
     {
       "source": "functions",
       "codebase": "lmsbox",
-      "runtime": "nodejs20",
+      "runtime": "nodejs22",
       "ignore": [
         "node_modules",
         "test",

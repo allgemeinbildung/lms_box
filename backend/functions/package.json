@@ -4,7 +4,7 @@
   "description": "LMS Box callables boxFormativ / boxFormativStatus (codebase lmsbox). CommonJS. See ../CONTRACT.md.",
   "main": "index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "test": "node --test test/formativ.test.js"
