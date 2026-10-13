@@ -1,10 +1,5 @@
 export const state = {
-    draftsMap: {},
-    currentTeacherKey: ''
-};
-
-export const setTeacherKey = (key) => {
-    state.currentTeacherKey = key;
+    draftsMap: {}
 };
 
 export const setDraftsMap = (map) => {

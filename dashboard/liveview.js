@@ -4,7 +4,7 @@
 // ────────────────────────────────────────────────────────────────
 //
 import { state, setDraftsMap } from './modules/state.js';
-import { listDrafts, fetchDraftContent } from './modules/api.js';
+import { listDrafts, fetchDraftContent, watchClass } from './modules/api.js';
 import { initAuth } from './modules/auth.js';
 import { renderLiveGrid } from './modules/renderer.js';
 import { setupAnalysisExport, setupRawDownload } from './modules/exporter.js';
@@ -77,25 +77,13 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshBtn.textContent = 'Lade Liste...';
         refreshBtn.disabled = true;
         try {
-            const data = await listDrafts();
-            if (data.status === 'error') throw new Error(data.message);
-
-            const map = {};
-            for (const className in data) {
-                const normalizedClass = className.toUpperCase();
-                if (!map[normalizedClass]) map[normalizedClass] = {};
-                Object.assign(map[normalizedClass], data[className]);
-            }
-            setDraftsMap(map);
+            // Classes and students from the roster. The class ids are used as they are:
+            // the evaluator files its results by class id.
+            setDraftsMap(await listDrafts());
             populateClassSelect();
         } catch (error) {
             console.error(error);
-            if (error.message && error.message.includes('Invalid teacher key')) {
-                sessionStorage.removeItem('teacherKey');
-                checkAuth(); // Re-trigger auth
-            } else {
-                alert("Fehler beim Laden der Liste: " + (error.message || error));
-            }
+            alert("Fehler beim Laden der Liste: " + (error.message || error));
         } finally {
             refreshBtn.textContent = '🔄 Aktualisieren';
             refreshBtn.disabled = false;
@@ -123,6 +111,79 @@ document.addEventListener('DOMContentLoaded', () => {
     // We get a "checkAuth" function back, but we pass "onSuccess"
     const checkAuth = initAuth(initDataLoad);
 
+    // --- Live updates: drafts of the selected class (listener in api.js) ---
+    const fillAssignmentSelect = (foundAssignments) => {
+        const currentVal = assignmentSelect.value;
+        assignmentSelect.innerHTML = '<option value="">-- Aufgabe wählen --</option>';
+        if (foundAssignments.size === 0) {
+            assignmentSelect.innerHTML += '<option value="" disabled>Keine Aufgaben gefunden.</option>';
+            assignmentSelect.disabled = true;
+            return;
+        }
+        Array.from(foundAssignments).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })).forEach(assId => {
+            const opt = document.createElement('option');
+            opt.value = assId;
+            opt.textContent = assId;
+            assignmentSelect.appendChild(opt);
+        });
+        assignmentSelect.disabled = false;
+        if (foundAssignments.has(currentVal)) assignmentSelect.value = currentVal;
+    };
+
+    const assignmentsOf = (students) => {
+        const found = new Set();
+        Object.values(students).forEach(files => {
+            if (Array.isArray(files)) files.forEach(f => {
+                const potentialId = f.name.trim();
+                if (potentialId) found.add(potentialId);
+            });
+        });
+        return found;
+    };
+
+    // Full renders and card refreshes run one after the other, never interleaved.
+    let renderQueue = Promise.resolve();
+    const enqueueRender = (fn) => {
+        renderQueue = renderQueue.then(fn).catch(e => console.error(e));
+        return renderQueue;
+    };
+
+    const pendingNames = new Set();
+    let liveTimer = null;
+    const scheduleLiveRender = (delay = 300) => {
+        clearTimeout(liveTimer);
+        liveTimer = setTimeout(() => enqueueRender(async () => {
+            const cls = classSelect.value;
+            const assId = assignmentSelect.value;
+            if (!cls || !assId || !document.getElementById('live-grid')) { pendingNames.clear(); return; }
+            // A bulk assessment holds on to the cards it walks through.
+            if (bulkProgressOverlay.style.display === 'flex') { scheduleLiveRender(3000); return; }
+            const names = new Set(pendingNames);
+            pendingNames.clear();
+            if (names.size === 0) return;
+            const skipped = await renderLiveGrid(cls, assId, contentRenderer, { printAllBtn, exportBtn, bulkAssessBtn }, names);
+            updateTitle();
+            if (skipped.length) {
+                skipped.forEach(n => pendingNames.add(n));
+                scheduleLiveRender(3000);
+            }
+        }), delay);
+    };
+
+    const onDraftsChanged = ({ students, changed }) => {
+        const cls = classSelect.value;
+        if (!cls) return;
+        state.draftsMap[cls] = students;
+        fillAssignmentSelect(assignmentsOf(students));
+        const assId = assignmentSelect.value;
+        if (!assId || !document.getElementById('live-grid')) return;
+        const hasCard = (name) => Array.from(document.querySelectorAll('.student-card')).some(c => c.dataset.studentName === name);
+        changed.forEach(c => {
+            if (c.assignmentId === assId || !hasCard(c.studentName)) pendingNames.add(c.studentName);
+        });
+        if (pendingNames.size) scheduleLiveRender();
+    };
+
     // --- Scan Assignments Logic ---
     classSelect.addEventListener('change', async () => {
         const selectedClass = classSelect.value;
@@ -133,7 +194,19 @@ document.addEventListener('DOMContentLoaded', () => {
         assignmentSelect.disabled = true;
         contentRenderer.innerHTML = '<div id="placeholder-msg">Bitte wählen Sie eine Aufgabe aus.</div>';
 
-        if (!selectedClass) return;
+        pendingNames.clear();
+        if (!selectedClass) { watchClass(null); return; }
+
+        // Start the live listener for this class; resolves with its current drafts.
+        try {
+            const current = await watchClass(selectedClass, onDraftsChanged);
+            if (classSelect.value !== selectedClass) return;
+            state.draftsMap[selectedClass] = current;
+        } catch (error) {
+            console.error(error);
+            assignmentSelect.innerHTML = '<option value="">Fehler beim Laden</option>';
+            return;
+        }
 
         const students = state.draftsMap[selectedClass];
         const studentNames = Object.keys(students);
@@ -171,27 +244,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         await Promise.all(scanPromises);
+        if (classSelect.value !== selectedClass) return;
 
-        assignmentSelect.innerHTML = '<option value="">-- Aufgabe wählen --</option>';
-        if (foundAssignments.size === 0) {
-            assignmentSelect.innerHTML += '<option value="" disabled>Keine Aufgaben gefunden.</option>';
-        } else {
-            Array.from(foundAssignments).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })).forEach(assId => {
-                const opt = document.createElement('option');
-                opt.value = assId;
-                opt.textContent = assId;
-                assignmentSelect.appendChild(opt);
-            });
-            assignmentSelect.disabled = false;
-        }
+        fillAssignmentSelect(foundAssignments);
         updateTitle();
     });
 
     // --- Render Trigger ---
-    const runRender = async () => {
+    const runRender = () => enqueueRender(async () => {
         const cls = classSelect.value;
         const assId = assignmentSelect.value;
         if (cls && assId) {
+            pendingNames.clear();
             await renderLiveGrid(cls, assId, contentRenderer, {
                 printAllBtn,
                 exportBtn,
@@ -199,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             updateTitle();
         }
-    };
+    });
 
     assignmentSelect.addEventListener('change', () => {
         runRender();

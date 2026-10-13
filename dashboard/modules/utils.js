@@ -1,8 +1,12 @@
+import { safeMarkdown } from './sanitize.js';
+
+/**
+ * `**bold**` / `*italic*` as <b> / <i>. The text is escaped first: question texts come from
+ * drafts and from the evaluator, so the result never carries markup of its own.
+ */
 export const parseSimpleMarkdown = (text) => {
     if (!text) return '';
-    return text
-        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-        .replace(/\*(.*?)\*/g, '<i>$1</i>');
+    return safeMarkdown(text);
 };
 
 export const normalizeAnswer = (raw) => {

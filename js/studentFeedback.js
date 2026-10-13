@@ -1,8 +1,8 @@
 import { getReleasedFeedback } from './api.js';
 
-export const fetchAndRenderStudentFeedback = async (studentKey, assignmentId, subId, mode) => {
+export const fetchAndRenderStudentFeedback = async (assignmentId, subId) => {
     try {
-        const data = await getReleasedFeedback(studentKey, assignmentId, mode);
+        const data = await getReleasedFeedback(assignmentId);
         if (!data.found || !data.data) return;
 
         const results = (data.data.results || []).filter(r =>

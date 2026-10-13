@@ -67,7 +67,7 @@ function revealInContainer(el) {
     if (bottom > 0) box.scrollTop += bottom + 12;
 }
 
-function attach({ question, subId, assignmentId, studentKey, mode, slot }) {
+function attach({ question, subId, assignmentId, slot }) {
     const editorDiv = document.getElementById(`quill-editor-${sanitize(subId)}-${sanitize(question.id)}`);
     const block = editorDiv?.closest('.question-block');
     const quill = editorDiv && window.Quill ? window.Quill.find(editorDiv) : null;
@@ -118,7 +118,7 @@ function attach({ question, subId, assignmentId, studentKey, mode, slot }) {
         quill.enable(false); // freeze the text the feedback refers to
 
         try {
-            const res = await requestFormativ(studentKey, assignmentId, subId, question.id, text, mode);
+            const res = await requestFormativ(assignmentId, subId, question.id, text);
             markUsed();
             live.textContent = 'Rückmeldung erhalten.';
             renderResult(panel, res.result, new Date().toISOString());
@@ -142,21 +142,21 @@ function attach({ question, subId, assignmentId, studentKey, mode, slot }) {
     });
 }
 
-export async function initFormativ(assignmentData, assignmentId, subId, studentKey, mode) {
+export async function initFormativ(assignmentData, assignmentId, subId) {
     const sub = assignmentData?.subAssignments?.[subId];
-    // Same rule as the Cloud Function: question overrides sub-assignment overrides assignment.
+    // Same rule as the function (backend/functions/formativ.js): question overrides sub-assignment overrides assignment.
     const enabled = (q) => q.formativ === false ? false
         : Boolean(q.formativ) || sub?.formativ === true || assignmentData?.formativ === true;
     const questions = (sub?.questions || []).filter(enabled);
-    if (!studentKey || questions.length === 0) return;
+    if (questions.length === 0) return;
 
     let slots = {};
     try {
-        slots = (await getFormativStatus(studentKey, assignmentId, mode)).slots || {};
+        slots = (await getFormativStatus(assignmentId)).slots || {};
     } catch {
         return; // backend without formativ: page stays exactly as before
     }
     for (const question of questions) {
-        attach({ question, subId, assignmentId, studentKey, mode, slot: slots[slotKey(subId, question.id)] });
+        attach({ question, subId, assignmentId, slot: slots[slotKey(subId, question.id)] });
     }
 }

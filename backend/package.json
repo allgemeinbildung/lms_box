@@ -1,0 +1,27 @@
+{
+  "name": "lmsbox-backend",
+  "private": true,
+  "type": "module",
+  "description": "LMS Box on Firebase: rules, emulator config, seed and tests. See CONTRACT.md. Never deploy without --only.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "emu": "node scripts/emu.mjs",
+    "emulators": "node scripts/emu.mjs emulators:start",
+    "test:rules": "node scripts/emu.mjs emulators:exec --project demo-lmsbox --only firestore \"node --test test/rules.test.mjs\"",
+    "test:e2e:student": "node scripts/emu.mjs emulators:exec --project interactive-media-2a1fc --only auth,firestore \"node test/e2e-student.mjs\"",
+    "test:functions:unit": "node --test functions/test/formativ.test.js",
+    "test:functions": "node scripts/emu.mjs emulators:exec --config firebase.fn-test.json --project demo-lmsbox --only auth,firestore,functions \"node --test functions/test/formativ.test.js\"",
+    "test:e2e:dashboard": "node scripts/emu.mjs emulators:exec --project interactive-media-2a1fc --only auth,firestore,functions \"node test/e2e-dashboard.mjs\"",
+    "test:all": "npm run test:rules && npm run test:functions && npm run test:e2e:student && npm run test:e2e:dashboard",
+    "seed": "node scripts/seed-emulator.mjs",
+    "test:sanitize": "node test/sanitize.test.mjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.2",
+    "firebase": "12.19.0",
+    "firebase-admin": "14.5.0",
+    "playwright-core": "1.64.0"
+  }
+}

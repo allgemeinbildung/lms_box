@@ -1,10 +1,10 @@
 //
 //  dashboard/modules/formativ.js — shows the teacher which formativ feedback
 //  each student received: status, hint, time, and the text that was sent to
-//  the model (name already masked by the Cloud Function).
+//  the model (name already masked by the function). Read from formativUsage
+//  through api.js.
 //
-import { SCRIPT_URL } from '../../js/config.js';
-import { state } from './state.js';
+import { getFormativSlots } from './api.js';
 
 const STATUS = {
     erfuellt: { text: '✓ erfüllt', color: '#146c43' },
@@ -18,17 +18,6 @@ function el(tag, css, text) {
     if (css) e.style.cssText = css;
     if (text !== undefined) e.textContent = text; // never innerHTML: model output and student text
     return e;
-}
-
-async function fetchFormativ(studentKey, assignmentId) {
-    const response = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'formativTeacher', teacherKey: state.currentTeacherKey, targetStudentKey: studentKey, assignmentId }),
-    });
-    const data = await response.json();
-    if (data.status !== 'success') throw new Error(data.message || 'formativ nicht verfügbar');
-    return data.slots || {};
 }
 
 function renderSlot(slot) {
@@ -61,7 +50,7 @@ function renderSlot(slot) {
 export async function attachFormativToCard(card, studentKey, assignmentId) {
     if (!studentKey) return;
     let slots;
-    try { slots = await fetchFormativ(studentKey, assignmentId); } catch { return; }
+    try { slots = await getFormativSlots(studentKey, assignmentId); } catch { return; }   // studentKey = uid
     const entries = Object.entries(slots);
     if (entries.length === 0) return;
 

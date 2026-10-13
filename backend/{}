@@ -1,0 +1,39 @@
+[36m[1mi  emulators:[22m[39m Starting emulators: auth, functions, firestore
+[33m[1m!  functions:[22m[39m The following emulators are not running, calls to these services from the Functions emulator will affect production: [1mapphosting, database, hosting, pubsub, storage, dataconnect[22m
+[33m[1m!  functions:[22m[39m Application Default Credentials detected. Non-emulated services will access production using these credentials. Be careful!
+[36m[1mi  firestore:[22m[39m Firestore Emulator logging to [1mfirestore-debug.log[22m
+[32m[1m+  firestore:[22m[39m Firestore Emulator UI websocket is running on 9151.
+[36m[1mi  functions:[22m[39m Watching "D:\OS\dev\obs-allgemeinbildung\app\backend\functions" for Cloud Functions...
+[33m[1m!  functions:[22m[39m Your requested "node" version "20" doesn't match your global version "24". Using node@24 from host.
+[36m[1mi [22m[39m [36m[1mfunctions: [22m[39mLoaded environment variables from .env.local.
+Serving at port 8610
+
+[32m[1m+  functions:[22m[39m Loaded functions definitions from source: boxFormativ, boxFormativStatus.
+[32m[1m+  functions[europe-west6-boxFormativ]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5101/interactive-media-2a1fc/europe-west6/boxFormativ).
+[32m[1m+  functions[europe-west6-boxFormativStatus]:[22m[39m [1mhttp[22m function initialized (http://127.0.0.1:5101/interactive-media-2a1fc/europe-west6/boxFormativStatus).
+[36m[1mi [22m[39m Running script: [1mnpm run seed && node -e "setTimeout(()=, 900000)"[22m
+
+> seed
+> node scripts/seed-emulator.mjs
+
+Seeded project "interactive-media-2a1fc" in the emulators:
+  auth       3 students + 1 teacher (claim role=teacher)
+             anna.beispiel  TestA
+             ben.muster  TestA
+             cleo.probe  TestB
+             tina.test  teacher
+  (default)  students/{uid} x 3
+  lmsbox     assignments/0.1%20Testauftrag%20M%C3%BCller
+  password   from SEED_PASSWORD, or the default in scripts/seed-emulator.mjs
+[33m[1m! [22m[39m Script exited unsuccessfully (code 1)
+[36m[1mi  emulators:[22m[39m Shutting down emulators.
+[36m[1mi  functions:[22m[39m Stopping Functions Emulator
+[36m[1mi  firestore:[22m[39m Stopping Firestore Emulator
+[33m[1m! [22m[39m Firestore Emulator has exited upon receiving signal: SIGINT
+[36m[1mi  auth:[22m[39m Stopping Authentication Emulator
+[36m[1mi  eventarc:[22m[39m Stopping Eventarc Emulator
+[36m[1mi  tasks:[22m[39m Stopping Cloud Tasks Emulator
+[36m[1mi  hub:[22m[39m Stopping emulator hub
+[36m[1mi  logging:[22m[39m Stopping Logging Emulator
+
+[1m[31mError:[39m[22m Script "[1mnpm run seed && node -e "setTimeout(()=, 900000)"[22m" exited with code 1

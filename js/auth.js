@@ -1,101 +1,409 @@
-import { authenticateStudent } from './api.js';
-const STUDENT_KEY_STORAGE = 'student-auth-key';
+//
+//  js/auth.js — login with the Lernportal account (username + password).
+//
+//  The session lives in the browser (Firebase Auth, kept across reloads) and is
+//  shared by every iframe of this page on the same host page: when one of them
+//  signs in, the others are told through the auth state and close their dialog.
+//
+import { signIn, signOut, onAuthChange, getStudent } from './api.js';
+import * as storage from './storage.js';
+import { flushPendingSave, hasUnsavedEdits, hasUnsyncedWork, suspendSaving, resumeSaving, closeSaving } from './renderer.js';
+
+/** First login and forgotten passwords are handled by the Lernportal, not here. */
+const LOGIN_HELP_URL = 'https://allgemeinbildung.web.app/login';
+const LAST_UID_KEY = 'lmsbox-last-uid';       // whose answers the IndexedDB cache holds (a uid, no name)
+const OLD_KEY_STORAGE = 'student-auth-key';   // student key of the old system; removed when seen
+
+const LOGIN_ERRORS = {
+    'auth/invalid-credential': 'Benutzername oder Passwort ist falsch.',
+    'auth/wrong-password': 'Benutzername oder Passwort ist falsch.',
+    'auth/user-not-found': 'Benutzername oder Passwort ist falsch.',
+    'auth/invalid-email': 'Benutzername oder Passwort ist falsch.',
+    'auth/user-disabled': 'Dieses Konto ist gesperrt. Wende dich an deine Lehrperson.',
+    'auth/too-many-requests': 'Zu viele Versuche. Warte einen Moment und versuche es dann erneut.',
+    'auth/network-request-failed': 'Keine Verbindung. Prüfe dein Internet und versuche es erneut.',
+};
+
+let reloading = false;
+function reload() {
+    if (reloading) return;
+    reloading = true;
+    window.location.reload();
+}
+
+function el(tag, style, text) {
+    const e = document.createElement(tag);
+    if (style) e.style.cssText = style;
+    if (text !== undefined) e.textContent = text;   // names and addresses are never set as HTML
+    return e;
+}
+
+function helpLink(text) {
+    const a = el('a', 'color: #007bff;', text);
+    a.href = LOGIN_HELP_URL;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    return a;
+}
+
+// ---- login dialog -----------------------------------------------------------------
+
+function closeLoginDialog() {
+    document.getElementById('auth-dialog')?.remove();
+}
 
 function showLoginDialog() {
-    return new Promise((resolve) => {
-        const existingDialog = document.getElementById('auth-dialog');
-        if (existingDialog) existingDialog.remove();
+    if (document.getElementById('auth-dialog')) return;
 
-        // Another iframe may have already authenticated while this one was setting up.
-        const earlyKey = localStorage.getItem(STUDENT_KEY_STORAGE);
-        if (earlyKey) { resolve(earlyKey); return; }
+    const dialog = document.createElement('div');
+    dialog.id = 'auth-dialog';
+    dialog.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background-color: rgba(0,0,0,0.7); display: flex;
+        justify-content: center; align-items: flex-start; z-index: 3000; font-family: sans-serif;
+        overflow-y: auto; padding: 20px; box-sizing: border-box;
+    `;
 
-        const dialog = document.createElement('div');
-        dialog.id = 'auth-dialog';
-        dialog.style.cssText = `
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0,0,0,0.7); display: flex;
-            justify-content: center; align-items: flex-start; z-index: 3000; font-family: sans-serif;
-            overflow-y: auto; padding: 20px; box-sizing: border-box;
-        `;
+    const inputStyle = 'width: 100%; padding: 10px; margin: 4px 0 1em 0; border: 2px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 1em;';
+    const labelStyle = 'display: block; color: #333; font-size: 0.9em; font-weight: bold;';
+    dialog.innerHTML = `
+        <form id="auth-form" style="background: white; padding: 1.5em; border-radius: 12px; text-align: left; width: 100%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); line-height: 1.4; margin: auto;">
+            <h3 style="margin-top: 0; text-align: center; color: #333; font-size: 1.2em;">Anmeldung</h3>
+            <p style="margin-bottom: 1em; text-align: center; color: #555; font-size: 0.95em;">Melde dich mit deinem Lernportal-Konto an.</p>
 
-        dialog.innerHTML = `
-            <div style="background: white; padding: 1.5em; border-radius: 12px; text-align: left; width: 100%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); line-height: 1.4; margin: auto;">
-                <h3 style="margin-top: 0; text-align: center; color: #333; font-size: 1.2em;">Anmeldung</h3>
-                <p style="margin-bottom: 1em; text-align: center; color: #555; font-size: 0.95em;">Bitte gib deinen Schülerschlüssel ein.</p>
-                
-                <input type="text" id="student-key-input" placeholder="Dein Schlüssel..." style="width: 100%; padding: 10px; margin-bottom: 1em; border: 2px solid #ddd; border-radius: 6px; box-sizing: border-box; font-family: monospace; font-size: 1em;">
+            <label for="auth-username" style="${labelStyle}">Benutzername</label>
+            <input type="text" id="auth-username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="vorname.nachname" style="${inputStyle}">
 
-                <div style="background: #f8f9fa; border-left: 4px solid #007bff; padding: 0.8em; margin-bottom: 1.5em; font-size: 0.85em;">
-                    <p style="margin: 0; font-weight: bold;">Schülerschlüssel:</p>
-                    <p style="margin: 4px 0 0 0; font-family: monospace; background: #eee; padding: 4px; border-radius: 3px; word-break: break-all;">[Klasse]-[Vorname]-[Nachname]-[Nummer]</p>
-                    <p style="margin: 8px 0 0 0; color: #666; line-height: 1.4;">
-                        Beispiel: <code style="color: #d63384;">pk21a-hans-muster-123456</code><br>
-                        <span style="display: block; margin-top: 5px;">
-                            <em>Die Nummer findest du:</em><br>
-                            • Auf dem <strong>Studentenausweis</strong> unter dem Barcode.<br>
-                            • Bei <strong>OLAT</strong> im Profil unter "Institutionsnummer (Matrikelnummer)".
-                        </span>
-                    </p>
-                </div>
+            <label for="auth-password" style="${labelStyle}">Passwort</label>
+            <input type="password" id="auth-password" autocomplete="current-password" style="${inputStyle}">
 
-                <button id="login-key-btn" style="width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1em; transition: background 0.2s;">Anmelden</button>
-                <p id="auth-status" style="color: #d9534f; min-height: 1.2em; margin-top: 0.8em; text-align: center; font-size: 0.85em;"></p>
+            <button type="submit" id="auth-login-btn" style="width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1em; transition: background 0.2s;">Anmelden</button>
+            <p id="auth-status" role="alert" style="color: #d9534f; min-height: 1.2em; margin: 0.8em 0; text-align: center; font-size: 0.85em;"></p>
+
+            <div style="background: #f8f9fa; border-left: 4px solid #007bff; padding: 0.8em; font-size: 0.85em; color: #555;">
+                <p style="margin: 0;"><a id="auth-forgot" href="${LOGIN_HELP_URL}" target="_blank" rel="noopener" style="color: #007bff;">Passwort vergessen?</a></p>
+                <p style="margin: 6px 0 0 0;">Meldest du dich zum ersten Mal an? Dann setze zuerst
+                    <a id="auth-first-login" href="${LOGIN_HELP_URL}" target="_blank" rel="noopener" style="color: #007bff;">im Lernportal</a>
+                    dein eigenes Passwort.</p>
             </div>
-        `;
-        document.body.appendChild(dialog);
+        </form>
+    `;
+    document.body.appendChild(dialog);
 
-        const keyInput = document.getElementById('student-key-input');
-        const loginBtn = document.getElementById('login-key-btn');
-        const statusEl = document.getElementById('auth-status');
+    const form = dialog.querySelector('#auth-form');
+    const userInput = dialog.querySelector('#auth-username');
+    const passInput = dialog.querySelector('#auth-password');
+    const loginBtn = dialog.querySelector('#auth-login-btn');
+    const statusEl = dialog.querySelector('#auth-status');
 
-        // When another iframe/tab authenticates successfully it writes to localStorage,
-        // which fires the 'storage' event here. Use that key and close this dialog.
-        const onOtherFrameAuth = (e) => {
-            if (e.key === STUDENT_KEY_STORAGE && e.newValue) {
-                window.removeEventListener('storage', onOtherFrameAuth);
-                dialog.remove();
-                resolve(e.newValue);
-            }
-        };
-        window.addEventListener('storage', onOtherFrameAuth);
-
-        const attemptLogin = () => {
-            const key = keyInput.value.trim().toLowerCase();
-            if (!key) {
-                statusEl.textContent = 'Bitte gib einen Schlüssel ein.';
-                return;
-            }
-            window.removeEventListener('storage', onOtherFrameAuth);
-            dialog.remove();
-            resolve(key);
-        };
-
-        loginBtn.addEventListener('click', attemptLogin);
-        keyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptLogin(); });
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = userInput.value.trim();
+        const password = passInput.value;
+        if (!username || !password) {
+            statusEl.textContent = 'Bitte gib Benutzername und Passwort ein.';
+            return;
+        }
+        statusEl.textContent = '';
+        loginBtn.disabled = true;
+        loginBtn.textContent = 'Anmelden …';
+        try {
+            await signIn(username, password);
+            // Success: the auth state changes, authenticate() closes this dialog.
+        } catch (error) {
+            statusEl.textContent = LOGIN_ERRORS[error.code] || 'Anmeldung fehlgeschlagen. Bitte versuche es erneut.';
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Anmelden';
+            passInput.select();
+        }
     });
 }
 
-export async function authenticate(mode) {
-    let key = localStorage.getItem(STUDENT_KEY_STORAGE);
+// ---- signed in, but no assignment to show -----------------------------------------
 
-    if (!key) {
-        key = await showLoginDialog();
-        if (!key) return null; // User cancelled
-    }
+function logoutLink() {
+    const a = el('a', 'color: #007bff; cursor: pointer;', 'Abmelden');
+    a.href = '#';
+    a.className = 'auth-logout';
+    a.addEventListener('click', (e) => { e.preventDefault(); logout(); });
+    return a;
+}
 
-    try {
-        const result = await authenticateStudent(key, mode);
+/** Replaces the assignment area by a message. `build(box)` adds the content. */
+function showNotice(build) {
+    const actions = document.getElementById('action-container');
+    if (actions) actions.style.display = 'none';
+    document.getElementById('sub-title').textContent = 'Anmeldung';
+    const box = el('div', 'background: #fff8e1; border-left: 4px solid #f0ad4e; padding: 0.8em 1em; border-radius: 4px; font-size: 0.95em;');
+    box.id = 'auth-notice';
+    build(box);
+    document.getElementById('content-renderer').replaceChildren(box);
+}
 
-        if (result.status === 'success') {
-            localStorage.setItem(STUDENT_KEY_STORAGE, key);
-            return { key, studentInfo: result.studentInfo };
-        } else {
-            throw new Error(result.message);
+function showMustSetPassword(name) {
+    showNotice((box) => {
+        box.dataset.reason = 'must-set-password';
+        box.appendChild(el('p', 'margin: 0 0 0.6em 0; font-weight: bold;', `Hallo ${name}, du musst zuerst dein eigenes Passwort setzen.`));
+        const p = el('p', 'margin: 0 0 0.6em 0;', 'Du bist noch mit dem Start-Passwort angemeldet. Setze ');
+        p.append(helpLink('im Lernportal'), ' dein eigenes Passwort und lade danach diese Seite neu. Erst dann kannst du den Auftrag bearbeiten.');
+        box.appendChild(p);
+        const again = el('a', 'color: #007bff; cursor: pointer;', 'Seite neu laden');
+        again.href = '#';
+        again.addEventListener('click', (e) => { e.preventDefault(); reload(); });
+        const row = el('p', 'margin: 0;');
+        row.append(again, ' · ', logoutLink());
+        box.appendChild(row);
+    });
+}
+
+function showNoStudent(email) {
+    showNotice((box) => {
+        box.dataset.reason = 'no-student';
+        box.appendChild(el('p', 'margin: 0 0 0.6em 0; font-weight: bold;', 'Mit diesem Konto kannst du hier keine Aufträge bearbeiten.'));
+        box.appendChild(el('p', 'margin: 0 0 0.6em 0;', `Du bist als ${email} angemeldet. Dieses Konto steht in keiner Klassenliste – die Aufträge sind für Lernende. Melde dich ab und mit deinem Lernenden-Konto wieder an.`));
+        const row = el('p', 'margin: 0;');
+        row.append(logoutLink());
+        box.appendChild(row);
+    });
+}
+
+function showAccountError() {
+    showNotice((box) => {
+        box.dataset.reason = 'account-error';
+        box.appendChild(el('p', 'margin: 0 0 0.6em 0; font-weight: bold;', 'Dein Konto konnte nicht geladen werden.'));
+        box.appendChild(el('p', 'margin: 0 0 0.6em 0;', 'Prüfe deine Internetverbindung und lade die Seite neu.'));
+        const again = el('a', 'color: #007bff; cursor: pointer;', 'Seite neu laden');
+        again.href = '#';
+        again.addEventListener('click', (e) => { e.preventDefault(); reload(); });
+        const row = el('p', 'margin: 0;');
+        row.append(again, ' · ', logoutLink());
+        box.appendChild(row);
+    });
+}
+
+// ---- signed in: name and logout, small, next to the PDF button -------------------------
+
+function showUser(name) {
+    const actions = document.getElementById('action-container');
+    if (!actions || document.getElementById('auth-user')) return;
+    const span = el('span', 'float: right; font-size: 0.8em; color: #6c757d; line-height: 2.8;');
+    span.id = 'auth-user';
+    const link = logoutLink();
+    link.id = 'auth-logout';
+    link.style.color = '#6c757d';
+    span.append(el('span', '', name), ' · ', link);
+    actions.appendChild(span);
+}
+
+// ---- IndexedDB cache: one browser, several people --------------------------------------
+
+/**
+ * The cache (js/storage.js) is shared by everyone who uses this browser. It is
+ * emptied when a different account than last time signs in. The lock keeps the
+ * iframes of one host page from clearing what a sibling has just loaded.
+ */
+async function prepareCache(uid) {
+    const run = async () => {
+        let last = null;
+        try {
+            localStorage.removeItem(OLD_KEY_STORAGE);
+            last = localStorage.getItem(LAST_UID_KEY);
+        } catch { /* storage blocked: treated as "someone else" */ }
+        if (last === uid) return;
+        await storage.clear();
+        try { localStorage.setItem(LAST_UID_KEY, uid); } catch { /* see above */ }
+    };
+    if (navigator.locks?.request) await navigator.locks.request('lmsbox-cache', run);
+    else await run();
+}
+
+// ---- logout: every iframe of the host page saves first ----------------------------------
+//
+// The iframes share one session and one cache, so a logout in one of them ends the work
+// in all of them. Before that, each frame gets the chance to write what it still holds:
+//
+//   clicked frame                         every other frame
+//   "prepare"  ───────────────────────▶   stops typing, saves, answers "done"
+//   waits for the answers, then looks for unsynced markers in the cache
+//   nothing unsynced, or the student says "Trotzdem abmelden":
+//   "commit"   ───────────────────────▶   stops saving for good
+//   empties the cache, signs out (the auth state reloads all frames)
+//   the student says "Angemeldet bleiben":
+//   "cancel"   ───────────────────────▶   typing again
+//
+// Who the other frames are is read from the Web Locks each of them holds while it lives.
+
+const FRAME_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+const FRAME_LOCK = 'lmsbox-frame:';
+const FLUSH_TIMEOUT_MS = 8000;      // a save that hangs must not keep the student from logging out
+const NO_LOCKS_WAIT_MS = 1500;      // browsers without Web Locks: wait this long for answers
+const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('lmsbox-logout') : null;
+if (navigator.locks?.request) {
+    // Held until this frame goes away; never resolved on purpose.
+    navigator.locks.request(FRAME_LOCK + FRAME_ID, () => new Promise(() => {})).catch(() => {});
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+/** Saves what this frame still holds; gives up waiting after FLUSH_TIMEOUT_MS. */
+const flushOwn = () => Promise.race([Promise.resolve().then(flushPendingSave).catch(() => {}), sleep(FLUSH_TIMEOUT_MS)]);
+
+let ownLogout = null;      // token of the logout this frame started
+let peerLogout = null;     // token of the logout another frame started
+let onPeerDone = null;
+
+if (channel) {
+    channel.onmessage = async ({ data }) => {
+        if (!data || typeof data !== 'object') return;
+        if (data.type === 'prepare') {
+            peerLogout = data.token;
+            suspendSaving();
+            await flushOwn();
+            channel.postMessage({ type: 'done', token: data.token, frame: FRAME_ID, unsynced: hasUnsavedEdits() });
+        } else if (data.type === 'cancel' && data.token === peerLogout) {
+            peerLogout = null;
+            if (!ownLogout) resumeSaving();
+        } else if (data.type === 'commit') {
+            closeSaving();
+        } else if (data.type === 'done') {
+            onPeerDone?.(data);
         }
-    } catch (error) {
-        localStorage.removeItem(STUDENT_KEY_STORAGE);
-        alert(`Anmeldung fehlgeschlagen: ${error.message}\nBitte versuche es erneut.`);
-        return await authenticate(mode); // Retry on failure
+    };
+    // A frame that leaves in the middle of its own logout must not leave the others blocked.
+    window.addEventListener('pagehide', () => {
+        if (ownLogout) channel.postMessage({ type: 'cancel', token: ownLogout });
+    });
+}
+
+/** Ids of the other frames of this page that are alive now, or null when that cannot be known. */
+async function otherFrames() {
+    if (!navigator.locks?.query) return null;
+    try {
+        const { held = [] } = await navigator.locks.query();
+        return held.map((l) => l.name).filter((n) => n.startsWith(FRAME_LOCK)).map((n) => n.slice(FRAME_LOCK.length)).filter((id) => id !== FRAME_ID);
+    } catch { return null; }
+}
+
+/** Asks the other frames to save. Resolves true if one of them says it still holds unsaved text. */
+async function prepareOtherFrames(token) {
+    if (!channel) return false;
+    const waitingFor = await otherFrames();
+    let unsynced = false;
+    const answered = new Promise((resolve) => {
+        const open = new Set(waitingFor || []);
+        onPeerDone = (data) => {
+            if (data.token !== token) return;
+            if (data.unsynced) unsynced = true;
+            open.delete(data.frame);
+            if (waitingFor && open.size === 0) resolve();
+        };
+        if (waitingFor && open.size === 0) resolve();
+    });
+    channel.postMessage({ type: 'prepare', token });
+    await Promise.race([answered, sleep(waitingFor ? FLUSH_TIMEOUT_MS + 1000 : NO_LOCKS_WAIT_MS)]);
+    onPeerDone = null;
+    return unsynced;
+}
+
+/**
+ * Asks before unsynced text is thrown away. An own dialog, not `confirm()`: browsers
+ * block script dialogs in iframes of another site. Resolves true for "log out anyway".
+ */
+function confirmDiscard() {
+    return new Promise((resolve) => {
+        const dialog = el('div', `
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.7); display: flex;
+            justify-content: center; align-items: flex-start; z-index: 3000; font-family: sans-serif;
+            overflow-y: auto; padding: 20px; box-sizing: border-box;`);
+        dialog.id = 'logout-confirm';
+        dialog.setAttribute('role', 'alertdialog');
+        dialog.setAttribute('aria-modal', 'true');
+        const box = el('div', 'background: white; padding: 1.5em; border-radius: 12px; width: 100%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); line-height: 1.4; margin: auto;');
+        box.appendChild(el('h3', 'margin-top: 0; color: #333; font-size: 1.2em;', 'Noch nicht alles gespeichert'));
+        box.appendChild(el('p', 'color: #333; font-size: 0.95em;', 'Ein Teil deiner Antworten ist noch nicht in der Cloud gespeichert, sondern nur auf diesem Gerät. Wenn du dich jetzt abmeldest, geht dieser Text verloren.'));
+        box.appendChild(el('p', 'color: #555; font-size: 0.9em;', 'Tipp: Bleib angemeldet, prüfe deine Internetverbindung und versuche es danach noch einmal.'));
+        const stay = el('button', 'width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1em;', 'Angemeldet bleiben');
+        stay.id = 'logout-confirm-stay';
+        stay.type = 'button';
+        const leave = el('button', 'width: 100%; padding: 10px; margin-top: 8px; background: white; color: #dc3545; border: 1px solid #dc3545; border-radius: 6px; cursor: pointer; font-size: 0.95em;', 'Trotzdem abmelden');
+        leave.id = 'logout-confirm-leave';
+        leave.type = 'button';
+        const answer = (value) => { dialog.remove(); resolve(value); };
+        stay.addEventListener('click', () => answer(false));
+        leave.addEventListener('click', () => answer(true));
+        box.append(stay, leave);
+        dialog.appendChild(box);
+        document.body.appendChild(dialog);
+        stay.focus();
+    });
+}
+
+/**
+ * Ends the session in every iframe of this page and empties the local cache - after
+ * every frame has tried to save, and only with the student's consent if something
+ * could not be saved.
+ */
+export async function logout() {
+    if (ownLogout) return;
+    const token = FRAME_ID + ':' + Date.now();
+    ownLogout = token;
+
+    suspendSaving();
+    const [, peerUnsynced] = await Promise.all([flushOwn(), prepareOtherFrames(token)]);
+    let unsynced = peerUnsynced || hasUnsavedEdits();
+    if (!unsynced) {
+        try { unsynced = await hasUnsyncedWork(); } catch { /* cache unreadable: then there is no local copy to lose */ }
     }
+    if (unsynced && !(await confirmDiscard())) {
+        channel?.postMessage({ type: 'cancel', token });
+        ownLogout = null;
+        if (!peerLogout) resumeSaving();
+        return;
+    }
+
+    channel?.postMessage({ type: 'commit', token });
+    closeSaving();
+    try { await storage.clear(); } catch { /* nothing cached */ }
+    try { localStorage.removeItem(LAST_UID_KEY); } catch { /* storage blocked */ }
+    await signOut();
+    ownLogout = null;
+    reload();   // back to the login dialog (the auth state change does the same)
+}
+
+/**
+ * Resolves with `{ uid, student }` once a student is signed in and may work.
+ * Until then it shows the login dialog, or a message for accounts that cannot
+ * work here; in those cases it does not resolve, and the page reloads when the
+ * account changes.
+ */
+export function authenticate() {
+    return new Promise((resolve) => {
+        let decidedFor;     // uid this page was built for; undefined while the dialog is open
+        let run = 0;
+        onAuthChange(async (user) => {
+            if (decidedFor !== undefined) {
+                // Logout or another account, here or in a sibling iframe: start over.
+                if (user?.uid !== decidedFor) reload();
+                return;
+            }
+            const mine = ++run;
+            if (!user) { showLoginDialog(); return; }
+
+            closeLoginDialog();   // also when a sibling iframe did the login
+            let student = null;
+            let failed = false;
+            try { student = await getStudent(); } catch (e) { console.error('Roster:', e); failed = true; }
+            if (mine !== run) return;
+            decidedFor = user.uid;
+
+            if (failed) { showAccountError(); return; }
+            if (!student) { showNoStudent(user.email || 'unbekannt'); return; }
+            const name = student.name || student.username || user.email || '';
+            if (student.mustSetPassword === true) { showMustSetPassword(name); return; }
+
+            await prepareCache(user.uid);
+            showUser(name);
+            resolve({ uid: user.uid, student: { ...student, name } });
+        });
+    });
 }

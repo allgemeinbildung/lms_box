@@ -1,0 +1,55 @@
+{
+  "firestore": [
+    {
+      "database": "lmsbox",
+      "location": "europe-west6",
+      "rules": "firestore.lmsbox.rules",
+      "indexes": "firestore.lmsbox.indexes.json"
+    }
+  ],
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "lmsbox",
+      "runtime": "nodejs20",
+      "ignore": [
+        "node_modules",
+        "test",
+        ".env.local",
+        ".secret.local",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        ".git"
+      ]
+    }
+  ],
+  "emulators": {
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 9190
+    },
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8280,
+      "websocketPort": 9151
+    },
+    "functions": {
+      "host": "127.0.0.1",
+      "port": 5101
+    },
+    "ui": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 4100
+    },
+    "hub": {
+      "host": "127.0.0.1",
+      "port": 4410
+    },
+    "logging": {
+      "host": "127.0.0.1",
+      "port": 4510
+    },
+    "singleProjectMode": true
+  }
+}

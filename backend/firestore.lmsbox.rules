@@ -1,0 +1,147 @@
+rules_version = '2';
+
+// Rules for the named database `lmsbox` only. Spec: CONTRACT.md.
+// The `(default)` database (Lernportal) has its own rules in another repo and
+// is never deployed from here.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isTeacher() {
+      return signedIn() && request.auth.token.role == 'teacher';
+    }
+    // The Firebase project is shared with another app: anonymous sign-in and
+    // email/password self-sign-up are enabled on it, so "signed in" does not mean
+    // "is a student". These two functions raise the bar: a real student signs in
+    // with email/password and an address ending in @lernende.bbw.ch (Auth issues
+    // it in lowercase). This does NOT prove roster membership - rules cannot read
+    // the roster, which lives in the other database. Anyone who can register such
+    // an address passes; the callables check the roster for what matters.
+    function notAnonymous() {
+      return signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+    function isSchoolAccount() {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider == 'password'
+        && request.auth.token.email.matches('.*@lernende[.]bbw[.]ch$');
+    }
+    // Document ids of per-student documents start with `${uid}__`.
+    function idIsOwn(docId) {
+      return signedIn()
+        && docId.size() > request.auth.uid.size() + 2
+        && docId[0:request.auth.uid.size() + 2] == request.auth.uid + '__';
+    }
+
+    // ---- drafts: validation -------------------------------------------------
+    //
+    // Size guard. Rules cannot measure a document, only count characters, and
+    // they have no loops - so the two lists are capped at 6 entries and checked
+    // entry by entry. 6 is also what the limit of 1000 evaluated expressions per
+    // request allows (12 did not fit; the emulator enforces that limit too).
+    // Real content has at most 2 questions per sub-assignment.
+    // Budget in characters (a character is at most 4 bytes in UTF-8):
+    //   answers   6 x questionId 200             =   1 200
+    //             all `answer` strings together  = 200 000
+    //   questions 6 x (id 200 + text 4 000)      =  25 200
+    //   uid, classId, assignmentId, subId, title, type < 2 000
+    //   total < 229 000 characters < 916 000 bytes, plus field names and the
+    //   document name: below the Firestore limit of 1 048 576 bytes.
+
+    function shortString(v, max) {
+      return v is string && v.size() <= max;
+    }
+    // Length of answers[i].answer; 0 when there is no such entry. A malformed
+    // entry (not a map, missing key) makes the expression error = deny.
+    function answerLen(a, i) {
+      return a.size() <= i ? 0
+        : (a[i].keys().hasOnly(['questionId', 'answer'])
+           && shortString(a[i].questionId, 200)
+           && a[i].answer is string
+             ? a[i].answer.size() : 1000000);
+    }
+    function answersOk(a) {
+      return a is list && a.size() <= 6
+        && answerLen(a, 0) + answerLen(a, 1) + answerLen(a, 2)
+         + answerLen(a, 3) + answerLen(a, 4) + answerLen(a, 5) <= 200000;
+    }
+    function questionOk(q, i) {
+      return q.size() <= i
+        || (q[i].keys().hasOnly(['id', 'text'])
+            && shortString(q[i].id, 200)
+            && shortString(q[i].text, 4000));
+    }
+    function questionsOk(q) {
+      return q is list && q.size() <= 6
+        && questionOk(q, 0) && questionOk(q, 1) && questionOk(q, 2)
+        && questionOk(q, 3) && questionOk(q, 4) && questionOk(q, 5);
+    }
+    function draftOk(draftId) {
+      let d = request.resource.data;
+      return idIsOwn(draftId)
+        && isSchoolAccount()
+        && d.keys().hasOnly(['uid', 'classId', 'assignmentId', 'subId', 'title',
+                             'type', 'questions', 'answers', 'updatedAt'])
+        && d.keys().hasAll(['uid', 'classId', 'assignmentId', 'subId', 'answers', 'updatedAt'])
+        && d.uid == request.auth.uid
+        && shortString(d.classId, 100)
+        && shortString(d.assignmentId, 500) && d.assignmentId.size() > 0
+        && shortString(d.subId, 500) && d.subId.size() > 0
+        && (!('title' in d) || shortString(d.title, 500))
+        && (!('type' in d) || shortString(d.type, 50))
+        && (!('questions' in d) || questionsOk(d.questions))
+        && answersOk(d.answers)
+        && d.updatedAt == request.time;
+    }
+
+    // ---- collections --------------------------------------------------------
+
+    match /assignments/{assignmentDoc} {
+      allow read: if isTeacher() || notAnonymous();
+      allow write: if isTeacher();
+    }
+
+    match /drafts/{draftId} {
+      // get: a missing own document answers "does not exist", not "denied".
+      allow get: if isTeacher()
+        || (notAnonymous() && idIsOwn(draftId) && (resource == null || resource.data.uid == request.auth.uid));
+      // list: a student query must carry where('uid', '==', own uid).
+      allow list: if isTeacher()
+        || (notAnonymous() && resource.data.uid == request.auth.uid);
+      allow create: if draftOk(draftId);
+      allow update: if draftOk(draftId)
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.assignmentId == resource.data.assignmentId
+        && request.resource.data.subId == resource.data.subId;
+      // No delete - not for students, and the contract grants the teacher read only.
+    }
+
+    match /feedback/{pairDoc} {
+      allow read, write: if isTeacher();
+    }
+
+    match /feedbackReleased/{pairDoc} {
+      allow get: if isTeacher()
+        || (notAnonymous() && idIsOwn(pairDoc) && (resource == null || resource.data.uid == request.auth.uid));
+      allow list: if isTeacher()
+        || (notAnonymous() && resource.data.uid == request.auth.uid);
+      allow write: if isTeacher();
+    }
+
+    // Written only by the function (Admin SDK bypasses rules).
+    match /formativUsage/{pairDoc} {
+      allow read: if isTeacher();
+    }
+
+    // Emulator-only exception (CONTRACT.md): the roster lives in `(default)`, under
+    // the Lernportal's rules. The Firestore emulator applies this one ruleset to
+    // every database, so the roster read of the student page needs a match here.
+    // Read only. In production `lmsbox` has no `students` collection.
+    match /students/{uid} {
+      allow read: if isTeacher() || (signedIn() && request.auth.uid == uid);
+    }
+
+    // Everything not listed above is denied (no match = no access).
+  }
+}

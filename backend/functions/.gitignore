@@ -1,0 +1,7 @@
+node_modules/
+# Real parameter values (service URL) are typed at deploy time or kept in a
+# project dotenv file - never in this public repo. .env.local and .secret.local
+# are emulator-only dummies and are versioned on purpose.
+.env
+.env.*
+!.env.local

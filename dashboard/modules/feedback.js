@@ -1,5 +1,6 @@
 import { showPrintDialog, printFeedback } from './printer.js';
 import { publishFeedback, updateFeedback } from './api.js';
+import { escapeHtml } from './sanitize.js';
 
 const pickFirstNonEmpty = (...values) => {
     for (const value of values) {
@@ -256,7 +257,7 @@ export const distributeFeedback = (feedbackData, container, versionIndex = null)
     controlsHeader.innerHTML = `
         <div style="font-size:0.9em; color:#0369a1; display:flex; align-items:center;">
             <strong>⚡ Status:</strong> 
-            <span style="color:#555; margin-left:5px; margin-right:5px;">${dateStr}</span>
+            <span style="color:#555; margin-left:5px; margin-right:5px;">${escapeHtml(dateStr)}</span>
             ${versionLabel}
             ${versionSelectorHtml}
             ${deltaHtml}
@@ -324,7 +325,7 @@ export const distributeFeedback = (feedbackData, container, versionIndex = null)
     // Fill slots
     if (currentItem.results) {
         currentItem.results.forEach(item => {
-            const targetSlot = container.querySelector(`.inline-feedback[data-qid="${item.question_id}"]`);
+            const targetSlot = container.querySelector(`.inline-feedback[data-qid="${CSS.escape(String(item.question_id))}"]`);
             if (targetSlot) {
                 const questionText = pickFirstNonEmpty(item.question_text, targetSlot.dataset.qtext);
                 const originalAnswer = getOriginalAnswerFromResult(item, targetSlot);
@@ -360,15 +361,15 @@ function renderFeedbackSlot(slot, item, feedbackData, container, prevSnapshot = 
     slot.innerHTML = `
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
             <span style="background:${color}; color:white; padding:1px 6px; border-radius:4px; font-size:0.8em; font-weight:bold;" title="Korrektheit (0-3)">
-                Punkte: ${item.score}
+                Punkte: ${escapeHtml(item.score)}
             </span>
-            <span style="color:#334155; font-weight:600; font-size:0.95em;">${item.concise_feedback}</span>
+            <span style="color:#334155; font-weight:600; font-size:0.95em;">${escapeHtml(item.concise_feedback)}</span>
             ${editedMark}
             ${undoBtn}
             <button class="feedback-ok-btn" title="Alles korrekt (Score 3)" style="margin-left:auto; background:none; border:1px solid #d1fae5; cursor:pointer; font-size:0.75em; color:#16a34a; padding:1px 6px; border-radius:3px; line-height:1.4; white-space:nowrap;">✔️ OK</button>
             <button class="feedback-edit-btn" title="Feedback bearbeiten" style="background:none; border:none; cursor:pointer; font-size:0.85em; color:#9ca3af; padding:1px 5px; border-radius:3px; line-height:1;">✏️</button>
         </div>
-        <div style="font-size:0.9em; color:#555; background:white; padding:8px; border-left:3px solid #e2e8f0; margin-top:5px;">${item.detailed_feedback}</div>
+        <div style="font-size:0.9em; color:#555; background:white; padding:8px; border-left:3px solid #e2e8f0; margin-top:5px;">${escapeHtml(item.detailed_feedback)}</div>
     `;
 
     slot.querySelector('.feedback-edit-btn').addEventListener('click', (e) => {
@@ -477,13 +478,13 @@ function renderFeedbackEditMode(slot, item, feedbackData, container) {
             </div>
             <div style="display:flex; flex-direction:column; gap:2px;">
                 <label style="font-size:0.8em; font-weight:600; color:#92400e;">Kurzbericht:</label>
-                <input class="edit-concise" type="text" value="${item.concise_feedback.replace(/"/g, '&quot;')}"
+                <input class="edit-concise" type="text"
                     style="padding:4px 6px; border-radius:4px; border:1px solid #d1d5db; font-size:0.9em; width:100%; box-sizing:border-box;">
             </div>
             <div style="display:flex; flex-direction:column; gap:2px;">
                 <label style="font-size:0.8em; font-weight:600; color:#92400e;">Ausführlicher Bericht:</label>
                 <textarea class="edit-detailed" rows="4"
-                    style="padding:4px 6px; border-radius:4px; border:1px solid #d1d5db; font-size:0.9em; width:100%; box-sizing:border-box; resize:vertical;">${item.detailed_feedback}</textarea>
+                    style="padding:4px 6px; border-radius:4px; border:1px solid #d1d5db; font-size:0.9em; width:100%; box-sizing:border-box; resize:vertical;"></textarea>
             </div>
             <div style="display:flex; gap:8px; align-items:center;">
                 <button class="edit-save-btn" style="background:#0369a1; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer; font-weight:bold; font-size:0.85em;">💾 Speichern</button>
@@ -492,6 +493,11 @@ function renderFeedbackEditMode(slot, item, feedbackData, container) {
             </div>
         </div>
     `;
+
+    // The texts come from the evaluator (and from what the model made of a student's answer):
+    // set as values, never written into the template.
+    slot.querySelector('.edit-concise').value = String(item.concise_feedback ?? '');
+    slot.querySelector('.edit-detailed').value = String(item.detailed_feedback ?? '');
 
     slot.querySelector('.edit-cancel-btn').addEventListener('click', (e) => {
         e.stopPropagation();

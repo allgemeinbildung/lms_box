@@ -1,0 +1,12 @@
+# Secrets and credentials never enter this repo (it is public).
+.env
+.env.*
+# Emulator-only dummies, versioned on purpose (see backend/functions/.gitignore).
+!backend/functions/.env.local
+*service-account*.json
+*firebase-adminsdk*.json
+firebase-admin*.json
+**/.secrets/
+
+# Dependencies
+node_modules/

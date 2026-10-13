@@ -184,14 +184,12 @@ function generatePrintHTML(data) {
     return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Druckansicht: ${data.assignmentTitle}</title><style>${css}</style></head><body>${bodyContent}</body></html>`;
 }
 
-export async function printAssignmentAnswers(assignmentId, studentKey = null, mode = 'live') {
+export async function printAssignmentAnswers(assignmentId) {
     const data = await gatherAssignmentData(assignmentId);
     if (!data) return;
     // formativ feedback received so far; printing works without it.
     data.formativ = {};
-    if (studentKey) {
-        try { data.formativ = (await getFormativStatus(studentKey, assignmentId, mode)).slots || {}; } catch { /* print without */ }
-    }
+    try { data.formativ = (await getFormativStatus(assignmentId)).slots || {}; } catch { /* print without */ }
 
     const htmlContent = generatePrintHTML(data);
     const printWindow = window.open('', '_blank');

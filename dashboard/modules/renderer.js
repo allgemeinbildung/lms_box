@@ -4,6 +4,7 @@ import { fetchDraftContent, getMasterAssignment, getFeedback, getPublishedFeedba
 import { performAssessment, updateBulkButton } from './assessment.js';
 import { distributeFeedback, showPublishPanel } from './feedback.js';
 import { parseSimpleMarkdown, detectUpdatedAnswers } from './utils.js';
+import { sanitizeAnswerFragment } from './sanitize.js';
 
 const pickFirstNonEmpty = (...values) => {
     for (const value of values) {
@@ -67,22 +68,39 @@ const findParsedSolution = (question, subTask) => {
     );
 };
 
-export const renderLiveGrid = async (cls, assId, container, ui) => {
+// Master data of the last full render, reused when single cards are refreshed.
+let masterMemo = { assId: null, total: 0, solutions: new Map() };
+
+/**
+ * Renders the grid of one class and assignment.
+ * `only` (a Set of student names) refreshes just those cards inside the existing grid —
+ * used for live updates of drafts. Open/closed state and the checkbox are kept. A card
+ * that is being edited or assessed is left alone; its name is returned so the caller can
+ * try again later. Returns the list of such skipped names (empty after a full render).
+ */
+export const renderLiveGrid = async (cls, assId, container, ui, only = null) => {
     const { printAllBtn, exportBtn, bulkAssessBtn } = ui;
+    const liveGrid = only ? container.querySelector('#live-grid') : null;
+    const partial = Boolean(liveGrid) && masterMemo.assId === assId;
+    const skipped = [];
 
     printAllBtn.disabled = false;
     printAllBtn.style.backgroundColor = "#17a2b8";
     printAllBtn.onclick = () => window.print();
 
     if (exportBtn) exportBtn.disabled = false;
-    bulkAssessBtn.style.display = 'none';
-
-    container.innerHTML = '<div style="text-align:center; margin-top:2em; color:#666;"><span class="spinner"></span> Lade Master-Daten & Sch\u00fcler...</div>';
+    if (!partial) {
+        bulkAssessBtn.style.display = 'none';
+        container.innerHTML = '<div style="text-align:center; margin-top:2em; color:#666;"><span class="spinner"></span> Lade Master-Daten & Sch\u00fcler...</div>';
+    }
 
     // --- 2. Fetch Master Data (Total Questions) ---
     let masterTotalQuestions = 0;
     const masterSolutionMap = new Map();
-    try {
+    if (partial) {
+        masterTotalQuestions = masterMemo.total;
+        masterMemo.solutions.forEach((value, key) => masterSolutionMap.set(key, value));
+    } else try {
         const masterAss = await getMasterAssignment(assId);
         if (masterAss && masterAss.subAssignments) {
             Object.entries(masterAss.subAssignments).forEach(([subTitle, subTask]) => {
@@ -130,13 +148,24 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
             });
         }
     } catch (e) { console.log("Local server offline or master not found."); }
+    masterMemo = { assId, total: masterTotalQuestions, solutions: masterSolutionMap };
 
     const useMasterTotal = masterTotalQuestions > 0;
 
     // --- 3. Process Students ---
     const students = state.draftsMap[cls];
-    const studentNames = Object.keys(students).sort();
-    const grid = document.createElement('div');
+    const existingCards = new Map(partial
+        ? Array.from(liveGrid.querySelectorAll('.student-card')).map(c => [c.dataset.studentName, c])
+        : []);
+    const isBusy = (card) => Boolean(card) && (
+        card.querySelector('.edit-save-btn') || card.querySelector('.live-feedback-btn')?.disabled);
+    const studentNames = Object.keys(students).sort().filter(name => {
+        if (!partial) return true;
+        if (!only.has(name)) return false;
+        if (isBusy(existingCards.get(name))) { skipped.push(name); return false; }
+        return true;
+    });
+    const grid = partial ? liveGrid : document.createElement('div');
     grid.id = 'live-grid';
 
     const promises = studentNames.map(async (name) => {
@@ -229,11 +258,12 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
         // Header Construction
         const header = document.createElement('div');
         header.className = 'student-header';
+        // Only numbers and fixed colours go into this template. The name (roster) is set as text below.
         header.innerHTML = `
             <div class="header-left">
-                <input type="checkbox" class="student-checkbox" data-student-name="${res.name}">
+                <input type="checkbox" class="student-checkbox">
                 <span class="toggle-icon">▶</span>
-                <span class="student-name">${res.name}</span>
+                <span class="student-name"></span>
             </div>
             <div class="student-stats">
                 <span class="progress-badge" style="background:${progressColor}">${answeredQuestions}/${finalTotal} ✓</span>
@@ -255,6 +285,8 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
         });
 
         const cb = header.querySelector('.student-checkbox');
+        cb.dataset.studentName = res.name;
+        header.querySelector('.student-name').textContent = res.name;
         cb.addEventListener('change', () => updateBulkButton(bulkAssessBtn));
 
         const feedbackBtn = header.querySelector('.live-feedback-btn');
@@ -283,7 +315,10 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
                 const subTask = assignmentData[subId];
                 const subBlock = document.createElement('div');
                 subBlock.className = 'sub-assignment-block';
-                subBlock.innerHTML = `<div class="sub-title">${subTask.title || subId}</div>`;
+                const subTitle = document.createElement('div');
+                subTitle.className = 'sub-title';
+                subTitle.textContent = subTask.title || subId;   // from the draft: text, never markup
+                subBlock.appendChild(subTitle);
 
                 const answerMap = new Map((subTask.answers || []).map(a => [a.questionId, a.answer]));
 
@@ -298,8 +333,12 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
                     qaWrapper.className = 'qa-wrapper';
                     qaWrapper.style.marginBottom = "20px";
 
-                    const qTextParsed = parseSimpleMarkdown(q.text);
-                    qaWrapper.innerHTML += `<div class="question-text" style="font-weight:bold; color:#333; margin-bottom:5px;">${idx + 1}. ${qTextParsed}</div>`;
+                    // q.text comes from the draft: parseSimpleMarkdown escapes it and adds <b>/<i> only.
+                    const questionDiv = document.createElement('div');
+                    questionDiv.className = 'question-text';
+                    questionDiv.style.cssText = 'font-weight:bold; color:#333; margin-bottom:5px;';
+                    questionDiv.innerHTML = `${idx + 1}. ${parseSimpleMarkdown(typeof q.text === 'string' ? q.text : '')}`;
+                    qaWrapper.appendChild(questionDiv);
 
                     const feedbackSlot = document.createElement('div');
                     feedbackSlot.className = 'inline-feedback';
@@ -313,7 +352,8 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
                     const answerDiv = document.createElement('div');
                     if (ans) {
                         answerDiv.className = "read-only-answer ql-editor";
-                        answerDiv.innerHTML = ans;
+                        // The answer is HTML the student controls: allow-list sanitiser, never innerHTML.
+                        answerDiv.replaceChildren(sanitizeAnswerFragment(ans));
                     } else {
                         answerDiv.className = "empty-answer-placeholder";
                         answerDiv.textContent = "(Keine Antwort)";
@@ -328,7 +368,14 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
         }
 
         card.appendChild(cardContent);
-        grid.appendChild(card);
+        const previous = existingCards.get(res.name);
+        if (previous && previous.parentNode === grid) {
+            if (previous.classList.contains('open')) card.classList.add('open');
+            cb.checked = Boolean(previous.querySelector('.student-checkbox')?.checked);
+            previous.replaceWith(card);
+        } else {
+            grid.appendChild(card);
+        }
 
         // formativ feedback the student received (teacher view)
         attachFormativToCard(card, studentKey, assId);
@@ -358,7 +405,7 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
                         statsDiv.insertBefore(badge, feedbackBtn);
 
                         changedQuestionIds.forEach(qid => {
-                            const slot = cardContent.querySelector(`.inline-feedback[data-qid="${qid}"]`);
+                            const slot = cardContent.querySelector(`.inline-feedback[data-qid="${CSS.escape(qid)}"]`);
                             if (slot) slot.closest('.qa-wrapper')?.classList.add('question-updated');
                         });
                     }
@@ -390,7 +437,10 @@ export const renderLiveGrid = async (cls, assId, container, ui) => {
         card.style.setProperty('--print-order', String(index));
     });
 
-    container.innerHTML = '';
-    container.appendChild(grid);
+    if (!partial) {
+        container.innerHTML = '';
+        container.appendChild(grid);
+    }
+    return skipped;
 };
 

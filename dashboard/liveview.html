@@ -138,8 +138,10 @@
     <div id="login-overlay" class="visible">
         <div id="login-box">
             <h2>Live View-Zugang</h2>
-            <p>Bitte geben Sie den Lehrerschlüssel ein.</p>
-            <input type="password" id="teacher-key-input" placeholder="Lehrerschlüssel...">
+            <p>Bitte melden Sie sich mit Ihrem Lehrpersonen-Konto an.</p>
+            <input type="text" id="login-username" placeholder="Benutzername oder E-Mail" autocomplete="username"
+                autocapitalize="none" spellcheck="false">
+            <input type="password" id="login-password" placeholder="Passwort" autocomplete="current-password">
             <button id="login-btn">Anmelden</button>
             <p id="login-status"></p>
         </div>
@@ -198,6 +200,8 @@
                         title="Feedback für alle Schüler*innen freigeben oder zurückziehen">🔓 Klasse freigeben</button>
 
                     <button id="print-all-btn" title="Klasse als Übersicht drucken">🖨️ Drucken</button>
+                    <button id="logout-btn" title="Vom Live View abmelden"
+                        style="background-color: #fff; margin-top: 18px; margin-left: 10px; color: #555; border: 1px solid #ccc; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; height: 100%;">Abmelden</button>
                 </div>
             </div>
         </header>

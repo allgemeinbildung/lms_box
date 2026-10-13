@@ -1,4 +1,5 @@
 import { parseSimpleMarkdown } from './utils.js';
+import { escapeHtml, sanitizeAnswerHtml } from './sanitize.js';
 
 const pickFirstNonEmpty = (...values) => {
     for (const value of values) {
@@ -17,7 +18,9 @@ const looksLikeHtml = (text) => /<\/?[a-z][\s\S]*>/i.test(text);
 const formatReportContent = (value) => {
     const normalized = pickFirstNonEmpty(value);
     if (!normalized) return '';
-    return looksLikeHtml(normalized) ? normalized : parseSimpleMarkdown(normalized);
+    // Answers (and solutions) are HTML: through the allow-list sanitiser. Everything else is
+    // escaped text with **bold** / *italic*. Nothing is written into the print window as it came.
+    return looksLikeHtml(normalized) ? sanitizeAnswerHtml(normalized) : parseSimpleMarkdown(normalized);
 };
 
 const getOriginalAnswer = (item) => pickFirstNonEmpty(
@@ -115,9 +118,12 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
     const showDetailed = (mode === 'full' || mode === 'full_with_context') && !isListMode;
     const showContext = mode === 'full_with_context' && !isListMode;
 
-    const safeAssignmentName = assignmentName || 'Aufgabe';
-    const sanitizedAssignment = safeAssignmentName.replace(/[\s\W]+/g, '_');
-    const pageTitle = isListMode ? `Liste_${className}_${sanitizedAssignment}` : `${className}_${sanitizedAssignment}`;
+    // Every value below is escaped where it enters the template: names and class ids come from
+    // the roster, question ids and texts from drafts, the feedback texts from the evaluator.
+    const rawAssignmentName = assignmentName || 'Aufgabe';
+    const sanitizedAssignment = rawAssignmentName.replace(/[\s\W]+/g, '_');
+    const safeAssignmentName = escapeHtml(rawAssignmentName);
+    const pageTitle = escapeHtml(isListMode ? `Liste_${className}_${sanitizedAssignment}` : `${className}_${sanitizedAssignment}`);
 
     let studentListHtml = '';
     if (studentList.length > 0) {
@@ -144,7 +150,7 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
             if (isListMode) {
                 return `
                         <div class="overview-row list-only" style="justify-content: space-between; border: none; border-bottom: 1px solid #f0f0f0; border-radius: 0; padding: 6px 0;">
-                            <span class="overview-name" style="font-size: 1.1em; color: #333;">${s.name}</span>
+                            <span class="overview-name" style="font-size: 1.1em; color: #333;">${escapeHtml(s.name)}</span>
                             <span class="overview-score" style="font-size: 1.1em; font-weight: bold; color: #000;">${s.percent}%</span>
                         </div>`;
             }
@@ -153,7 +159,7 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
                     <div class="overview-row ${hasDone ? 'is-done' : 'is-pending'}">
                         <div class="overview-left">
                             <span class="overview-status">${hasDone ? 'OK' : 'X'}</span>
-                            <span class="overview-name">${s.name}</span>
+                            <span class="overview-name">${escapeHtml(s.name)}</span>
                             <span class="overview-score">(${s.done}/${s.total})</span>
                         </div>
                         <div class="overview-right">
@@ -173,7 +179,7 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
 
     bodyContent += `
     <div class="page no-print-break" style="text-align:center; padding-top:${isListMode ? '20px' : '60px'};">
-        <h1 style="font-size:${isListMode ? '2em' : '3em'}; color:#0056b3; margin-bottom:10px;">${className}</h1>
+        <h1 style="font-size:${isListMode ? '2em' : '3em'}; color:#0056b3; margin-bottom:10px;">${escapeHtml(className)}</h1>
         <h2 style="font-size:${isListMode ? '1.2em' : '1.8em'}; color:#333;">${safeAssignmentName}</h2>
         <div style="margin: ${isListMode ? '15px' : '30px'} 0; font-size: ${isListMode ? '1.1em' : '1.5em'}; font-weight: bold; color: #0056b3;">
             <span style="background: #e0f2fe; padding: ${isListMode ? '5px 15px' : '10px 20px'}; border-radius: 50px;">
@@ -190,7 +196,7 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
         <div class="page">
             <div class="header">
                 <h2>Feedback: ${safeAssignmentName}</h2>
-                <p><strong>Sch&uuml;ler:in:</strong> ${fb.student_name} | <strong>Erstellt am:</strong> ${date}</p>
+                <p><strong>Sch&uuml;ler:in:</strong> ${escapeHtml(fb.student_name)} | <strong>Erstellt am:</strong> ${date}</p>
             </div>
             <hr>
             <div class="feedback-list">`;
@@ -200,12 +206,12 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
             (fb.results || []).forEach(item => {
                 let currentSection = "";
                 if (item.question_id) {
-                    const parts = item.question_id.split('_');
+                    const parts = String(item.question_id).split('_');
                     if (parts.length > 0) currentSection = parts[0];
                 }
 
                 if (currentSection && currentSection !== lastSection) {
-                    bodyContent += `<h3 class="section-header">${currentSection}</h3>`;
+                    bodyContent += `<h3 class="section-header">${escapeHtml(currentSection)}</h3>`;
                     lastSection = currentSection;
                 }
 
@@ -213,19 +219,19 @@ export const generatePrintHTML = (feedbackList, className, assignmentName, mode,
                 if (item.score === 2) colorClass = 'score-mid';
                 if (item.score === 3) colorClass = 'score-high';
 
-                const formattedQuestion = parseSimpleMarkdown(item.question_text || '');
+                const formattedQuestion = parseSimpleMarkdown(String(item.question_text || ''));
                 let scoreBadge = '';
                 if (includePoints) {
-                    scoreBadge = `<span class="badge ${colorClass}">Punkte: ${item.score}</span>`;
+                    scoreBadge = `<span class="badge ${colorClass}">Punkte: ${escapeHtml(item.score)}</span>`;
                 }
 
                 bodyContent += `
                 <div class="item">
                     <div class="question">${formattedQuestion}</div>
-                    <div class="concise">${scoreBadge} ${item.concise_feedback || ''}</div>`;
+                    <div class="concise">${scoreBadge} ${escapeHtml(item.concise_feedback || '')}</div>`;
 
                 if (showDetailed) {
-                    bodyContent += `<div class="detailed">${item.detailed_feedback || ''}</div>`;
+                    bodyContent += `<div class="detailed">${escapeHtml(item.detailed_feedback || '')}</div>`;
                 }
 
                 if (showContext) {

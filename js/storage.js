@@ -123,7 +123,7 @@ export async function remove(key) {
 
 /**
  * Retrieves all key-value pairs from the database.
- * Needed for the printer and submission modules.
+ * Needed for the printer.
  * @returns {Promise<Array<{key: string, value: any}>>}
  */
 export async function getAll() {
@@ -136,6 +136,60 @@ export async function getAll() {
         request.onsuccess = () => resolve(request.result);
         request.onerror = (event) => {
             console.error("Error getting all from IndexedDB:", event.target.error);
+            reject(event.target.error);
+        };
+    });
+}
+
+/**
+ * Runs several reads and writes as ONE transaction: either all of them happen or none,
+ * and no other iframe's write can land in between. `work` gets `{ get, set, remove }`
+ * and may await only these (anything else ends the transaction early).
+ * Used where a text and its "not yet on the server" marker must never disagree.
+ * @param {(tx: {get: Function, set: Function, remove: Function}) => Promise<any>} work
+ * @returns {Promise<any>} what `work` returned, once the transaction is committed.
+ */
+export async function atomic(work) {
+    const database = await initDB();
+    return new Promise((resolve, reject) => {
+        const transaction = database.transaction([STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const wrap = (request) => new Promise((ok, fail) => {
+            request.onsuccess = () => ok(request.result);
+            request.onerror = () => fail(request.error);
+        });
+        const tx = {
+            get: (key) => wrap(store.get(key)).then((row) => (row ? row.value : null)),
+            set: (key, value) => wrap(store.put({ key, value })),
+            remove: (key) => wrap(store.delete(key)),
+        };
+        let result;
+        transaction.oncomplete = () => resolve(result);
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error || new Error('IndexedDB transaction aborted.'));
+        let running;
+        try { running = Promise.resolve(work(tx)); } catch (error) { running = Promise.reject(error); }
+        running.then(
+            (value) => { result = value; },
+            (error) => { try { transaction.abort(); } catch { /* already over */ } reject(error); },
+        );
+    });
+}
+
+/**
+ * Empties the whole cache. The database is shared by everyone who uses this
+ * browser, so it is cleared on logout and when a different account signs in.
+ * @returns {Promise<void>}
+ */
+export async function clear() {
+    const database = await initDB();
+    return new Promise((resolve, reject) => {
+        const transaction = database.transaction([STORE_NAME], 'readwrite');
+        const request = transaction.objectStore(STORE_NAME).clear();
+
+        request.onsuccess = () => resolve();
+        request.onerror = (event) => {
+            console.error("Error clearing IndexedDB:", event.target.error);
             reject(event.target.error);
         };
     });
