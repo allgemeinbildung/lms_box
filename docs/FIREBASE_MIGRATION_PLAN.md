@@ -1,6 +1,6 @@
 # LMS Box → Firebase-only: Migration Plan
 
-Stand: 2026-10-13 · Status: **Phases 1–4 built and passing on the local emulators (uncommitted, branch `firebase`). Database `lmsbox` exists in europe-west6, empty. Nothing deployed. Phase 0 was replaced by a local third-party-iframe test. Phase 5 not started.** · Supersedes `V2_MIGRATION_PLAN.md` (Cloud Run / multi-school are dropped).
+Stand: 2026-10-13 · Status: **umgesetzt und live.** Phasen 1–4 gebaut und auf den Emulatoren getestet, Regeln, Aufträge und Functions deployt, `main` am 13.10.2026 auf GitHub Pages ausgeliefert (Phase 5, Schritte 1–2 und 4). Offen: Klassen informieren, altes System nach einer ruhigen Woche abbauen. Phase 0 wurde durch einen lokalen Drittanbieter-iframe-Test ersetzt. Aktuelle Betriebsnotizen: `CLAUDE.md` im Wurzelordner; Vertrag: `../backend/CONTRACT.md`.
 
 ## Goal
 

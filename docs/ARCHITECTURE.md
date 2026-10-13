@@ -1,5 +1,8 @@
 # LMS Box — System Architecture & Replication Guide
 
+> **Veraltet seit 13.10.2026.** Dieses Dokument beschreibt das alte System (Cloud Function `assignmentHandler`, Bucket, Schülerschlüssel). Die App läuft jetzt auf Firebase: verbindlich ist `../backend/CONTRACT.md`, der Hergang steht in `FIREBASE_MIGRATION_PLAN.md`. Nur noch als Geschichte lesen.
+
+
 > **Purpose:** This document explains how the full LMS stack works and provides a step-by-step guide to replicate it for a new content area (new subject, new class, new institution).
 
 ---

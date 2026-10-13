@@ -1,5 +1,8 @@
 # LMS Box V2 — Migration Plan
 
+> **Abgelöst am 13.10.2026** durch `FIREBASE_MIGRATION_PLAN.md` (umgesetzt). Cloud Run und Mehrschulbetrieb wurden nicht gebaut. Nur noch als Geschichte lesen.
+
+
 > **Builds on:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) — read that first.
 >
 > **Purpose:** This document is the development plan to migrate LMS Box from its current single-school prototype to a multi-school, multi-layout platform for the next school year. It defines the target architecture, what changes and what stays, how the 5 structural improvements map to concrete work, and the phased migration path.
