@@ -30,7 +30,18 @@ function formatTime(iso) {
     } catch { return ''; }
 }
 
-function renderResult(panel, result, at) {
+/** The service returns a word-for-word quote from the answer as evidence. It helps
+ *  when it points at one part of a longer answer; when it is (nearly) the whole
+ *  answer it only repeats what stands right above. Unknown answer: show it. */
+const QUOTE_MAX_SHARE = 0.6;
+function quoteIsPartOfAnswer(quote, answerText) {
+    const norm = (t) => String(t || '').replace(/\s+/g, ' ').trim();
+    const answer = norm(answerText);
+    if (!answer) return true;
+    return norm(quote).length < answer.length * QUOTE_MAX_SHARE;
+}
+
+function renderResult(panel, result, at, answerText) {
     panel.replaceChildren();
     const head = el('div', 'formativ-head', 'Rückmeldung zu deiner Antwort');
     if (at) head.appendChild(el('span', 'formativ-time', ` · ${formatTime(at)}`));
@@ -51,7 +62,9 @@ function renderResult(panel, result, at) {
         line.appendChild(el('span', 'formativ-badge', `${st.icon} ${st.text}`));
         if (k.hinweis) line.appendChild(el('span', 'formativ-hint', k.hinweis));
         li.appendChild(line);
-        if (k.beleg) li.appendChild(el('div', 'formativ-quote', `«${k.beleg}»`));
+        if (k.beleg && quoteIsPartOfAnswer(k.beleg, answerText)) {
+            li.appendChild(el('div', 'formativ-quote', `«${k.beleg}»`));
+        }
         list.appendChild(li);
     }
     panel.appendChild(list);
@@ -94,7 +107,7 @@ function attach({ question, subId, assignmentId, slot }) {
 
     if (slot?.state === 'done') {
         markUsed();
-        renderResult(panel, slot.result, slot.at);
+        renderResult(panel, slot.result, slot.at, quill.getText());
         return;
     }
     if (slot?.state === 'pending') {
@@ -121,7 +134,7 @@ function attach({ question, subId, assignmentId, slot }) {
             const res = await requestFormativ(assignmentId, subId, question.id, text);
             markUsed();
             live.textContent = 'Rückmeldung erhalten.';
-            renderResult(panel, res.result, new Date().toISOString());
+            renderResult(panel, res.result, new Date().toISOString(), quill.getText());
             revealInContainer(panel);
         } catch (e) {
             if (e.code === 'already_used') {
