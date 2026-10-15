@@ -271,16 +271,25 @@ try {
     await step('(e) wrong password: German error, dialog stays, no assignment', async () => {
         await page.goto(pageUrl(A1, A1_SUB));
         await page.locator('#auth-dialog').waitFor();
-        for (const id of ['#auth-forgot', '#auth-first-login']) {
-            assert.equal(await page.locator(id).getAttribute('href'), LOGIN_URL);
-            assert.equal(await page.locator(id).getAttribute('target'), '_blank');
-        }
+        assert.equal(await page.locator('#auth-first-login').getAttribute('href'), LOGIN_URL);
+        assert.equal(await page.locator('#auth-first-login').getAttribute('target'), '_blank');
         await login(page, 'anna.beispiel', 'ganz-falsch');
         await page.locator('#auth-status:not(:empty)').waitFor();
         assert.equal(await page.locator('#auth-status').innerText(), 'Benutzername oder Passwort ist falsch.');
         assert.equal(await page.locator('#auth-dialog').count(), 1);
         assert.equal(await page.locator('.ql-editor').count(), 0);
         assert.equal(await page.locator('#auth-user').count(), 0);
+    });
+
+    await step('(e2) "Passwort vergessen?": points to the teacher, sends nothing, toggles back', async () => {
+        assert.equal(await page.locator('#auth-forgot-help').isVisible(), false);
+        await page.locator('#auth-forgot').click();
+        assert.equal(await page.locator('#auth-forgot-help').isVisible(), true);
+        assert.match(await page.locator('#auth-forgot-help').innerText(), /Lehrperson/);
+        assert.equal(await page.locator('#auth-forgot').getAttribute('aria-expanded'), 'true');
+        assert.equal(await page.locator('#auth-password').isVisible(), true, 'login stays usable');
+        await page.locator('#auth-forgot').click();
+        assert.equal(await page.locator('#auth-forgot-help').isVisible(), false);
     });
 
     await step('(a) login, type, reload with emptied IndexedDB: text is back from Firestore', async () => {

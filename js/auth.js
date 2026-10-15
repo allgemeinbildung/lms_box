@@ -9,7 +9,7 @@ import { signIn, signOut, onAuthChange, getStudent } from './api.js';
 import * as storage from './storage.js';
 import { flushPendingSave, hasUnsavedEdits, hasUnsyncedWork, suspendSaving, resumeSaving, closeSaving } from './renderer.js';
 
-/** First login and forgotten passwords are handled by the Lernportal, not here. */
+/** The first login (start password -> own password) is handled by the Lernportal, not here. */
 const LOGIN_HELP_URL = 'https://allgemeinbildung.web.app/login';
 const LAST_UID_KEY = 'lmsbox-last-uid';       // whose answers the IndexedDB cache holds (a uid, no name)
 const OLD_KEY_STORAGE = 'student-auth-key';   // student key of the old system; removed when seen
@@ -61,15 +61,16 @@ function showLoginDialog() {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background-color: rgba(0,0,0,0.7); display: flex;
         justify-content: center; align-items: flex-start; z-index: 3000; font-family: sans-serif;
-        overflow-y: auto; padding: 20px; box-sizing: border-box;
+        overflow-y: auto; padding: 10px; box-sizing: border-box;
     `;
 
-    const inputStyle = 'width: 100%; padding: 10px; margin: 4px 0 1em 0; border: 2px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 1em;';
-    const labelStyle = 'display: block; color: #333; font-size: 0.9em; font-weight: bold;';
+    // Compact: the page sits in a 600px iframe on Obsidian Publish, and the dialog has to fit with room to spare.
+    const inputStyle = 'width: 100%; padding: 7px 10px; margin: 2px 0 0.6em 0; border: 2px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 1em;';
+    const labelStyle = 'display: block; color: #333; font-size: 0.85em; font-weight: bold;';
     dialog.innerHTML = `
-        <form id="auth-form" style="background: white; padding: 1.5em; border-radius: 12px; text-align: left; width: 100%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); line-height: 1.4; margin: auto;">
-            <h3 style="margin-top: 0; text-align: center; color: #333; font-size: 1.2em;">Anmeldung</h3>
-            <p style="margin-bottom: 1em; text-align: center; color: #555; font-size: 0.95em;">Melde dich mit deinem Lernportal-Konto an.</p>
+        <form id="auth-form" style="background: white; padding: 1em 1.25em; border-radius: 12px; text-align: left; width: 100%; max-width: 420px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); line-height: 1.4; margin: auto;">
+            <h3 style="margin: 0; text-align: center; color: #333; font-size: 1.15em;">Anmeldung</h3>
+            <p style="margin: 0.2em 0 0.8em 0; text-align: center; color: #555; font-size: 0.9em;">Mit deinem Lernportal-Konto</p>
 
             <label for="auth-username" style="${labelStyle}">Benutzername</label>
             <input type="text" id="auth-username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="vorname.nachname" style="${inputStyle}">
@@ -77,15 +78,15 @@ function showLoginDialog() {
             <label for="auth-password" style="${labelStyle}">Passwort</label>
             <input type="password" id="auth-password" autocomplete="current-password" style="${inputStyle}">
 
-            <button type="submit" id="auth-login-btn" style="width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1em; transition: background 0.2s;">Anmelden</button>
-            <p id="auth-status" role="alert" style="color: #d9534f; min-height: 1.2em; margin: 0.8em 0; text-align: center; font-size: 0.85em;"></p>
+            <button type="submit" id="auth-login-btn" style="width: 100%; padding: 9px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1em; transition: background 0.2s;">Anmelden</button>
+            <p id="auth-status" role="alert" style="color: #d9534f; min-height: 1.2em; margin: 0.4em 0; text-align: center; font-size: 0.85em;"></p>
 
-            <div style="background: #f8f9fa; border-left: 4px solid #007bff; padding: 0.8em; font-size: 0.85em; color: #555;">
-                <p style="margin: 0;"><a id="auth-forgot" href="${LOGIN_HELP_URL}" target="_blank" rel="noopener" style="color: #007bff;">Passwort vergessen?</a></p>
-                <p style="margin: 6px 0 0 0;">Meldest du dich zum ersten Mal an? Dann setze zuerst
-                    <a id="auth-first-login" href="${LOGIN_HELP_URL}" target="_blank" rel="noopener" style="color: #007bff;">im Lernportal</a>
-                    dein eigenes Passwort.</p>
-            </div>
+            <p id="auth-links" style="margin: 0; text-align: center; font-size: 0.8em; color: #555;">
+                <a id="auth-forgot" href="#" role="button" aria-controls="auth-forgot-help" aria-expanded="false" style="color: #007bff;">Passwort vergessen?</a>
+                &middot; Erste Anmeldung? Passwort zuerst
+                <a id="auth-first-login" href="${LOGIN_HELP_URL}" target="_blank" rel="noopener" style="color: #007bff;">im Lernportal</a> setzen.
+            </p>
+            <p id="auth-forgot-help" hidden style="margin: 0.6em 0 0 0; padding: 0.6em 0.8em; background: #f8f9fa; border-left: 4px solid #007bff; font-size: 0.85em; color: #333;">Melde dich bei deiner Lehrperson. Sie schickt dir einen Link, mit dem du selbst ein neues Passwort setzt, oder gibt dir ein Startpasswort.</p>
         </form>
     `;
     document.body.appendChild(dialog);
@@ -95,6 +96,16 @@ function showLoginDialog() {
     const passInput = dialog.querySelector('#auth-password');
     const loginBtn = dialog.querySelector('#auth-login-btn');
     const statusEl = dialog.querySelector('#auth-status');
+    const forgotLink = dialog.querySelector('#auth-forgot');
+    const forgotHelp = dialog.querySelector('#auth-forgot-help');
+
+    // No self-service reset: Firebase's reset mails do not reach @lernende.bbw.ch (tested
+    // 15.10.2026). The teacher sends a reset link (Lernportal, "Reset-Link") or a start password.
+    forgotLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        forgotHelp.hidden = !forgotHelp.hidden;
+        forgotLink.setAttribute('aria-expanded', String(!forgotHelp.hidden));
+    });
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();

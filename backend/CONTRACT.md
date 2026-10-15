@@ -8,7 +8,7 @@ If the code needs something this file does not allow, change this file first, no
 | | |
 |---|---|
 | Firebase project | `interactive-media-2a1fc` (shared with the Lernportal `allgemeinbildung.web.app`; that app lives in another repo and is **not** changed from here) |
-| Auth | Firebase Auth, email/password. Username `vorname.nachname` → `{username}@lernende.bbw.ch`; input containing `@` is used as is |
+| Auth | Firebase Auth, email/password. Username `vorname.nachname` → `{username}@lernende.bbw.ch`; input containing `@` is used as is. «Passwort vergessen?» only explains the way: the teacher sends a reset link (Lernportal, «Reset-Link», `generatePasswordResetLink`, no mail) or a start password. Firebase's own reset mails do not reach @lernende.bbw.ch (tested 15.10.2026). The first login (start password → own password) stays in the Lernportal |
 | Database for this app | named Firestore database **`lmsbox`**, location `europe-west6` (Zurich) |
 | Roster (read only) | `(default)` database, `students/{uid}`: `name, username, bbwEmail, classId, classIds[], mustSetPassword, active` — a student may read their own doc, a teacher all |
 | Teacher | custom claim `role == "teacher"` on the ID token |
