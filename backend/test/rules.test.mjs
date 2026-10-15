@@ -496,3 +496,48 @@ test('the students match is read only in lmsbox as well', async () => {
     await assertFails(setDoc(doc(alice, 'students', 'alice'), { name: 'x', mustSetPassword: false }));
     await assertFails(setDoc(doc(teacher, 'students', 'alice'), { name: 'x' }));
 });
+
+// ---- pasteEvents: create-only hints for the teacher -------------------------------
+
+const pasteId = (uid, id = 'Ev12345678') => `${draftId(uid)}__${id}`;
+const pasteEvent = (uid, extra = {}) => ({
+    uid, assignmentId: ASSIGNMENT, subId: SUB, questionId: 'q1',
+    kind: 'bulk', chars: 120, excerpt: 'Ein eingefügter Text mit Ümläuten.', at: serverTimestamp(),
+    ...extra,
+});
+
+test('pasteEvents: student creates own event, but cannot read, change or delete it', async () => {
+    const ref = doc(alice, 'pasteEvents', pasteId('alice', 'Own000001'));
+    await assertSucceeds(setDoc(ref, pasteEvent('alice')));
+    await assertFails(getDoc(ref));
+    await assertFails(getDocs(query(collection(alice, 'pasteEvents'), where('uid', '==', 'alice'))));
+    await assertFails(setDoc(ref, pasteEvent('alice', { chars: 0 })));     // overwrite = update
+    await assertFails(updateDoc(ref, { kind: 'paste' }));
+    await assertFails(deleteDoc(ref));
+});
+
+test('pasteEvents: teacher reads them by uid and assignment', async () => {
+    await assertSucceeds(setDoc(doc(alice, 'pasteEvents', pasteId('alice', 'Teach0001')), pasteEvent('alice', { kind: 'fast' })));
+    const snap = await assertSucceeds(getDocs(query(collection(teacher, 'pasteEvents'),
+        where('uid', '==', 'alice'), where('assignmentId', '==', ASSIGNMENT))));
+    assert.ok(snap.docs.some((d) => d.get('kind') === 'fast'));
+});
+
+test('pasteEvents: foreign id or forged uid, other accounts, bad fields are refused', async () => {
+    await assertFails(setDoc(doc(alice, 'pasteEvents', pasteId('bob', 'Forge0001')), pasteEvent('alice')));
+    await assertFails(setDoc(doc(alice, 'pasteEvents', pasteId('alice', 'Forge0002')), pasteEvent('bob')));
+    await assertFails(setDoc(doc(anon, 'pasteEvents', pasteId('anon', 'Anon00001')), pasteEvent('anon')));
+    await assertFails(setDoc(doc(anonSession, 'pasteEvents', pasteId('anon1', 'Anon00002')), pasteEvent('anon1')));
+    await assertFails(setDoc(doc(outsider, 'pasteEvents', pasteId('outsider', 'Out000001')), pasteEvent('outsider')));
+    const bad = (extra, id) => setDoc(doc(alice, 'pasteEvents', pasteId('alice', id)), pasteEvent('alice', extra));
+    await assertFails(bad({ kind: 'typed' }, 'Bad000001'));
+    await assertFails(bad({ chars: '120' }, 'Bad000002'));
+    await assertFails(bad({ chars: -1 }, 'Bad000003'));
+    await assertFails(bad({ chars: 1.5 }, 'Bad000004'));
+    await assertFails(bad({ excerpt: 'x'.repeat(301) }, 'Bad000005'));
+    await assertFails(bad({ at: new Date(0) }, 'Bad000006'));
+    await assertFails(bad({ name: 'Alice Beispiel' }, 'Bad000007'));
+    await assertFails(bad({ assignmentId: '' }, 'Bad000008'));
+    const { excerpt, ...noExcerpt } = pasteEvent('alice');
+    await assertFails(setDoc(doc(alice, 'pasteEvents', pasteId('alice', 'Bad000009')), noExcerpt));
+});

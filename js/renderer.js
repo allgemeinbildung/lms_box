@@ -3,14 +3,14 @@
 //  :::::: F I L E :   j s / r e n d e r e r . j s ::::::
 // ────────────────────────────────────────────────────────────────
 //
-import { saveDraft } from './api.js';
+import { saveDraft, reportPaste } from './api.js';
+import { guardEditor } from './pasteGuard.js';
 import * as storage from './storage.js';
 
 const ANSWER_PREFIX = 'modular-answer_';
 const QUESTIONS_PREFIX = 'modular-questions_';
 const TITLE_PREFIX = 'title_';
 const TYPE_PREFIX = 'type_';
-const SOLUTION_KEYS_STORE = 'modular-assignment-keys-store';
 /**
  * `unsynced_<assignmentId>_sub_<subId>` in IndexedDB: this sub-assignment holds text the
  * server does not have yet. Value `{ rev, state, answers }` - the complete answers of the
@@ -275,13 +275,10 @@ export function closeSaving() {
  * @param {string} subId - The ID of the sub-assignment.
  * @param {Array<{questionId: string, answer: string}>} initialAnswers - What the editors show at first:
  *        the unsynced local answers if there are any, otherwise the server's.
- * @param {object} assignmentData - The full assignment data for accessing top-level properties like solution_keys.
+ * @param {object} assignmentData - The full assignment data.
  */
 function renderQuill(data, assignmentId, subId, initialAnswers, assignmentData) {
     const contentRenderer = document.getElementById('content-renderer');
-    const solutionSection = document.getElementById('solution-section');
-    const solutionUnlockContainer = document.getElementById('solution-unlock-container');
-    const solutionDisplayContainer = document.getElementById('solution-display-container');
 
     data.questions.forEach((question, index) => {
         const questionBlock = document.createElement('div');
@@ -324,9 +321,10 @@ function renderQuill(data, assignmentId, subId, initialAnswers, assignmentData) 
         setTimeout(() => { isInitializing = false; }, 0);
         page.editors.push({ questionId: question.id, quill });
 
-        quill.root.addEventListener('paste', (e) => {
-            e.preventDefault();
-            showTemporaryMessage('Einfügen ist deaktiviert, um die Kreativität und das kritische Denken zu fördern.', quill.root);
+        guardEditor(quill, {
+            isActive: () => !isInitializing && closed !== 'committed',
+            report: (event) => reportPaste(assignmentId, subId, question.id, event),
+            showMessage: (message) => showTemporaryMessage(message, quill.root),
         });
 
         quill.on('text-change', (delta, oldDelta, source) => {
@@ -337,67 +335,6 @@ function renderQuill(data, assignmentId, subId, initialAnswers, assignmentData) 
         });
     });
 
-    // --- Solution Unlock Logic ---
-    if (data.solution && Array.isArray(data.solution.solutions) && data.solution.solutions.length > 0) {
-        solutionSection.style.display = 'block';
-
-        const unlockedSolutions = JSON.parse(sessionStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
-        const questionMap = new Map(data.questions.map(q => [q.id, q.text]));
-
-        if (unlockedSolutions[assignmentId]) {
-            solutionUnlockContainer.style.display = 'none';
-
-            let solutionHtml = '<h3>Musterlösung</h3>';
-            data.solution.solutions.forEach(sol => {
-                // ✅ FIX: Changed sol.questionId to sol.id to match JSON structure
-                const questionText = questionMap.get(sol.id) || 'Frage nicht gefunden';
-                solutionHtml += `<div class="solution-item" style="margin-top: 1em;"><strong>Frage: ${parseMarkdown(questionText)}</strong><div class="answer-box" style="padding: 1em; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #fdfdfd; margin-top: 0.5em;">${sol.answer}</div></div>`;
-            });
-
-            solutionDisplayContainer.innerHTML = solutionHtml;
-            solutionDisplayContainer.style.display = 'block';
-        } else {
-            solutionUnlockContainer.innerHTML = `
-                <p>Um die Musterlösung anzuzeigen, gib bitte den Freischalt-Code ein:</p>
-                <input type="text" id="solution-key-input" placeholder="Freischalt-Code" style="margin-right: 10px;">
-                <button id="unlock-solution-btn">Freischalten</button>
-                <p id="unlock-status" style="color: red; margin-top: 5px;"></p>
-            `;
-
-            const unlockBtn = document.getElementById('unlock-solution-btn');
-            const keyInput = document.getElementById('solution-key-input');
-            const unlockStatus = document.getElementById('unlock-status');
-
-            const unlockAction = () => {
-                const enteredKey = keyInput.value.trim();
-                if (assignmentData.solution_keys && assignmentData.solution_keys.includes(enteredKey)) {
-                    unlockStatus.textContent = '';
-                    solutionUnlockContainer.style.display = 'none';
-
-                    let solutionHtml = '<h3>Musterlösung</h3>';
-                    data.solution.solutions.forEach(sol => {
-                        const questionText = questionMap.get(sol.id) || 'Frage nicht gefunden';
-                        solutionHtml += `<div class="solution-item" style="margin-top: 1em;"><strong>Frage: ${parseMarkdown(questionText)}</strong><div class="answer-box" style="padding: 1em; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #fdfdfd; margin-top: 0.5em;">${sol.answer}</div></div>`;
-                    });
-
-                    solutionDisplayContainer.innerHTML = solutionHtml;
-                    solutionDisplayContainer.style.display = 'block';
-
-                    const unlocked = JSON.parse(sessionStorage.getItem(SOLUTION_KEYS_STORE) || '{}');
-                    unlocked[assignmentId] = true;
-                    sessionStorage.setItem(SOLUTION_KEYS_STORE, JSON.stringify(unlocked));
-                } else {
-                    unlockStatus.textContent = 'Falscher Code. Bitte versuche es erneut.';
-                    keyInput.value = '';
-                }
-            };
-
-            unlockBtn.addEventListener('click', unlockAction);
-            keyInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') unlockAction();
-            });
-        }
-    }
 }
 
 /**

@@ -34,6 +34,8 @@ function formatTime(iso) {
  *  when it points at one part of a longer answer; when it is (nearly) the whole
  *  answer it only repeats what stands right above. Unknown answer: show it. */
 const QUOTE_MAX_SHARE = 0.6;
+/** Same minimum as MIN_WORDS in backend/functions/formativ.js, which enforces it. */
+const MIN_WORDS = 15;
 function quoteIsPartOfAnswer(quote, answerText) {
     const norm = (t) => String(t || '').replace(/\s+/g, ' ').trim();
     const answer = norm(answerText);
@@ -119,8 +121,8 @@ function attach({ question, subId, assignmentId, slot }) {
     button.addEventListener('click', async () => {
         const text = quill.root.innerHTML;
         const words = quill.getText().trim().split(/\s+/).filter(Boolean).length;
-        if (words < 5) {
-            live.textContent = 'Schreibe zuerst eine Antwort (mindestens 5 Wörter).';
+        if (words < MIN_WORDS) {
+            live.textContent = `Schreibe zuerst eine Antwort (mindestens ${MIN_WORDS} Wörter).`;
             return;
         }
         // One click starts it directly (decided 28.09.2026: no confirmation step).

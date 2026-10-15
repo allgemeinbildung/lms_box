@@ -60,7 +60,7 @@ function showLoginDialog() {
     dialog.style.cssText = `
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background-color: rgba(0,0,0,0.7); display: flex;
-        justify-content: center; align-items: flex-start; z-index: 3000; font-family: sans-serif;
+        justify-content: center; align-items: flex-start; z-index: 3000; font-family: inherit;
         overflow-y: auto; padding: 10px; box-sizing: border-box;
     `;
 
@@ -324,7 +324,7 @@ function confirmDiscard() {
         const dialog = el('div', `
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: rgba(0,0,0,0.7); display: flex;
-            justify-content: center; align-items: flex-start; z-index: 3000; font-family: sans-serif;
+            justify-content: center; align-items: flex-start; z-index: 3000; font-family: inherit;
             overflow-y: auto; padding: 20px; box-sizing: border-box;`);
         dialog.id = 'logout-confirm';
         dialog.setAttribute('role', 'alertdialog');

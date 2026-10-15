@@ -23,6 +23,7 @@ enc(x)        = encodeURIComponent(x)            // assignmentId and subId conta
 assignmentDoc = enc(assignmentId)
 draftDoc      = `${uid}__${enc(assignmentId)}__${enc(subId)}`
 pairDoc       = `${uid}__${enc(assignmentId)}`
+pasteDoc      = `${uid}__${enc(assignmentId)}__${enc(subId)}__${eventId}`   // eventId: [A-Za-z0-9]{8,40}, made by the page
 ```
 
 `assignmentId` is the file name in `content/` without `.json`. `subId` is the key in `subAssignments`, typos included — the vault iframes refer to both verbatim.
@@ -38,6 +39,7 @@ Sub-assignment keys contain dots (`"A. Grundsätze …"`). Documents holding the
 | `feedback/{pairDoc}` | `uid, assignmentId`, the evaluator result (`results[]`, `date_str`, …), `released`, `releaseSettings{kurzbericht, ausfuehrlich, punkte, loesung}`, `publishedAt` | none | read, write |
 | `feedbackReleased/{pairDoc}` | `uid, assignmentId, results[], date_str, releaseSettings` — already filtered | read own | read, write, delete |
 | `formativUsage/{pairDoc}` | `uid, assignmentId, slots` — `slots` is a map keyed `"<subId>::<questionId>"` (`formativ.slotKey`); an entry is `{state, at}` while pending, and when done also `textHash, rubrik_version, request_id, prompt_version, duration_ms, pseudonym, names_masked, gesendet, result{zustand, kriterien[]}`. Written by the function with a precondition `update()` that replaces `slots` whole | none | read |
+| `pasteEvents/{pasteDoc}` | `uid, assignmentId, subId, questionId, kind, chars, excerpt, at` — `kind` one of `paste` (a paste got past the block), `drop` (text dragged in), `bulk` (one change inserted ≥ 40 characters), `fast` (≥ 60 characters in under 3 s, faster than typing); `chars` the number of characters inserted; `excerpt` the first 300 of them | create own only | read |
 
 Rules that must hold:
 
@@ -45,6 +47,7 @@ Rules that must hold:
 - `drafts`: the document id must start with `request.auth.uid + "__"` **and** `uid` in the data must equal `request.auth.uid`. No delete for students.
 - `drafts` documents carry no name. Name and class for the dashboard come from the roster join on `uid`.
 - `formativUsage` is written only by the function (Admin SDK).
+- `pasteEvents`: students create, never read, update or delete — not even their own, so a student cannot erase an entry. Same id and `uid` checks and the same school-account and server-time (`at`) conditions as `drafts`. An entry is a hint for the teacher, not proof: the page decides what it reports, and a student who blocks the request reports nothing.
 - `drafts` can be written only by a password sign-in with an address ending in `@lernende.bbw.ch`, and `updatedAt` must be the server time. Anonymous sessions read nothing. This raises the bar; it does not prove roster membership (rules cannot read the roster in `(default)`). That is why the dashboard looks drafts up by the uids on the class roster and never by the `classId` a draft carries, and why it renders every draft field as text or through `dashboard/modules/sanitize.js`.
 - Everything not listed is denied.
 

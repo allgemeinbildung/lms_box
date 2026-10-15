@@ -1,11 +1,49 @@
+/* Same type as the Obsidian Publish theme around the iframe: IBM Plex Sans,
+   16px, line-height 1.5, #484848. The font files come from vault/publish.css. */
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("../fonts/ibm-plex-sans-400.woff2") format("woff2");
+}
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url("../fonts/ibm-plex-sans-400-italic.woff2") format("woff2");
+}
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("../fonts/ibm-plex-sans-700.woff2") format("woff2");
+}
+@font-face {
+    font-family: "IBM Plex Sans";
+    font-style: italic;
+    font-weight: 700;
+    font-display: swap;
+    src: url("../fonts/ibm-plex-sans-700-italic.woff2") format("woff2");
+}
+
 /* Base & Layout Styles */
 body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.6;
+    font-family: "IBM Plex Sans", "Helvetica Neue", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
     background-color: #f8f9fa;
-    color: #212529;
+    color: #484848;
 }
+
+/* Quill sets Helvetica 13px on its container; buttons and inputs do not inherit by default. */
+.ql-container, .ql-editor, button, input, textarea, select {
+    font-family: inherit;
+}
+.ql-container { font-size: 1em; }
 
 /* The page is embedded as an iframe with a fixed height and scrolling="no"
    (Obsidian Publish). Content taller than the frame, e.g. after feedback, was
@@ -74,38 +112,6 @@ html, body { height: 100%; overflow: hidden; }
     background-color: #ced4da;
     border-color: #ced4da;
     cursor: not-allowed;
-}
-
-/* Solution Display */
-#solution-display-container {
-    display: none; /* Hidden by default */
-    margin-top: 30px;
-    padding: 20px;
-    background-color: #f0fff4; /* Light green background */
-    border: 1px solid #28a745;
-    border-radius: 8px;
-}
-
-#solution-display-container h3 {
-    margin-top: 0;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #dee2e6;
-    color: #155724; /* Dark green text */
-}
-
-/* Solution Unlock Input */
-#solution-unlock-container button {
-    padding: 8px 16px;
-    font-size: 0.9em;
-    border: 1px solid #6c757d;
-    border-radius: 5px;
-    background-color: transparent;
-    color: #6c757d;
-    cursor: pointer;
-}
-
-#solution-unlock-container button:hover {
-    background-color: #e9ecef;
 }
 
 /* formativ: feedback under a Quill editor. Meaning never by colour alone. */

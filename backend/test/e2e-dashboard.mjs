@@ -77,7 +77,7 @@ const ASSIGNMENT = {
 };
 await box.doc(`assignments/${enc(A)}`).set(ASSIGNMENT);
 // Leftovers of an earlier run against the same emulators.
-for (const c of ['drafts', 'feedback', 'feedbackReleased', 'formativUsage']) {
+for (const c of ['drafts', 'feedback', 'feedbackReleased', 'formativUsage', 'pasteEvents']) {
     for (const d of (await box.collection(c).get()).docs) await d.ref.delete();
 }
 // The roster entries steps (h) to (l) add (the seed's own three are overwritten by the seed).
@@ -409,7 +409,7 @@ try {
         // a second request for the same field, straight at the callable: refused, the model is not asked again
         const second = await ap.evaluate(async ([a, s]) => {
             const api = await import('/js/api.js');
-            try { await api.requestFormativ(a, s, 'q1', '<p>Ein zweiter Versuch mit genug vielen Wörtern.</p>'); return { accepted: true }; }
+            try { await api.requestFormativ(a, s, 'q1', '<p>Ein zweiter Versuch mit genug vielen Wörtern, damit die Mindestzahl von fünfzehn Wörtern sicher erreicht ist.</p>'); return { accepted: true }; }
             catch (e) { return { code: e.code, status: e.status, hasResult: Boolean(e.result?.kriterien?.length) }; }
         }, [A, SUB]);
         assert.deepEqual(second, { code: 'already_used', status: 'functions/already-exists', hasResult: true });
@@ -441,6 +441,24 @@ try {
         assert.match(entryText, /Prompt: fake-v1/);
         assert.equal(await card(tp, 'Anna Beispiel').locator('.formativ-count-badge').innerText(), '💬 1');
         assert.equal(await card(tp, 'Ben Muster').locator('.formativ-teacher').count(), 0);
+
+        // paste hints: an entry under Anna's answer, the excerpt as text only, nothing for Ben
+        const EXCERPT = `<img src=x onerror="${xss('paste')}">Kopierter Absatz`;
+        await box.doc(`pasteEvents/${ANNA}__${enc(A)}__${enc(SUB)}__E2eDash0001`).set({
+            uid: ANNA, assignmentId: A, subId: SUB, questionId: 'q2',
+            kind: 'bulk', chars: 400, excerpt: EXCERPT, at: new Date(),
+        });
+        await tp.locator('#refresh-btn').click();
+        const hint = card(tp, 'Anna Beispiel').locator('.paste-teacher').filter({ hasText: 'Kopierter Absatz' });
+        await hint.waitFor({ state: 'attached' });
+        const hintText = await hint.evaluate((e) => e.textContent);
+        assert.match(hintText, /Text eingefügt statt getippt/);
+        assert.match(hintText, /Grosser Textblock auf einmal · 400 Zeichen/);
+        assert.ok(hintText.includes(EXCERPT + ' …'), 'the excerpt is shown as text, marked as cut');
+        assert.equal(await hint.locator('img').count(), 0);
+        assert.equal(await tp.evaluate(() => window.__xss ?? null), null);
+        assert.match(await card(tp, 'Anna Beispiel').locator('.paste-count-badge').innerText(), /^📋 \d+$/);
+        assert.equal(await card(tp, 'Ben Muster').locator('.paste-teacher').count(), 0);
     });
 
     const annaPanel = () => card(tp, 'Anna Beispiel').locator('.publish-panel');

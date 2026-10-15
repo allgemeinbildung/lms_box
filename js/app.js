@@ -5,8 +5,10 @@ import { authenticate } from './auth.js';
 import { fetchAndRenderStudentFeedback } from './studentFeedback.js';
 import { initFormativ } from './formativ.js';
 import * as storage from './storage.js';
+import { initEmbedHeight } from './embedHeight.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
+    initEmbedHeight();
     // Old embeds may still carry `&mode=test`; the parameter is ignored.
     const urlParams = new URLSearchParams(window.location.search);
     const assignmentId = urlParams.get('assignmentId');

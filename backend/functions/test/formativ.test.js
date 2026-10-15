@@ -105,7 +105,7 @@ function setup(S, reply, delayMs) {
     const req = {
         uid, studentInfo: { name: 'Anna Muster', klasse: 'K1' },
         assignmentId: AID, subId: 'A. Teil', questionId: 'q1',
-        text: '<p>Ein Vertrag ist eine Abmachung zwischen zwei Parteien, sagt Anna.</p>',
+        text: '<p>Ein Vertrag ist eine Abmachung zwischen zwei Parteien, die beide etwas wollen und sich darauf einigen, sagt Anna.</p>',
     };
     const deps = { store, loadAssignment: async () => ASSIGNMENT, formativ: { url: 'http://x', origin: 'https://o', fetchFn: fake.fetchFn } };
     return { uid, fake, store, req, deps, path: f.usagePath(uid, AID) };
@@ -437,7 +437,7 @@ test.describe('callables, in process (index.js with FORMATIV_URL unset)', { skip
             const index = require('../index');
             const uid = newUid();
             await adminDbs().roster.doc(`students/${uid}`).set({ name: 'Anna Beispiel', active: true });
-            const data = { assignmentId: AID, subId: 'A. Teil', questionId: 'q1', text: 'eins zwei drei vier fünf sechs' };
+            const data = { assignmentId: AID, subId: 'A. Teil', questionId: 'q1', text: 'eins zwei drei vier fünf sechs sieben acht neun zehn elf zwölf dreizehn vierzehn fünfzehn sechzehn' };
             await assert.rejects(index.boxFormativ.run({ auth: { uid }, data }),
                 (e) => e.code === 'unavailable' && e.details.code === 'not_configured');
             await assert.rejects(index.boxFormativ.run({ auth: { uid: newUid() }, data }),
@@ -459,7 +459,7 @@ test.describe('callables, in process: malformed ids are bad_request, not interna
             const index = require('../index');
             const uid = newUid();
             await adminDbs().roster.doc(`students/${uid}`).set({ name: 'Anna Beispiel', active: true });
-            const ok = { assignmentId: AID, subId: 'A. Teil', questionId: 'q1', text: 'eins zwei drei vier fünf sechs' };
+            const ok = { assignmentId: AID, subId: 'A. Teil', questionId: 'q1', text: 'eins zwei drei vier fünf sechs sieben acht neun zehn elf zwölf dreizehn vierzehn fünfzehn sechzehn' };
             const bad = (e) => e.code === 'invalid-argument' && e.details.code === 'bad_request';
             const long = 'x'.repeat(501);
             const cases = [
@@ -490,7 +490,7 @@ test.describe('callables, in process: malformed ids are bad_request, not interna
 test.describe('callables through the functions emulator', { skip: SKIP || (process.env.FIREBASE_EMULATOR_HUB ? false : 'no emulator hub') }, () => {
     const IAID = '0.1 Testauftrag Müller';
     const SUB = 'A. Grundsätze der Übung';
-    const TEXT = '<p>Anna Beispiel meint: Wir testen hier, ob eine Rückmeldung genau einmal kommt.</p>';
+    const TEXT = '<p>Anna Beispiel meint: Wir testen hier, ob eine Rückmeldung genau einmal kommt, auch wenn man mehrmals klickt.</p>';
     let model; let fnBase; let authBase;
 
     async function signUp(label) {
@@ -595,7 +595,7 @@ test.describe('callables through the functions emulator', { skip: SKIP || (proce
     test('8 parallel calls for one field: one success, one model call, seven refused', async () => {
         const ben = await signUp('ben');
         await adminDbs().roster.doc(`students/${ben.uid}`).set({ name: 'Ben Muster', active: true });
-        const data = { assignmentId: IAID, subId: SUB, questionId: 'q2', text: 'Damit bei einem Absturz nichts verloren geht, speichere ich oft.' };
+        const data = { assignmentId: IAID, subId: SUB, questionId: 'q2', text: 'Damit bei einem Absturz des Rechners nichts von meiner Arbeit verloren geht, speichere ich sehr oft.' };
         const before = callsFor('q2').length;
         const results = await Promise.all(Array.from({ length: 8 }, () => call('boxFormativ', data, ben.token)));
         assert.equal(results.filter((r) => r.http === 200).length, 1, JSON.stringify(results.map((r) => r.http)));

@@ -60,7 +60,8 @@ await roster.doc('students/e2e-dora').set({
 });
 // One account per step that is about lost or stale work (i)-(m): each starts without drafts.
 const EXTRA = [['e2e-emil', 'emil.faden', 'Emil Faden'], ['e2e-fina', 'fina.keller', 'Fina Keller'],
-    ['e2e-gian', 'gian.roth', 'Gian Roth'], ['e2e-hana', 'hana.vogt', 'Hana Vogt'], ['e2e-ivo', 'ivo.lang', 'Ivo Lang']];
+    ['e2e-gian', 'gian.roth', 'Gian Roth'], ['e2e-hana', 'hana.vogt', 'Hana Vogt'], ['e2e-ivo', 'ivo.lang', 'Ivo Lang'],
+    ['e2e-jana', 'jana.frei', 'Jana Frei']];
 for (const [uid, username, name] of EXTRA) {
     const email = `${username}@lernende.bbw.ch`;
     try { await auth.deleteUser(uid); } catch { /* not there */ }
@@ -73,8 +74,9 @@ await box.doc(`feedbackReleased/seed-anna__${enc(A1)}`).set({
     releaseSettings: { kurzbericht: true, ausfuehrlich: false, punkte: true, loesung: false },
     results: [{ question_id: `${A1_SUB}_q1`, question_text: 'x', score: 2, concise_feedback: 'Knapp, aber richtig.' }],
 });
-// Drafts of an earlier run against the same emulators.
+// Drafts and paste hints of an earlier run against the same emulators.
 for (const d of (await box.collection('drafts').get()).docs) await d.ref.delete();
+for (const d of (await box.collection('pasteEvents').get()).docs) await d.ref.delete();
 
 // ---- static server for app/ (both names: localhost = host page, 127.0.0.1 = the iframes) ---
 
@@ -639,6 +641,67 @@ try {
         assert.deepEqual(await cacheRows(p), []);
         assert.equal(await p.evaluate(() => localStorage.getItem('lmsbox-last-uid')), null);
         assert.deepEqual((await draft('e2e-ivo', A3, A3_SUBS[0])).answers, [{ questionId: 'q1', answer: '<p>Ivo gespeichert</p>' }]);
+        await c.close();
+    });
+
+    await step('(n) paste hints: typing, a blocked paste and undo report nothing; inserted, bypassed and machine-typed text do', async () => {
+        const c = await newContext(browser);
+        const p = await c.newPage();
+        await p.goto(pageUrl(A3, A3_SUBS[1]));
+        await login(p, 'jana.frei');
+        await editor(p).waitFor();
+        const events = async () => (await box.collection('pasteEvents').where('uid', '==', 'e2e-jana').get())
+            .docs.map((d) => d.data()).sort((a, b) => a.at.toMillis() - b.at.toMillis());
+        const LONG = 'Dieser Absatz kommt aus der Zwischenablage und ist deutlich länger als vierzig Zeichen.';
+
+        // Typing at a human pace: 70 characters at 12 per second.
+        await editor(p).click();
+        await p.keyboard.type('Ich schreibe meine Antwort selbst, Buchstabe für Buchstabe, ganz ruhig.', { delay: 80 });
+        // A paste the page blocks: nothing is inserted, nothing reported.
+        await editor(p).evaluate((el, text) => {
+            const data = new DataTransfer();
+            data.setData('text/plain', text);
+            el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+        }, LONG);
+        // Undo: own text deleted and brought back is not a paste.
+        await p.keyboard.press('Control+a');
+        await p.keyboard.press('Delete');
+        await p.keyboard.press('Control+z');
+        await shows(p, 'Buchstabe für Buchstabe');
+        await saved(p);
+        await new Promise((r) => setTimeout(r, 2500));   // a fast burst would be reported by now
+        assert.deepEqual(await events(), []);
+        assert.doesNotMatch(await editor(p).innerText(), /Zwischenablage/);
+
+        // An extension inserts the text itself (no paste event reaches the page).
+        await editor(p).click();
+        await p.keyboard.press('Control+End');
+        await editor(p).evaluate((el, text) => document.execCommand('insertText', false, text), ' ' + LONG);
+        await until('bulk event', async () => (await events()).length === 1);
+        await p.getByText('Eingefügter Text erkannt').first().waitFor();
+
+        // The paste block is switched off: the browser announces a paste and inserts.
+        await editor(p).evaluate((el, text) => {
+            el.dispatchEvent(new InputEvent('beforeinput', { inputType: 'insertFromPaste', bubbles: true, cancelable: true }));
+            document.execCommand('insertText', false, text);
+        }, ' Noch ein Satz.');
+        await until('paste event', async () => (await events()).length === 2);
+
+        // "Typing" the clipboard at machine speed.
+        await p.keyboard.type(' Diese Zeichen tippt eine Erweiterung viel schneller als jeder Mensch es könnte.');
+        await until('fast event', async () => (await events()).length === 3);
+
+        const ev = await events();
+        assert.deepEqual(ev.map((e) => e.kind), ['bulk', 'paste', 'fast']);
+        assert.equal(ev[0].excerpt, ' ' + LONG);
+        assert.equal(ev[0].chars, LONG.length + 1);
+        assert.equal(ev[1].excerpt, ' Noch ein Satz.');
+        assert.match(ev[2].excerpt, /Erweiterung/);
+        for (const e of ev) {
+            assert.equal(e.assignmentId, A3);
+            assert.equal(e.subId, A3_SUBS[1]);
+            assert.equal(e.questionId, 'q1');
+        }
         await c.close();
     });
 

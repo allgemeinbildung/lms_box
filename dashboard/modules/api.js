@@ -380,6 +380,25 @@ export const getFormativSlots = async (targetStudentKey, assignmentId) => {
     return out;
 };
 
+// ---- paste hints: pasteEvents (CONTRACT.md) ------------------------------------------------
+
+/**
+ * Hints that a student inserted text instead of typing it, for one assignment, oldest first:
+ * `[{ subId, questionId, kind, chars, excerpt, at: Date|null }]`. Asked for by uid, like the drafts.
+ */
+export const getPasteEvents = async (targetStudentKey, assignmentId) => {
+    const snap = await getDocs(query(collection(liveDb, 'pasteEvents'),
+        where('uid', '==', targetStudentKey), where('assignmentId', '==', assignmentId)));
+    return snap.docs.map((d) => {
+        const e = d.data();
+        return {
+            subId: String(e.subId ?? ''), questionId: String(e.questionId ?? ''),
+            kind: String(e.kind ?? ''), chars: Number(e.chars) || 0,
+            excerpt: String(e.excerpt ?? ''), at: e.at?.toDate?.() || null,
+        };
+    }).sort((a, b) => (a.at?.getTime() || 0) - (b.at?.getTime() || 0));
+};
+
 // ---- local evaluator (http://localhost:5000) — unchanged interface --------------------------
 // `className` is the class id and `studentName` the display name from the roster: the
 // evaluator files its results in folders by those two.

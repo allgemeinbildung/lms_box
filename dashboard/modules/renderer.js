@@ -1,4 +1,5 @@
 import { attachFormativToCard } from './formativ.js';
+import { attachPasteToCard } from './pasteHints.js';
 import { state } from './state.js';
 import { fetchDraftContent, getMasterAssignment, getFeedback, getPublishedFeedbackStatus } from './api.js';
 import { performAssessment, updateBulkButton } from './assessment.js';
@@ -379,6 +380,8 @@ export const renderLiveGrid = async (cls, assId, container, ui, only = null) => 
 
         // formativ feedback the student received (teacher view)
         attachFormativToCard(card, studentKey, assId);
+        // text inserted instead of typed (pasteEvents)
+        attachPasteToCard(card, studentKey, assId);
 
         // --- 5. AUTOMATICALLY FETCH SAVED FEEDBACK ---
         getFeedback(cls, assId, res.name).then(data => {

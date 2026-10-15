@@ -136,6 +136,42 @@ export async function saveDraft(assignmentId, subId, draft) {
     }
 }
 
+// ---- paste hints (CONTRACT.md, pasteEvents) -----------------------------------------
+
+const PASTE_KINDS = new Set(['paste', 'drop', 'bulk', 'fast']);
+
+/** A random id for one event: 20 characters of [A-Za-z0-9]. */
+function eventId() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const bytes = crypto.getRandomValues(new Uint8Array(20));
+    return Array.from(bytes, (b) => chars[b % chars.length]).join('');
+}
+
+/**
+ * Records that text was inserted into an editor rather than typed. Create-only:
+ * the student can neither read nor delete it. Throws ApiError on failure.
+ * @param {{kind: string, chars: number, excerpt: string}} event
+ */
+export async function reportPaste(assignmentId, subId, questionId, event) {
+    const uid = requireUid();
+    if (!PASTE_KINDS.has(event.kind)) throw new ApiError('Unbekannte Art.', { code: 'invalid' });
+    const data = {
+        uid,
+        assignmentId,
+        subId,
+        questionId: String(questionId),
+        kind: event.kind,
+        chars: Math.max(0, Math.min(MAX_ANSWER_CHARS, Math.round(event.chars) || 0)),
+        excerpt: String(event.excerpt ?? '').slice(0, 300),
+        at: serverTimestamp(),
+    };
+    try {
+        await setDoc(doc(db, 'pasteEvents', `${draftDoc(uid, assignmentId, subId)}__${eventId()}`), data);
+    } catch (e) {
+        throw new ApiError(e?.message || 'Meldung fehlgeschlagen.', { code: e?.code || null });
+    }
+}
+
 // ---- released feedback ---------------------------------------------------------------
 
 /** `{ found, data }` — `data` is the already filtered copy the teacher released. */

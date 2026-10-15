@@ -11,7 +11,7 @@
 const crypto = require('crypto');
 
 const USAGE_COLLECTION = 'formativUsage';
-const MIN_WORDS = 5;
+const MIN_WORDS = 15;
 const MAX_CHARS = 16000;
 const NAME_MASK = '[Name]';
 // A reservation older than this belongs to a crashed call and is free again.

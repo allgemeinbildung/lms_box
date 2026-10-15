@@ -134,6 +134,28 @@ service cloud.firestore {
       allow read: if isTeacher();
     }
 
+    // Hints that text was inserted rather than typed (CONTRACT.md). Create-only for
+    // the student: no read, update or delete, so an entry cannot be taken back.
+    match /pasteEvents/{eventDoc} {
+      allow read: if isTeacher();
+      allow create: if idIsOwn(eventDoc)
+        && eventDoc.size() <= 1500
+        && isSchoolAccount()
+        && request.resource.data.keys().hasOnly(['uid', 'assignmentId', 'subId', 'questionId',
+                                                 'kind', 'chars', 'excerpt', 'at'])
+        && request.resource.data.keys().hasAll(['uid', 'assignmentId', 'subId', 'questionId',
+                                                'kind', 'chars', 'excerpt', 'at'])
+        && request.resource.data.uid == request.auth.uid
+        && shortString(request.resource.data.assignmentId, 500) && request.resource.data.assignmentId.size() > 0
+        && shortString(request.resource.data.subId, 500) && request.resource.data.subId.size() > 0
+        && shortString(request.resource.data.questionId, 200)
+        && request.resource.data.kind in ['paste', 'drop', 'bulk', 'fast']
+        && request.resource.data.chars is int
+        && request.resource.data.chars >= 0 && request.resource.data.chars <= 200000
+        && shortString(request.resource.data.excerpt, 300)
+        && request.resource.data.at == request.time;
+    }
+
     // Emulator-only exception (CONTRACT.md): the roster lives in `(default)`, under
     // the Lernportal's rules. The Firestore emulator applies this one ruleset to
     // every database, so the roster read of the student page needs a match here.
