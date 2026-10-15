@@ -1,0 +1,62 @@
+rules_version = '2';
+
+// Rules for the named database `hko` ONLY (HKO parallel system). Spec: HKO.md.
+// Deploy only with an explicit target:
+//   firebase deploy --only firestore:hko --project interactive-media-2a1fc
+// Never `--only firestore` (that deploys lmsbox too) and never a bare deploy.
+// `lmsbox` has its own file (firestore.lmsbox.rules); the `(default)` database
+// (Lernportal) has its rules in another repo and is never deployed from here.
+//
+// Phase P0: everything closed except reading units, items and classes.
+// No client writes anything; content comes in through the Admin SDK (bypasses rules).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isTeacher() {
+      return signedIn() && request.auth.token.role == 'teacher';
+    }
+    // Same definition as in lmsbox: the shared project allows anonymous sign-in and
+    // self-sign-up, so a password sign-in with an @lernende.bbw.ch address is the bar.
+    // It does not prove roster membership (rules cannot read `(default)`).
+    function isSchoolAccount() {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider == 'password'
+        && request.auth.token.email.matches('.*@lernende[.]bbw[.]ch$');
+    }
+
+    // ---- readable content (Handoff 5.1) -------------------------------------
+
+    match /units/{unitId} {
+      allow read: if isSchoolAccount() || isTeacher();
+    }
+
+    match /items/{slug} {
+      allow read: if isSchoolAccount() || isTeacher();
+    }
+
+    // { variante, lehrjahr, aktiv } - no personal data. The box needs it to pick
+    // the variant of a person (roster classId -> classes/{classId}.variante).
+    match /classes/{classId} {
+      allow read: if isSchoolAccount() || isTeacher();
+    }
+
+    // ---- closed in P0 ---------------------------------------------------------
+    // solutions, itemSolutions: the Handoff allows teachers and functions. In P0 no
+    // client needs them; functions use the Admin SDK. Opened for teachers in P1 with
+    // the teacher view, together with a test. Until then: no match = no access.
+    // answers, feedback, feedbackLP, feedbackReleased, peerAssignments, usage,
+    // pasteEvents, knGrades: no match yet = no access (P1-P3).
+
+    // Emulator-only exception (as in lmsbox): the emulator applies this one ruleset to
+    // every database, including `(default)` where the roster lives. Read only, own
+    // document or teacher. In production `hko` has no `students` collection.
+    match /students/{uid} {
+      allow read: if isTeacher() || (signedIn() && request.auth.uid == uid);
+    }
+
+    // Everything not listed above is denied (no match = no access).
+  }
+}
