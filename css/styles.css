@@ -63,6 +63,28 @@ html, body { height: 100%; overflow: hidden; }
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.07);
 }
 
+/* Embedded in an Obsidian callout: the page has no card of its own. It takes the
+   callout's background (transparent), starts flush with the callout text and keeps
+   only enough padding for the editor borders. Size, line height and colour are the
+   callout's already (body above). Opened on its own, the page keeps its card. */
+html.embedded, html.embedded body { background: transparent; }
+html.embedded #assignment-container {
+    max-width: none;
+    max-height: 100%;
+    margin: 0;
+    padding: 4px 2px;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+}
+html.embedded #sub-title {
+    margin-top: 0;
+    font-size: 1em;
+    color: inherit;
+}
+/* The answer fields stay white: on the grey callout they must read as "type here". */
+html.embedded .ql-container { background: #fff; }
+
 /* Hide main title for compact layout */
 #main-title {
     display: none;

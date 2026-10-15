@@ -286,7 +286,6 @@ function renderQuill(data, assignmentId, subId, initialAnswers, assignmentData) 
 
         const questionText = document.createElement('p');
         questionText.innerHTML = `<strong>${index + 1}.</strong> ${parseMarkdown(question.text)}`;
-        questionText.style.fontSize = '1.1em';
         questionBlock.appendChild(questionText);
 
         const sanitizedQuestionId = String(question.id).replace(/[^a-zA-Z0-9-_]/g, '-');
