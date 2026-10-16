@@ -1,0 +1,49 @@
+{
+  "unitId": "lj1-test-box",
+  "version": 1,
+  "quelle_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "blocks": {
+    "raster-quelle": {
+      "erwartungshorizont": "Erfundener Erwartungshorizont: vier Stellen aus dem Testbeitrag mit passendem Begriff.",
+      "mehrdeutigkeit": {
+        "mehrere_loesungen": true,
+        "zulässige_positionen": [
+          "Erfundene zulässige Position 1.",
+          "Erfundene zulässige Position 2."
+        ],
+        "nicht_tragfähig": [
+          "Erfundene nicht tragfähige Antwort."
+        ],
+        "hinweis": "Testhinweis Raster."
+      }
+    },
+    "raster-voll": {
+      "erwartungshorizont": "Erfundener Erwartungshorizont: acht Zeilen mit Kernaussage und Beleg.",
+      "mehrdeutigkeit": {
+        "mehrere_loesungen": true,
+        "zulässige_positionen": [
+          "Erfundene zulässige Position 1.",
+          "Erfundene zulässige Position 2."
+        ],
+        "nicht_tragfähig": [
+          "Erfundene nicht tragfähige Antwort."
+        ],
+        "hinweis": "Testhinweis grosses Raster."
+      }
+    },
+    "entscheid": {
+      "erwartungshorizont": "Erfundener Erwartungshorizont: Entscheid mit zwei Gründen und einem beantworteten Gegenargument.",
+      "mehrdeutigkeit": {
+        "mehrere_loesungen": true,
+        "zulässige_positionen": [
+          "Erfundene zulässige Position 1.",
+          "Erfundene zulässige Position 2."
+        ],
+        "nicht_tragfähig": [
+          "Erfundene nicht tragfähige Antwort."
+        ],
+        "hinweis": "Beurteilt wird die Begründung, nicht das gewählte Angebot."
+      }
+    }
+  }
+}

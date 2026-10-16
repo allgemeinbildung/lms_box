@@ -16,7 +16,13 @@
     "test:e2e:dashboard": "node scripts/emu.mjs emulators:exec --project interactive-media-2a1fc --only auth,firestore,functions \"node test/e2e-dashboard.mjs\"",
     "test:all": "npm run test:rules && npm run test:functions && npm run test:e2e:student && npm run test:e2e:dashboard",
     "seed": "node scripts/seed-emulator.mjs",
-    "test:sanitize": "node test/sanitize.test.mjs"
+    "test:sanitize": "node test/sanitize.test.mjs",
+    "test:hko:rules": "node scripts/emu.mjs emulators:exec --config firebase.hko-test.json --project demo-hko --only firestore \"node --test test/hko-rules.test.mjs\"",
+    "test:hko:upload": "node --test test/hko-upload.test.mjs test/hko-csv.test.mjs",
+    "test:hko:upload:emu": "node scripts/emu.mjs emulators:exec --config firebase.hko-test.json --project demo-hko --only firestore \"node --test test/hko-upload.emu.test.mjs\"",
+    "test:e2e:hko": "node scripts/emu.mjs emulators:exec --config firebase.hko-e2e.json --project interactive-media-2a1fc --only auth,firestore \"node test/e2e-hko-student.mjs\"",
+    "test:e2e:hko-dashboard": "node scripts/emu.mjs emulators:exec --config firebase.hko-e2e.json --project interactive-media-2a1fc --only auth,firestore \"node scripts/seed-hko.mjs && node scripts/hko-upload.mjs --emulator --build test/fixtures/hko-build && node test/e2e-hko-dashboard.mjs\"",
+    "test:hko": "npm run test:hko:rules && npm run test:hko:upload && npm run test:hko:upload:emu && npm run test:e2e:hko && npm run test:e2e:hko-dashboard"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.2",

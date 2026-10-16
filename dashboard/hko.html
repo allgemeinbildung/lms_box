@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HKO – Klassenübersicht</title>
+    <link rel="stylesheet" href="teacher.css">
+    <link rel="stylesheet" href="hko/hko.css">
+</head>
+
+<body>
+    <div id="login-overlay" class="visible">
+        <div id="login-box">
+            <h2>HKO-Zugang</h2>
+            <p>Bitte melden Sie sich mit Ihrem Lehrpersonen-Konto an.</p>
+            <input type="text" id="login-username" placeholder="Benutzername oder E-Mail" autocomplete="username"
+                autocapitalize="none" spellcheck="false">
+            <input type="password" id="login-password" placeholder="Passwort" autocomplete="current-password">
+            <button id="login-btn">Anmelden</button>
+            <p id="login-status"></p>
+        </div>
+    </div>
+
+    <header id="hko-bar">
+        <h1>HKO – Klassenübersicht</h1>
+        <label>Klasse
+            <select id="class-select" disabled>
+                <option value="">Klasse wählen …</option>
+            </select>
+        </label>
+        <label>Einheit
+            <select id="unit-select" disabled>
+                <option value="">Einheit wählen …</option>
+            </select>
+        </label>
+        <button id="csv-btn" type="button" disabled title="Enthält Namen: nur lokal speichern">CSV exportieren</button>
+        <button id="logout-btn" type="button">Abmelden</button>
+    </header>
+
+    <p id="status" role="status"></p>
+    <p id="class-info"></p>
+
+    <main id="hko-main">
+        <section id="grid" aria-label="Raster Person und Block"></section>
+        <aside id="detail" aria-label="Detail"></aside>
+    </main>
+
+    <script type="module" src="hko/main.js"></script>
+</body>
+
+</html>

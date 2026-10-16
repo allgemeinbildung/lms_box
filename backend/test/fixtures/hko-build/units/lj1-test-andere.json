@@ -1,0 +1,124 @@
+{
+  "unitId": "lj1-test-andere",
+  "version": 1,
+  "schema_version": "1.1.0",
+  "status": "review",
+  "titel": "Andere Testeinheit",
+  "lehrjahr": 1,
+  "situation_kurz": "Eine zweite erfundene Einheit, nur als Ziel einer einheitsübergreifenden Mitnahme in den Tests der Box.",
+  "lernaufgaben": {
+    "a": {
+      "titel": "Notiz",
+      "situation_kurz": null
+    }
+  },
+  "quelle_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "varianten": {
+    "3J": {
+      "kompetenzen": [
+        "3.1.1"
+      ],
+      "modi": [
+        "Produktion schriftlich"
+      ],
+      "sk": [
+        "SK1"
+      ],
+      "aspekte": [
+        "Wirtschaft"
+      ],
+      "methode_kn": "Mini Cases",
+      "lektionen": 2,
+      "thema": 3,
+      "lebensbezuege": [
+        "3.1"
+      ],
+      "kn": {
+        "kriterien": [
+          "fachkorrektheit",
+          "position"
+        ],
+        "bloecke": []
+      }
+    },
+    "4J": {
+      "kompetenzen": [
+        "1.3.1"
+      ],
+      "modi": [
+        "Produktion schriftlich"
+      ],
+      "sk": [
+        "SK2"
+      ],
+      "aspekte": [
+        "Wirtschaft"
+      ],
+      "methode_kn": "Mini Cases",
+      "lektionen": 2,
+      "thema": 1,
+      "lebensbezuege": [
+        "1.3"
+      ],
+      "kn": {
+        "kriterien": [
+          "fachkorrektheit",
+          "position"
+        ],
+        "bloecke": []
+      }
+    }
+  },
+  "kriterien": {
+    "fachkorrektheit": {
+      "name": "Fachkorrektheit",
+      "dimension": "SuK",
+      "stufen": {
+        "0": "Testtext Stufe 0 Fachkorrektheit.",
+        "1": "Testtext Stufe 1 Fachkorrektheit.",
+        "2": "Testtext Stufe 2 Fachkorrektheit.",
+        "3": "Testtext Stufe 3 Fachkorrektheit."
+      }
+    },
+    "position": {
+      "name": "Position/Werthaltung",
+      "dimension": "Ges",
+      "aspekt": "Ethik",
+      "stufen": {
+        "0": "Testtext Stufe 0 Position.",
+        "1": "Testtext Stufe 1 Position.",
+        "2": "Testtext Stufe 2 Position.",
+        "3": "Testtext Stufe 3 Position."
+      }
+    }
+  },
+  "quellen": {},
+  "blocks": {
+    "notiz": {
+      "type": "text",
+      "titel": "Kurze Notiz",
+      "auftrag": "Halten Sie in drei Sätzen fest, was Ihnen von dieser Testeinheit geblieben ist.",
+      "k": 1,
+      "nur_variante": null,
+      "phase": "wissensanwendung",
+      "lernaufgabe": "a",
+      "genre": "Notiz",
+      "min_woerter": 20,
+      "max_woerter": 120,
+      "kriterien": [
+        "fachkorrektheit"
+      ],
+      "feedback": {
+        "aktiv": false
+      },
+      "ki_regel": {
+        "stufe": "verboten",
+        "text": "KI-Werkzeuge sind hier nicht erlaubt."
+      },
+      "kn": false
+    }
+  },
+  "reihenfolge": [
+    "notiz"
+  ]
+}

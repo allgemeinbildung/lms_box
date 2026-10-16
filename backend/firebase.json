@@ -5,6 +5,12 @@
       "location": "europe-west6",
       "rules": "firestore.lmsbox.rules",
       "indexes": "firestore.lmsbox.indexes.json"
+    },
+    {
+      "database": "hkobox",
+      "location": "europe-west6",
+      "rules": "firestore.hko.rules",
+      "indexes": "firestore.hko.indexes.json"
     }
   ],
   "functions": [

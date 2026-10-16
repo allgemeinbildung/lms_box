@@ -100,6 +100,8 @@ Both require a signed-in caller whose `students/{uid}` doc exists in `(default)`
 
 One module initialises the app and exports `auth`, `db` (database `lmsbox`), `rosterDb` (`(default)`), `functions`. It also exports `app` and `emulator` (`{host, ports}` or null) for `dashboard/modules/firestore.js`. No other module imports the Firebase SDK URLs directly.
 
+Additive for the HKO parallel system (contract: `HKO.md`, "Phase P1 — Vertrag" §7): `js/firebase.js` also exports `namedDb(databaseId)` (a further named database, Firestore Lite, created on first call and cached per id; only `js/hko/api.js` calls it, lms_box pages never do), and `js/auth.js` exports `registerSaver({ flush, hasUnsaved, hasUnsynced, suspend, resume, close })`, which the logout coordination asks in addition to `renderer.js`; with nothing registered the behaviour is unchanged.
+
 On `localhost` / `127.0.0.1` it connects to the **emulators** by default. Live data from a local page needs the explicit query parameter `?live=1`. Reason: a local click-through must never write into production.
 
 SDK from `https://www.gstatic.com/firebasejs/<pinned version>/…` as ES modules. No build step, no bundler.

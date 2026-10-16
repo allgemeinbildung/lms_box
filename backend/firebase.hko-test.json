@@ -1,0 +1,35 @@
+{
+  "firestore": [
+    {
+      "database": "hkobox",
+      "location": "europe-west6",
+      "rules": "firestore.hko.rules",
+      "indexes": "firestore.hko.indexes.json"
+    }
+  ],
+  "emulators": {
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 9230
+    },
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8320,
+      "websocketPort": 9191
+    },
+    "ui": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 4140
+    },
+    "hub": {
+      "host": "127.0.0.1",
+      "port": 4450
+    },
+    "logging": {
+      "host": "127.0.0.1",
+      "port": 4550
+    },
+    "singleProjectMode": true
+  }
+}
