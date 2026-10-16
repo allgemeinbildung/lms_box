@@ -3,7 +3,7 @@
 // Umzug in ein eigenes Projekt: hier ändern. (Node: backend/scripts/lib/hko-target.mjs,
 // Rules: isSchoolAccount() in backend/firestore.hko.rules, Web-Konfiguration: js/config.js)
 export const HKO = Object.freeze({
-    database: 'hko',
+    database: 'hkobox',
     baseUrl: 'https://allgemeinbildung.github.io/lms_box/',
     schoolDomain: 'lernende.bbw.ch',
 });

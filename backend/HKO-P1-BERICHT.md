@@ -42,8 +42,8 @@ Ausführlich in `HKO.md` §11. In dieser Reihenfolge:
 1. **`hko` auf den neuen `main` nachziehen.** Seit P1-Start kam `a6331df` «Gastmodus ohne Anmeldung» auf `main` (ändert `js/auth.js`, `renderer.js`, `storage.js`, `app.js`, lmsbox-Rules). In `js/auth.js` ist ein Konflikt mit `registerSaver` zu erwarten. Danach `npm run test:all` und `npm run test:hko` (nacheinander, gleiche Ports).
 2. DB anlegen (falls noch nicht) und Rules/Indexe nur für hko:
    ```bash
-   firebase firestore:databases:create hko --location europe-west6 --delete-protection ENABLED --project interactive-media-2a1fc
-   firebase deploy --only firestore:hko --project interactive-media-2a1fc
+   firebase firestore:databases:create hkobox --location europe-west6 --delete-protection ENABLED --project interactive-media-2a1fc
+   firebase deploy --only firestore:hkobox --project interactive-media-2a1fc
    ```
 3. `classes` live anlegen: `4PR26b` → `{variante: '3J', lehrjahr: 1, aktiv: true}`, `4PM26d` → `{variante: '4J', lehrjahr: 1, aktiv: true}`, dazu je eine Testklasse für die Testkonten.
 4. Inhalte hochladen (aus `app-hko/backend/`, Standard-Build `../../hko-content/build`):

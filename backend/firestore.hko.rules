@@ -3,7 +3,7 @@ rules_version = '2';
 // Rules for the named database `hko` ONLY (HKO parallel system). Spec: HKO.md,
 // section "Phase P1 - Vertrag" (sections 2-5), plan HKO-P1-PLAN.md section 3.
 // Deploy only with an explicit target:
-//   firebase deploy --only firestore:hko --project interactive-media-2a1fc
+//   firebase deploy --only firestore:hkobox --project interactive-media-2a1fc
 // Never `--only firestore` (that deploys lmsbox too) and never a bare deploy.
 // `lmsbox` has its own file (firestore.lmsbox.rules); the `(default)` database
 // (Lernportal) has its rules in another repo and is never deployed from here.

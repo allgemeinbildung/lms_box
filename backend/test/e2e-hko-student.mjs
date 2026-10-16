@@ -43,7 +43,7 @@ execFileSync(process.execPath, ['scripts/hko-upload.mjs', '--emulator', '--build
 });
 const adminApp = getApps()[0];
 const auth = getAuth(adminApp);
-const hko = getFirestore(adminApp, 'hko');
+const hko = getFirestore(adminApp, 'hkobox');
 const roster = getFirestore(adminApp);
 
 const PASSWORD = process.env.SEED_PASSWORD || 'lmsbox-test-1234';   // emulator only, the seed's default

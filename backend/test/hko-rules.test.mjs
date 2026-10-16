@@ -32,7 +32,7 @@ if (PORT !== '8320') {
     process.exit(1);
 }
 const PROJECT = process.env.GCLOUD_PROJECT || 'demo-hko';
-const DB = 'hko';
+const DB = 'hkobox';
 
 const readJson = (rel) => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
 const unitP0 = readJson('./fixtures/unit-lj1-konsum-budget.json');   // P0 fixture, unchanged

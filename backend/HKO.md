@@ -7,16 +7,16 @@ Grundlage: `hko-content/_input/HKO_PARALLELSYSTEM_HANDOFF_v1.md` (§5, §11, §1
 `ANTWORTEN_HKO_PARALLELSYSTEM_v1.md` (D1, D2). Öffentliche URL der Box später:
 `https://allgemeinbildung.github.io/lms_box/hko.html` (`app/` ist der Repo-Stamm).
 
-Stand 15.10.2026 (P0), unverändert am 16.10.2026 (P1 gebaut, nichts deployt): Die Datenbank `hko` existiert noch nicht. Der Standard-Bucket
+Stand 15.10.2026 (P0), unverändert am 16.10.2026 (P1 gebaut, nichts deployt): Die Datenbank `hkobox` existiert noch nicht. Der Standard-Bucket
 `interactive-media-2a1fc.firebasestorage.app` liegt in `EUROPE-WEST6`, Blaze ist aktiv (C1).
 
 ## Dateien
 
 | Datei | Zweck |
 |---|---|
-| `firestore.hko.rules` | Rules nur für die DB `hko` |
-| `firestore.hko.indexes.json` | Indexe der DB `hko` (noch leer) |
-| `firebase.json` | zweiter `firestore`-Eintrag `database: "hko"`; `lmsbox` bleibt an erster Stelle und unverändert |
+| `firestore.hko.rules` | Rules nur für die DB `hkobox` |
+| `firestore.hko.indexes.json` | Indexe der DB `hkobox` (noch leer) |
+| `firebase.json` | zweiter `firestore`-Eintrag `database: "hkobox"`; `lmsbox` bleibt an erster Stelle und unverändert |
 | `firebase.hko-test.json` | Emulator-Konfiguration nur mit `hko`, eigene Ports |
 | `test/hko-rules.test.mjs` | Rules-Tests, `npm run test:hko` |
 | `test/fixtures/unit-lj1-konsum-budget.json` | fiktive Einheit für die Lesetests |
@@ -51,14 +51,14 @@ Geprüft im Quelltext von firebase-tools 15.10.0 (`lib/firestore/fsConfig.js`,
   Einträge, deren `database` (oder `target`) `<x>` heisst. Nur für diese werden Rules
   kompiliert und pro Datenbank freigegeben (`rulesDeploy.release(…, databaseId)`), ebenso
   die Indexe. Ein unbekanntes `<x>` bricht mit «Could not find configurations» ab.
-- `--only firestore:hko` fasst also `lmsbox` nicht an, und `--only firestore:lmsbox` nicht `hko`.
+- `--only firestore:hkobox` fasst also `lmsbox` nicht an, und `--only firestore:lmsbox` nicht `hkobox`.
 - **`--only firestore` (ohne Ziel) und ein nackter `firebase deploy` deployen alle Einträge**,
   also `lmsbox` **und** `hko` zusammen. Die `(default)`-DB des Lernportals erreichen sie nicht,
   weil sie in `firebase.json` nicht vorkommt — sie wird nie eingetragen.
 - `--only firestore:rules` bzw. `firestore:indexes` wählt bei einem Array **keine** Datenbank
   aus und deployt nichts. Nicht verwenden.
 - Stolperstelle: Der Deploy legt eine fehlende Datenbank selbst an, prüft dafür aber immer nur
-  den **ersten** Array-Eintrag (`lmsbox`). Ein `--only firestore:hko`, bevor `hko` existiert,
+  den **ersten** Array-Eintrag (`lmsbox`). Ein `--only firestore:hkobox`, bevor `hkobox` existiert,
   legt `hko` also nicht an, sondern scheitert. Deshalb wird `hko` vorher von Hand angelegt
   (unten), mit Löschschutz — den setzt der automatische Weg ohnehin nicht.
 
@@ -141,15 +141,15 @@ Nichts davon ist ausgeführt. Befehle für Pietro, aus `app-hko/backend/`, immer
 
 ```bash
 # 1. Datenbank anlegen (einmalig), mit Löschschutz
-gcloud firestore databases create --database=hko --location=europe-west6 --type=firestore-native --delete-protection --project=interactive-media-2a1fc
+gcloud firestore databases create --database=hkobox --location=europe-west6 --type=firestore-native --delete-protection --project=interactive-media-2a1fc
 #    gleichwertig:
-firebase firestore:databases:create hko --location europe-west6 --delete-protection ENABLED --project interactive-media-2a1fc
+firebase firestore:databases:create hkobox --location europe-west6 --delete-protection ENABLED --project interactive-media-2a1fc
 
 # 2. Rules und (leere) Indexe nur für hko
-firebase deploy --only firestore:hko --project interactive-media-2a1fc
+firebase deploy --only firestore:hkobox --project interactive-media-2a1fc
 
 # Kontrolle danach (Ort, Löschschutz)
-firebase firestore:databases:get hko --project interactive-media-2a1fc
+firebase firestore:databases:get hkobox --project interactive-media-2a1fc
 ```
 
 Bestehende Befehle bleiben gültig: `--only firestore:lmsbox`, `--only functions:lmsbox`.
@@ -230,7 +230,7 @@ Projekt» weiter unten listet, was beim Umzug zu ändern ist.
 - `answers/{uid}__{unitId}__{blockId}`; `pasteEvents/{uid}__{unitId}__{blockId}__{eventId}`,
   `eventId` `^[A-Za-z0-9]{8,40}$`.
 
-## 3. Collections der DB `hko`
+## 3. Collections der DB `hkobox`
 
 | Pfad | Inhalt | Lernende (Schulkonto) | LP (`role == 'teacher'`) |
 |---|---|---|---|
@@ -445,17 +445,17 @@ Nichts davon ist ausgeführt. Aus `app-hko/backend/`, **immer mit Ziel und `--pr
 
 ```bash
 # 1. Datenbank anlegen (einmalig, falls noch nicht da; mit Löschschutz)
-firebase firestore:databases:create hko --location europe-west6 --delete-protection ENABLED --project interactive-media-2a1fc
+firebase firestore:databases:create hkobox --location europe-west6 --delete-protection ENABLED --project interactive-media-2a1fc
 
 # 2. Rules und Indexe nur für hko
-firebase deploy --only firestore:hko --project interactive-media-2a1fc
+firebase deploy --only firestore:hkobox --project interactive-media-2a1fc
 
 # 3. Inhalte: zuerst Trockenlauf, dann live (Schlüssel ausserhalb des Repos)
 node scripts/hko-upload.mjs --build ../../hko-content/build
 node scripts/hko-upload.mjs --live --key <pfad-ausserhalb-des-repos>/firebase-admin.json --yes --build ../../hko-content/build
 
 # Kontrolle der Datenbank
-firebase firestore:databases:get hko --project interactive-media-2a1fc
+firebase firestore:databases:get hkobox --project interactive-media-2a1fc
 ```
 
 4. **`classes` live anlegen:** ein Dokument pro Klasse (`{variante, lehrjahr, aktiv}`, Id = `classId` aus dem Roster), in der Konsole oder mit einem kleinen Admin-Skript; die Seed-Klassen `test-*` nicht live anlegen. Ohne `classes`-Dokument zeigt die Box «Klasse nicht erfasst».

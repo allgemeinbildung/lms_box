@@ -1,5 +1,7 @@
 # hko-box – Bericht Phase P0 (15.10.2026)
 
+> **Nachtrag 16.10.2026:** Die Firestore-Datenbank heisst **`hkobox`**, nicht `hko`. Datenbank-Ids brauchen mindestens 4 Zeichen, `hko` wurde von der API abgelehnt. Wo in diesem Dokument «DB `hko`» oder `firestore:hko` steht, gilt `hkobox`. Die geltenden Befehle stehen in `HKO.md`.
+
 Branch `hko` im Worktree `D:\OS\dev\obs-allgemeinbildung\app-hko\` (Repo `allgemeinbildung/lms_box`). Nur lokal committet, **kein Push, kein Deploy, nichts in der Cloud angelegt.** Spezifikation: `hko-content/_input/HKO_PARALLELSYSTEM_HANDOFF_v1.md` §12 P0.
 
 ## 1. Erledigt

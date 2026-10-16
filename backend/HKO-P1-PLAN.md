@@ -1,5 +1,7 @@
 # hko-box – Plan Phase P1 (Gerüst + Pilot-Einheit)
 
+> **Nachtrag 16.10.2026:** Die Firestore-Datenbank heisst **`hkobox`**, nicht `hko`. Datenbank-Ids brauchen mindestens 4 Zeichen, `hko` wurde von der API abgelehnt. Wo in diesem Dokument «DB `hko`» oder `firestore:hko` steht, gilt `hkobox`. Die geltenden Befehle stehen in `HKO.md`.
+
 **Stand:** 15.10.2026 · **Status:** Plan, nichts davon ist gebaut · **Branch:** `hko` (Worktree `app-hko/`)
 **Grundlage:** Handoff v1 (`hko-content/_input/HKO_PARALLELSYSTEM_HANDOFF_v1.md`), Antworten C/D (`ANTWORTEN_HKO_PARALLELSYSTEM_v1.md`), `hko-content/_plan/NAECHSTE-PHASE_PROMPT.md` §3/§4, Code im Worktree, Befunde P0 (C1, C3, C5, C6).
 

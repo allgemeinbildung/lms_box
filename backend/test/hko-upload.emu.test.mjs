@@ -54,7 +54,7 @@ test('--emulator schreibt die Fixture, zweiter Lauf ist idempotent', { skip: !ex
   const expected = Object.fromEntries(COLLECTIONS.flatMap((c) => build.docs[c].map((d) => [`${c}/${d.id}`, d.data])));
 
   const out1 = upload();
-  assert.match(out1, /fertig: \d+ Dokument\(e\) geschrieben nach hko/);
+  assert.match(out1, /fertig: \d+ Dokument\(e\) geschrieben nach hkobox,/);
   const first = await snapshot();
   assert.deepEqual(Object.keys(first).sort(), Object.keys(expected).sort(), 'genau die Dokumente des Builds');
   for (const [k, data] of Object.entries(first)) {
@@ -72,7 +72,7 @@ test('--emulator schreibt die Fixture, zweiter Lauf ist idempotent', { skip: !ex
 test('verwaiste Dokumente werden aufgelistet, nicht geloescht', { skip: !existsSync(fixture) && 'Fixture fehlt' }, async () => {
   await db.collection('units').doc('lj9-verwaist').set({ unitId: 'lj9-verwaist', version: 1 });
   const out = upload();
-  assert.match(out, /verwaist \(nicht geloescht\): hko\/units\/lj9-verwaist/);
+  assert.match(out, /verwaist \(nicht geloescht\): hkobox\/units\/lj9-verwaist/);
   assert.ok((await db.collection('units').doc('lj9-verwaist').get()).exists, 'Dokument bleibt');
   await db.collection('units').doc('lj9-verwaist').delete();   // Aufraeumen im Emulator
 });

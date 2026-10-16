@@ -1,7 +1,7 @@
 {
   "firestore": [
     {
-      "database": "hko",
+      "database": "hkobox",
       "location": "europe-west6",
       "rules": "firestore.hko.rules",
       "indexes": "firestore.hko.indexes.json"

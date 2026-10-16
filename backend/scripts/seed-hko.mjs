@@ -39,7 +39,7 @@ const password = process.env.SEED_PASSWORD || 'lmsbox-test-1234';
 const app = initializeApp({ projectId });
 const auth = getAuth(app);
 const roster = getFirestore(app);          // (default): students/{uid}
-const hko = getFirestore(app, 'hko');      // named database for the HKO parallel system
+const hko = getFirestore(app, 'hkobox');      // named database for the HKO parallel system
 
 // Invented class ids, recognisably fictional. Not real classes.
 const classes = [
