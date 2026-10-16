@@ -10,6 +10,7 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { publicCopy } from './public-assignment.mjs';
 
 const LOCAL = /^(127\.0\.0\.1|localhost|\[::1\]):\d+$/;
 for (const name of ['FIRESTORE_EMULATOR_HOST', 'FIREBASE_AUTH_EMULATOR_HOST']) {
@@ -73,7 +74,7 @@ await auth.setCustomUserClaims(teacher.uid, { role: 'teacher' });
 // One small fictional assignment, same shape as content/*.json plus `assignmentId`.
 // The sub-assignment keys carry dots and umlauts on purpose - written as a whole map with set().
 const assignmentId = '0.1 Testauftrag Müller';
-await box.doc(`assignments/${encodeURIComponent(assignmentId)}`).set({
+const seedAssignment = {
     assignmentId,
     assignmentTitle: 'Testauftrag (Emulator)',
     formativ: false,
@@ -93,8 +94,9 @@ await box.doc(`assignments/${encodeURIComponent(assignmentId)}`).set({
             solution: { q1: 'Freie Antwort.' },
         },
     },
-    seededAt: FieldValue.serverTimestamp(),
-});
+};
+await box.doc(`assignments/${encodeURIComponent(assignmentId)}`).set({ ...seedAssignment, seededAt: FieldValue.serverTimestamp() });
+await box.doc(`publicAssignments/${encodeURIComponent(assignmentId)}`).set(publicCopy(seedAssignment));   // as the upload script writes it
 
 console.log(`Seeded project "${projectId}" in the emulators:`);
 console.log(`  auth       ${students.length} students + 1 teacher (claim role=teacher)`);

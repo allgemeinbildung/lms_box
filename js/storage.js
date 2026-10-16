@@ -6,10 +6,19 @@
 //
 
 const DB_NAME = 'LMS_AssignmentsDB';
+/** Guests keep their answers here, apart from the signed-in account's cache (CONTRACT.md, guest mode). */
+export const GUEST_DB_NAME = 'LMS_GuestDB';
+let dbName = DB_NAME;
 const STORE_NAME = 'user_data';
 const DB_VERSION = 1;
 
 let db;
+
+/** Chooses the database before its first use: `GUEST_DB_NAME` for a visitor who is not signed in. */
+export function useDatabase(name) {
+    if (db && dbName !== name) throw new Error('storage: the database is already open');
+    dbName = name;
+}
 
 /**
  * Initializes the IndexedDB database.
@@ -35,7 +44,7 @@ function initDB() {
             return resolve(db);
         }
 
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        const request = indexedDB.open(dbName, DB_VERSION);
 
         request.onerror = (event) => {
             console.error("IndexedDB error:", event.target.error);

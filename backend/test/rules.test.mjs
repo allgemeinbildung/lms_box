@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { initializeApp as adminInit, deleteApp as adminDelete } from 'firebase-admin/app';
 import { getFirestore as adminFirestore } from 'firebase-admin/firestore';
+import { publicCopy } from '../scripts/public-assignment.mjs';
 
 const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST;
 if (!emulatorHost) {
@@ -79,6 +80,7 @@ before(async () => {
     await admin.doc(`feedbackReleased/${pairId('bob')}`).set({ uid: 'bob', assignmentId: ASSIGNMENT, results: [] });
     await admin.doc(`formativUsage/${pairId('alice')}`).set({ uid: 'alice', assignmentId: ASSIGNMENT });
     await admin.doc(`assignments/${enc(ASSIGNMENT)}`).set({ assignmentId: ASSIGNMENT, assignmentTitle: 'Test' });
+    await admin.doc(`publicAssignments/${enc(ASSIGNMENT)}`).set(publicCopy({ assignmentId: ASSIGNMENT, assignmentTitle: 'Test', solution_keys: ['geheim'], subAssignments: { [SUB]: { type: 'quill', questions: [{ id: 'q1', text: 'Frage' }], solution: { q1: 'geheim' } } } }));
     await admin.doc('somethingElse/x').set({ a: 1 });
     // The roster lives in `(default)`. Fictional entries.
     const roster = adminFirestore(adminApp);
@@ -95,10 +97,10 @@ after(async () => {
 // ---- the emulator really enforces these rules on `lmsbox` -------------------
 
 test('emulator enforces the lmsbox rules on the named database (not open, not deny-all)', async () => {
-    // Not open: the very same document is refused without a login ...
-    await assertFails(getDoc(doc(anon, 'assignments', enc(ASSIGNMENT))));
-    // ... not deny-all: and served with one.
-    const snap = await assertSucceeds(getDoc(doc(alice, 'assignments', enc(ASSIGNMENT))));
+    // Not open: the very same document is refused to a student ...
+    await assertFails(getDoc(doc(alice, 'assignments', enc(ASSIGNMENT))));
+    // ... not deny-all: and served to a teacher.
+    const snap = await assertSucceeds(getDoc(doc(teacher, 'assignments', enc(ASSIGNMENT))));
     assert.equal(snap.data().assignmentId, ASSIGNMENT);
     // And it is this rules file, not some other: a path it does not name is refused even for a teacher.
     await assertFails(getDoc(doc(teacher, 'somethingElse', 'x')));
@@ -120,6 +122,38 @@ test('unauthenticated reads nothing and writes nothing', async () => {
         await assertFails(getDocs(collection(anon, col)));
     }
     await assertFails(setDoc(doc(anon, 'drafts', draftId('anon')), draft('anon')));
+});
+
+// ---- publicAssignments: the copy for guests ------------------------------------
+
+test('publicAssignments: anyone gets a document, nobody lists or writes, the copy has no solution', async () => {
+    for (const who of [anon, anonSession, outsider, alice]) {
+        const snap = await assertSucceeds(getDoc(doc(who, 'publicAssignments', enc(ASSIGNMENT))));
+        assert.equal(snap.data().assignmentId, ASSIGNMENT);
+        assert.doesNotMatch(JSON.stringify(snap.data()), /solution|geheim/);
+        await assertFails(getDocs(collection(who, 'publicAssignments')));
+        await assertFails(setDoc(doc(who, 'publicAssignments', enc(ASSIGNMENT)), { assignmentId: ASSIGNMENT }));
+        await assertFails(setDoc(doc(who, 'publicAssignments', 'neu'), { assignmentId: 'neu' }));
+        await assertFails(deleteDoc(doc(who, 'publicAssignments', enc(ASSIGNMENT))));
+    }
+    await assertSucceeds(getDocs(collection(teacher, 'publicAssignments')));
+    await assertFails(setDoc(doc(teacher, 'publicAssignments', enc(ASSIGNMENT)), { assignmentId: ASSIGNMENT }));
+    // A missing document answers "does not exist", not "denied".
+    assert.equal((await assertSucceeds(getDoc(doc(anon, 'publicAssignments', 'gibt-es-nicht')))).exists(), false);
+});
+
+test('publicCopy keeps only the whitelisted fields', () => {
+    const copy = publicCopy({
+        assignmentId: 'X', assignmentTitle: 'T', formativ: true, solution_keys: ['k'], extra: 1,
+        subAssignments: { 'A. Teil': { type: 'quill', titel: 'Teil A', solution: { q1: 's' }, rubric: {}, formativ: { kriterien: [] },
+            questions: [{ id: 'q1', text: 'Frage', formativ: { rubrik: 'geheim' }, hint: 'x' }, { id: 2, text: 'Zwei' }] } },
+    });
+    assert.deepEqual(copy, {
+        assignmentId: 'X', assignmentTitle: 'T', formativ: true,
+        subAssignments: { 'A. Teil': { type: 'quill', titel: 'Teil A', formativ: true,
+            questions: [{ id: 'q1', text: 'Frage', formativ: true }, { id: '2', text: 'Zwei' }] } },
+    });
+    assert.equal(publicCopy({ assignmentId: 'Y', formativ: false, subAssignments: {} }).formativ, false);
 });
 
 // ---- drafts: own -------------------------------------------------------------
@@ -168,7 +202,7 @@ test('assignment with dotted, umlauted sub-assignment keys round-trips as a whol
         },
     };
     await assertSucceeds(setDoc(doc(teacher, 'assignments', enc(id)), content));
-    const snap = await assertSucceeds(getDoc(doc(alice, 'assignments', enc(id))));
+    const snap = await assertSucceeds(getDoc(doc(teacher, 'assignments', enc(id))));
     assert.deepEqual(snap.data(), content);
     assert.deepEqual(Object.keys(snap.data().subAssignments).sort(), ['A. Grundsätze … 1.2', 'B. Zweiter Teil.']);
 });
@@ -290,8 +324,9 @@ test('draft size guard: the largest draft the rules allow fits the rule engine a
 // The project is shared with another app; anonymous sign-in and email/password
 // self-sign-up are on, so "signed in" proves nothing about being a student.
 // Decision: an anonymous session reads and writes nothing. A password account with a
-// non-school address cannot write a draft but CAN read assignments (and its own, empty,
-// drafts / feedbackReleased): the read paths exclude only anonymous sessions.
+// non-school address cannot write a draft but CAN read its own, empty, drafts /
+// feedbackReleased: those read paths exclude only anonymous sessions. Nobody but a
+// teacher reads `assignments` (solutions); everyone reads `publicAssignments`.
 
 test('anonymous session reads nothing and writes nothing', async () => {
     for (const path of [
@@ -309,9 +344,9 @@ test('anonymous session reads nothing and writes nothing', async () => {
     await assertFails(setDoc(doc(anonSession, 'feedbackReleased', pairId('anon1')), { uid: 'anon1' }));
 });
 
-test('password account with a non-school address: no draft, but may read assignments (by decision)', async () => {
+test('password account with a non-school address: no draft, no assignments with solutions', async () => {
     await assertFails(setDoc(doc(outsider, 'drafts', draftId('outsider')), draft('outsider')));
-    await assertSucceeds(getDoc(doc(outsider, 'assignments', enc(ASSIGNMENT))));
+    await assertFails(getDoc(doc(outsider, 'assignments', enc(ASSIGNMENT))));
     await assertSucceeds(getDocs(query(collection(outsider, 'drafts'), where('uid', '==', 'outsider'))));
     await assertFails(getDocs(query(collection(outsider, 'drafts'), where('uid', '==', 'bob'))));
     await assertFails(setDoc(doc(outsider, 'assignments', 'x'), { assignmentId: 'x' }));
@@ -340,7 +375,7 @@ test('school-address password account can create, update and read a draft', asyn
     await assertSucceeds(setDoc(ref, draft('alice', { subId: 'schule' })));
     await assertSucceeds(setDoc(ref, draft('alice', { subId: 'schule', title: 'neu' })));
     await assertSucceeds(getDoc(ref));
-    await assertSucceeds(getDoc(doc(alice, 'assignments', enc(ASSIGNMENT))));
+    await assertSucceeds(getDoc(doc(alice, 'publicAssignments', enc(ASSIGNMENT))));
 });
 
 // ---- drafts: updatedAt is the server's time -----------------------------------
@@ -396,7 +431,13 @@ test('student cannot write assignments', async () => {
     await assertFails(setDoc(doc(alice, 'assignments', enc(ASSIGNMENT)), { assignmentId: ASSIGNMENT, solution_keys: [] }));
     await assertFails(setDoc(doc(alice, 'assignments', 'neu'), { assignmentId: 'neu' }));
     await assertFails(deleteDoc(doc(alice, 'assignments', enc(ASSIGNMENT))));
-    await assertSucceeds(getDocs(collection(alice, 'assignments')));
+});
+
+test('no student account reads assignments (solutions), neither by id nor by listing', async () => {
+    for (const who of [alice, bob, outsider, anonSession, anon]) {
+        await assertFails(getDoc(doc(who, 'assignments', enc(ASSIGNMENT))));
+        await assertFails(getDocs(collection(who, 'assignments')));
+    }
 });
 
 test('a forged role that is not exactly "teacher" grants nothing', async () => {
@@ -404,6 +445,7 @@ test('a forged role that is not exactly "teacher" grants nothing', async () => {
     await assertFails(getDoc(doc(fake, 'feedback', pairId('alice'))));
     await assertFails(getDocs(collection(fake, 'drafts')));
     await assertFails(setDoc(doc(fake, 'assignments', 'x'), { assignmentId: 'x' }));
+    await assertFails(getDoc(doc(fake, 'assignments', enc(ASSIGNMENT))));
 });
 
 // ---- teacher -----------------------------------------------------------------
