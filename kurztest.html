@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kurztest sichern</title>
+    <!-- Brücke für den Kurztest auf lehrmittel.aburossi.ch (backend/CONTRACT.md, «Self-test bridge»).
+         publish.js bettet diese Seite unter dem Kurztest ein; sie zeigt eine Zeile und schreibt quizProgress. -->
+    <style>
+        html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; line-height: 1.5; color: #6c757d; }
+        #assignment-container { padding: 4px 2px; }
+        #kurztest-line a { color: #007bff; cursor: pointer; }
+        #kurztest-line[data-state="error"] { color: #b94a48; }
+    </style>
+</head>
+
+<body>
+    <!-- #assignment-container: js/embedHeight.js misst diesen Kasten (und den Anmeldedialog). -->
+    <div id="assignment-container">
+        <p id="kurztest-line" role="status" aria-live="polite" style="margin: 0;"></p>
+    </div>
+    <script src="js/kurztest.js" type="module"></script>
+</body>
+
+</html>

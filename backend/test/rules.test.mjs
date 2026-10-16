@@ -583,3 +583,97 @@ test('pasteEvents: foreign id or forged uid, other accounts, bad fields are refu
     const { excerpt, ...noExcerpt } = pasteEvent('alice');
     await assertFails(setDoc(doc(alice, 'pasteEvents', pasteId('alice', 'Bad000009')), noExcerpt));
 });
+
+// ---- quizProgress: the self-test on lehrmittel.aburossi.ch ------------------------
+
+const UNIT = 'ABUlehrmittel/1 Lernen/1.1 Lernen lernen + üben';     // spaces, dots, umlaut, plus
+const quizId = (uid, unit = UNIT) => `${uid}__${enc(unit)}`;
+const quiz = (uid, extra = {}) => ({
+    uid, unit: UNIT,
+    last: { known: 5, total: 7, date: '2026-10-16T14:03:21.512Z' },
+    hard: ['Duales System', 'üK'],
+    updatedAt: serverTimestamp(),
+    ...extra,
+});
+
+test('quizProgress: student creates, reads, updates and deletes the own document', async () => {
+    const ref = doc(alice, 'quizProgress', quizId('alice'));
+    await assertSucceeds(getDoc(ref));        // missing own document: "does not exist", not "denied"
+    await assertSucceeds(setDoc(ref, quiz('alice')));
+    const snap = await assertSucceeds(getDoc(ref));
+    assert.deepEqual(snap.data().hard, ['Duales System', 'üK']);
+    await assertSucceeds(setDoc(ref, quiz('alice', { last: { known: 7, total: 7, date: '2026-10-17T08:00:00.000Z' }, hard: [] })));
+    await assertSucceeds(deleteDoc(ref));
+});
+
+test('quizProgress: no other student, no teacher, no list', async () => {
+    await admin.doc(`quizProgress/${quizId('bob')}`).set({ ...quiz('bob'), updatedAt: new Date() });
+    await assertFails(getDoc(doc(alice, 'quizProgress', quizId('bob'))));
+    await assertFails(setDoc(doc(alice, 'quizProgress', quizId('bob')), quiz('alice')));
+    await assertFails(setDoc(doc(alice, 'quizProgress', quizId('bob')), quiz('bob')));
+    await assertFails(deleteDoc(doc(alice, 'quizProgress', quizId('bob'))));
+    await assertFails(setDoc(doc(alice, 'quizProgress', quizId('alice', 'Andere Einheit')), quiz('bob', { unit: 'Andere Einheit' })));
+    await assertFails(getDoc(doc(teacher, 'quizProgress', quizId('bob'))));
+    const staff = client(tok('teacher2', { role: 'teacher', email: 'lehrer.test@bbw.ch' }));
+    await assertFails(getDoc(doc(staff, 'quizProgress', quizId('bob'))));
+    await assertFails(setDoc(doc(staff, 'quizProgress', quizId('teacher2')), quiz('teacher2')));
+    await assertFails(getDocs(query(collection(alice, 'quizProgress'), where('uid', '==', 'alice'))));
+    await assertFails(getDocs(collection(teacher, 'quizProgress')));
+});
+
+test('quizProgress: anonymous, outsider and non-password accounts cannot write', async () => {
+    const google = client(tok('gina', { provider: 'google.com', email: 'gina.test@lernende.bbw.ch' }));
+    await assertFails(setDoc(doc(anon, 'quizProgress', quizId('anon')), quiz('anon')));
+    await assertFails(setDoc(doc(anonSession, 'quizProgress', quizId('anon1')), quiz('anon1')));
+    await assertFails(getDoc(doc(anonSession, 'quizProgress', quizId('anon1'))));
+    await assertFails(setDoc(doc(outsider, 'quizProgress', quizId('outsider')), quiz('outsider')));
+    await assertFails(setDoc(doc(google, 'quizProgress', quizId('gina')), quiz('gina')));
+});
+
+test('quizProgress: bad shapes and sizes are refused', async () => {
+    let n = 0;
+    const bad = (data) => setDoc(doc(alice, 'quizProgress', quizId('alice', `Bad ${++n}`)), { ...data, unit: `Bad ${n}` });
+    const last = (l) => quiz('alice', { last: { known: 5, total: 7, date: '2026-10-16T14:03:21.512Z', ...l } });
+    // fields
+    await assertFails(bad(quiz('alice', { mode: 'vor' })));
+    await assertFails(bad(quiz('alice', { name: 'Alice Beispiel' })));
+    await assertFails(bad(quiz('alice', { classId: 'TestA' })));
+    const { hard, ...noHard } = quiz('alice');
+    await assertFails(bad(noHard));
+    await assertFails(bad(quiz('alice', { last: { known: 5, total: 7, date: '2026-10-16T14:03:21.512Z', extra: 1 } })));
+    await assertFails(bad(quiz('alice', { last: { known: 5, total: 7 } })));
+    // numbers
+    await assertFails(bad(last({ total: 0, known: 0 })));
+    await assertFails(bad(last({ total: 51 })));
+    await assertFails(bad(last({ known: 8 })));
+    await assertFails(bad(last({ known: -1 })));
+    await assertFails(bad(last({ total: '7' })));
+    await assertFails(bad(last({ known: 1.5 })));
+    // date
+    await assertFails(bad(last({ date: 'gestern' })));
+    await assertFails(bad(last({ date: '2026-10-16T14:03:21.512Z' + '0'.repeat(20) })));
+    await assertFails(bad(last({ date: new Date() })));
+    // hard
+    await assertFails(bad(quiz('alice', { last: { known: 0, total: 50, date: '2026-10-16T14:03:21.512Z' }, hard: Array.from({ length: 21 }, (_, i) => `B${i}`) })));
+    await assertFails(bad(quiz('alice', { hard: ['x'.repeat(121)] })));
+    await assertFails(bad(quiz('alice', { hard: [42] })));
+    await assertFails(bad(quiz('alice', { hard: [{ label: 'x' }] })));
+    await assertFails(bad(quiz('alice', { hard: 'Duales System' })));
+    await assertFails(bad(quiz('alice', { last: { known: 1, total: 2, date: '2026-10-16T14:03:21.512Z' }, hard: ['a', 'b', 'c'] })));
+    // unit, time
+    await assertFails(setDoc(doc(alice, 'quizProgress', quizId('alice', '')), quiz('alice', { unit: '' })));
+    await assertFails(setDoc(doc(alice, 'quizProgress', quizId('alice', 'u'.repeat(301))), quiz('alice', { unit: 'u'.repeat(301) })));
+    await assertFails(bad(quiz('alice', { updatedAt: new Date() })));
+    // the limits themselves pass, also as an update (create and update are both evaluated:
+    // the heaviest request for the 1000-expression budget)
+    const full = (date) => quiz('alice', { unit: 'Voll', last: { known: 0, total: 50, date }, hard: Array.from({ length: 20 }, (_, i) => 'x'.repeat(119) + i % 10) });
+    const fullRef = doc(alice, 'quizProgress', quizId('alice', 'Voll'));
+    await assertSucceeds(setDoc(fullRef, full('2026-10-16T14:03:21.512Z')));
+    await assertSucceeds(setDoc(fullRef, full('2026-10-17T09:00:00.000Z')));
+});
+
+test('quizProgress: unit cannot change on update', async () => {
+    const ref = doc(alice, 'quizProgress', quizId('alice', 'Fest'));
+    await assertSucceeds(setDoc(ref, quiz('alice', { unit: 'Fest' })));
+    await assertFails(setDoc(ref, quiz('alice', { unit: 'Anders' })));
+});

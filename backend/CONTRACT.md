@@ -24,9 +24,12 @@ assignmentDoc = enc(assignmentId)
 draftDoc      = `${uid}__${enc(assignmentId)}__${enc(subId)}`
 pairDoc       = `${uid}__${enc(assignmentId)}`
 pasteDoc      = `${uid}__${enc(assignmentId)}__${enc(subId)}__${eventId}`   // eventId: [A-Za-z0-9]{8,40}, made by the page
+quizDoc       = `${uid}__${enc(unit)}`
 ```
 
 `assignmentId` is the file name in `content/` without `.json`. `subId` is the key in `subAssignments`, typos included — the vault iframes refer to both verbatim.
+
+`unit` is the Publish page of a unit on lehrmittel.aburossi.ch: `decodeURIComponent(location.pathname.replace(/\+/g, " "))` without the leading `/`, 1–300 characters. publish.js computes it; it is the same page that keys `st-quiz:<pathname>` in localStorage. Renaming a note on Publish starts a new `unit`; the old document stays and is no longer read.
 
 Sub-assignment keys contain dots (`"A. Grundsätze …"`). Documents holding them are written as whole maps with `set()`. No `update()` with string field paths on such keys.
 
@@ -40,6 +43,7 @@ Sub-assignment keys contain dots (`"A. Grundsätze …"`). Documents holding the
 | `feedback/{pairDoc}` | `uid, assignmentId`, the evaluator result (`results[]`, `date_str`, …), `released`, `releaseSettings{kurzbericht, ausfuehrlich, punkte, loesung}`, `publishedAt` | none | read, write |
 | `feedbackReleased/{pairDoc}` | `uid, assignmentId, results[], date_str, releaseSettings` — already filtered | read own | read, write, delete |
 | `formativUsage/{pairDoc}` | `uid, assignmentId, slots` — `slots` is a map keyed `"<subId>::<questionId>"` (`formativ.slotKey`); an entry is `{state, at}` while pending, and when done also `textHash, rubrik_version, request_id, prompt_version, duration_ms, pseudonym, names_masked, gesendet, result{zustand, kriterien[]}`. Written by the function with a precondition `update()` that replaces `slots` whole | none | read |
+| `quizProgress/{quizDoc}` | `uid, unit, last{known, total, date}, hard[], updatedAt` — the self-test («Kurztest») at the end of a unit on lehrmittel.aburossi.ch: result of the last complete run (`date` an ISO string from the device clock) and the terms marked «Nochmals» in that run | get/create/update/delete own only | none |
 | `pasteEvents/{pasteDoc}` | `uid, assignmentId, subId, questionId, kind, chars, excerpt, at` — `kind` one of `paste` (a paste got past the block), `drop` (text dragged in), `bulk` (one change inserted ≥ 40 characters), `fast` (≥ 60 characters in under 3 s, faster than typing); `chars` the number of characters inserted; `excerpt` the first 300 of them | create own only | read |
 
 Rules that must hold:
@@ -50,6 +54,8 @@ Rules that must hold:
 - `formativUsage` is written only by the function (Admin SDK).
 - `pasteEvents`: students create, never read, update or delete — not even their own, so a student cannot erase an entry. Same id and `uid` checks and the same school-account and server-time (`at`) conditions as `drafts`. An entry is a hint for the teacher, not proof: the page decides what it reports, and a student who blocks the request reports nothing.
 - `drafts` can be written only by a password sign-in with an address ending in `@lernende.bbw.ch`, and `updatedAt` must be the server time. Anonymous sessions read nothing. This raises the bar; it does not prove roster membership (rules cannot read the roster in `(default)`). That is why the dashboard looks drafts up by the uids on the class roster and never by the `classId` a draft carries, and why it renders every draft field as text or through `dashboard/modules/sanitize.js`.
+- `quizProgress`: the document id must start with `request.auth.uid + "__"` **and** `uid` must equal `request.auth.uid`; written only by a password sign-in with `@lernende.bbw.ch`, `updatedAt` is the server time, `unit` cannot change on update. A student may delete their own document. No `list`: the page reads exactly one document by id. No teacher access — the self-test serves the learner only; a teacher view would be another purpose and needs its own consent (`../docs/KURZTEST_FIREBASE_PLAN.md`).
+- `quizProgress` carries no name and no class, and the direction of the test (`mode`) is not stored: it stays in the browser.
 - `publicAssignments` is written only by `scripts/upload-assignments.mjs` (Admin SDK), in the same batch as `assignments`. Anyone may `get` a document; nobody may `list` the collection or write to it.
 - Everything not listed is denied.
 
@@ -77,9 +83,15 @@ Limits the rules enforce on `drafts` (security rules have no loops and a 1000-ex
 - at most 6 `answers` and 6 `questions` (content has at most 2 per sub-assignment); a question is `{id, text}` only.
 - all `answer` strings together at most 200 000 characters. The page must show the student an error when a save is refused, not fail silently.
 
+Limits the rules enforce on `quizProgress`:
+
+- required and only: `uid, unit, last, hard, updatedAt`; `last` is exactly `{known, total, date}`.
+- `total` int 1…50, `known` int 0…`total`, `date` an ISO time string (`YYYY-MM-DDT…Z`), at most 40 characters.
+- `hard` a list of at most 20 strings of at most 120 characters each, and not longer than `total` (real units have at most 14 terms).
+
 `assignments` carries the solutions and rubrics: only a teacher reads it (until 16.10.2026 every non-anonymous sign-in could, self-registered accounts included). Students and guests read `publicAssignments`; the formativ function reads `assignments` with the Admin SDK.
 
-Rollout (16.10.2026), in this order: live upload (writes `publicAssignments`) → push the page (`js/api.js` falls back to `assignments` while the old rules refuse `publicAssignments`) → deploy the rules. Afterwards remove that fallback.
+Rolled out 16.10.2026 (live upload → page → rules); the temporary fallback to `assignments` in `js/api.js` is removed.
 
 Student queries on `drafts` and `feedbackReleased` must carry `where('uid', '==', uid)`.
 
@@ -101,6 +113,27 @@ Both require a signed-in caller whose `students/{uid}` doc exists in `(default)`
 One module initialises the app and exports `auth`, `db` (database `lmsbox`), `rosterDb` (`(default)`), `functions`. It also exports `app` and `emulator` (`{host, ports}` or null) for `dashboard/modules/firestore.js`. No other module imports the Firebase SDK URLs directly.
 
 Additive for the HKO parallel system (contract: `HKO.md`, "Phase P1 — Vertrag" §7): `js/firebase.js` also exports `namedDb(databaseId)` (a further named database, Firestore Lite, created on first call and cached per id; only `js/hko/api.js` calls it, lms_box pages never do), and `js/auth.js` exports `registerSaver({ flush, hasUnsaved, hasUnsynced, suspend, resume, close })`, which the logout coordination asks in addition to `renderer.js`; with nothing registered the behaviour is unchanged.
+
+Additive for the self-test: `js/auth.js` also exports `showLoginDialog({ closable })` and `closeLoginDialog()`, used by `js/kurztest.js` only.
+
+## Self-test bridge (`kurztest.html`, `js/kurztest.js`)
+
+publish.js on `https://lehrmittel.aburossi.ch` embeds `kurztest.html?parent=<its origin>` below the self-test of a unit. The page shows one line (signed out: offer to sign in; signed in: for whom it saves; a failed save says so). It reuses the login of the LMS Box (the iframes of one host site share it) and writes `quizProgress` with Firestore Lite. No roster read.
+
+Messages (`postMessage`, type prefix `kurztest-`):
+
+| Direction | Type | Data |
+|---|---|---|
+| bridge → page | `kurztest-ready` | `{ signedIn, acct }` |
+| page → bridge | `kurztest-load` | `{ unit }` |
+| bridge → page | `kurztest-state` | `{ signedIn, acct, unit, record: { last, hard } \| null }` — again after every sign-in or sign-out |
+| page → bridge | `kurztest-save` | `{ unit, record: { last, hard } }` |
+| bridge → page | `kurztest-saved` | `{ unit, ok, code? }` |
+
+- `signedIn` is true only for a password sign-in with `@lernende.bbw.ch` (what the rules let write). `acct` is the first 12 hex characters of SHA-256(uid), or null; the uid itself never leaves the bridge.
+- The bridge accepts `?parent=` only from its list (`https://lehrmittel.aburossi.ch`; any `http://localhost:*` / `http://127.0.0.1:*` origin only while the bridge itself runs on a local host). It handles a message only if `event.source === window.parent` and `event.origin` is that parent, and it posts only to that origin, never to `"*"`.
+- publish.js handles a message only if `event.origin === "https://allgemeinbildung.github.io"` **and** `event.source` is its own bridge iframe: other repos on that origin (mindmap, podcasts …) share it.
+- Merge in publish.js: a run done while signed in carries `acct` in localStorage. Same account: the run with the later `last.date` wins as a whole (`last` and `hard` together, no union), a newer local run is uploaded. Another account or a guest run: the account's record replaces it; a guest run is never uploaded (like guest answers).
 
 On `localhost` / `127.0.0.1` it connects to the **emulators** by default. Live data from a local page needs the explicit query parameter `?live=1`. Reason: a local click-through must never write into production.
 

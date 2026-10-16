@@ -77,12 +77,15 @@ function helpLink(text) {
 
 // ---- login dialog -----------------------------------------------------------------
 
-function closeLoginDialog() {
+export function closeLoginDialog() {
     document.getElementById('auth-dialog')?.remove();
 }
 
-/** `closable`: a guest may close the dialog and go on without an account. */
-function showLoginDialog({ closable = false } = {}) {
+/**
+ * `closable`: a guest may close the dialog and go on without an account.
+ * Exported (with closeLoginDialog) for the self-test bridge, js/kurztest.js (CONTRACT.md).
+ */
+export function showLoginDialog({ closable = false } = {}) {
     if (document.getElementById('auth-dialog')) return;
 
     const dialog = document.createElement('div');

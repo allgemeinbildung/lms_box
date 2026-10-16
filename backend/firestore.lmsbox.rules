@@ -95,6 +95,46 @@ service cloud.firestore {
         && d.updatedAt == request.time;
     }
 
+    // ---- quizProgress: validation -------------------------------------------
+    //
+    // The self-test («Kurztest») on lehrmittel.aburossi.ch, one document per student
+    // and unit (CONTRACT.md). `hard` is checked entry by entry (no loops): at most 20
+    // strings of at most 120 characters - real units have at most 14 terms. 30 did not
+    // fit: an update evaluates create and update, and ran into the limit of 1000
+    // expressions per request (the emulator enforces it too).
+    function hardOk(h, i) {
+      return h.size() <= i || shortString(h[i], 120);
+    }
+    function hardListOk(h) {
+      return h is list && h.size() <= 20
+        && hardOk(h, 0)  && hardOk(h, 1)  && hardOk(h, 2)  && hardOk(h, 3)  && hardOk(h, 4)
+        && hardOk(h, 5)  && hardOk(h, 6)  && hardOk(h, 7)  && hardOk(h, 8)  && hardOk(h, 9)
+        && hardOk(h, 10) && hardOk(h, 11) && hardOk(h, 12) && hardOk(h, 13) && hardOk(h, 14)
+        && hardOk(h, 15) && hardOk(h, 16) && hardOk(h, 17) && hardOk(h, 18) && hardOk(h, 19);
+    }
+    function lastOk(l) {
+      return l is map
+        && l.keys().hasOnly(['known', 'total', 'date'])
+        && l.keys().hasAll(['known', 'total', 'date'])
+        && l.total is int && l.total >= 1 && l.total <= 50
+        && l.known is int && l.known >= 0 && l.known <= l.total
+        && shortString(l.date, 40)
+        && l.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$');
+    }
+    function quizOk(quizId) {
+      let d = request.resource.data;
+      return idIsOwn(quizId)
+        && quizId.size() <= 1500
+        && isSchoolAccount()
+        && d.keys().hasOnly(['uid', 'unit', 'last', 'hard', 'updatedAt'])
+        && d.keys().hasAll(['uid', 'unit', 'last', 'hard', 'updatedAt'])
+        && d.uid == request.auth.uid
+        && shortString(d.unit, 300) && d.unit.size() > 0
+        && lastOk(d.last)
+        && hardListOk(d.hard) && d.hard.size() <= d.last.total
+        && d.updatedAt == request.time;
+    }
+
     // ---- collections --------------------------------------------------------
 
     // With solutions and rubrics: teachers only. Students and guests read the
@@ -141,6 +181,21 @@ service cloud.firestore {
     // Written only by the function (Admin SDK bypasses rules).
     match /formativUsage/{pairDoc} {
       allow read: if isTeacher();
+    }
+
+    // Self-test progress: the student's own documents only, no list, no teacher
+    // access (CONTRACT.md). Not checked here: that the id is uid + "__" + enc(unit) -
+    // rules have no encodeURIComponent; a mismatch only touches the own document.
+    match /quizProgress/{quizId} {
+      // get: a missing own document answers "does not exist", not "denied".
+      allow get: if notAnonymous() && idIsOwn(quizId)
+        && (resource == null || resource.data.uid == request.auth.uid);
+      allow create: if quizOk(quizId);
+      allow update: if quizOk(quizId)
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.unit == resource.data.unit;
+      allow delete: if notAnonymous() && idIsOwn(quizId)
+        && resource.data.uid == request.auth.uid;
     }
 
     // Hints that text was inserted rather than typed (CONTRACT.md). Create-only for
