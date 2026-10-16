@@ -329,6 +329,14 @@ bitte der Lehrperson melden».
 - **Logout-Koordination:** `js/auth.js` exportiert zusätzlich `registerSaver({ flush, hasUnsaved, hasUnsynced, suspend, resume, close })`;
   die bestehenden Aufrufstellen berücksichtigen registrierte Saver zusätzlich. Ohne registrierten Saver ist das
   Verhalten identisch. `js/hko/save.js` registriert sich.
+- **Kein Gastmodus** (nachgetragen 16.10.2026, Merge von `a6331df`): `authenticate()` löst seit dem
+  lms_box-Gastmodus ohne Anmeldung sofort mit `guest: true` auf. `hko.html` zeigt dann **nichts** aus der
+  DB und **speichert nichts** (ohne uid sind `units`/`classes` nicht lesbar und `answers` nicht
+  schreibbar), entfernt das lms_box-Gastband (dessen Text «bleiben in diesem Browser» gilt hier nicht),
+  zeigt den Hinweis `data-reason="gast"` (`#content-renderer` `data-modus="gast"`) und öffnet über das
+  additive `requireLogin()` aus `js/auth.js` den Anmeldedialog wie vor dem Gastmodus (nicht schliessbar).
+  Nach der Anmeldung lädt `auth.js` die Seite neu. Entscheid Pietro offen: ob HKO später einen lokalen
+  Gastmodus wie lms_box bekommt.
 - **Cache:** `js/storage.js` unverändert (DB `LMS_AssignmentsDB`), Schlüssel `unsynced_hko_<unitId>_<blockId>` =
   `{ rev, state: 'local'|'error'|'too_large', value }`. `hasUnsyncedWork()` von lms_box findet sie über das Präfix `unsynced_`.
 - **DOM-Vertrag `hko.html`:** `#assignment-container` > `#assignment-header` (`#main-title`, `#sub-title`), `#hko-ki-regel`,

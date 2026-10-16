@@ -89,7 +89,7 @@ function parseMarkdown(text) {
 
 /**
  * Updates the UI element that shows the current save status.
- * @param {'saving' | 'local' | 'cloud' | 'error' | 'too_large'} status - The current status.
+ * @param {'saving' | 'local' | 'cloud' | 'error' | 'too_large' | 'browser'} status - The current status.
  */
 let shownStatus = null;
 function updateSaveStatus(status) {
@@ -115,6 +115,10 @@ function updateSaveStatus(status) {
             statusEl.textContent = 'Fehler beim Speichern in der Cloud. Nur auf diesem Gerät gesichert.';
             statusEl.style.color = '#dc3545';
             break;
+        case 'browser':
+            statusEl.textContent = 'Nur in diesem Browser gespeichert.';
+            statusEl.style.color = '#6c757d';
+            break;
         case 'too_large':
             statusEl.textContent = 'Nicht gespeichert: Deine Antwort ist zu lang. Bitte kürze sie.';
             statusEl.style.color = '#dc3545';
@@ -136,6 +140,9 @@ function updateSaveStatus(status) {
  *         editors: Array<{questionId: string, quill: object}>, rev: string|null}|null}
  */
 let page = null;
+/** Not signed in: answers stay in this browser (storage.GUEST_DB_NAME), nothing goes to the server. */
+let guest = false;
+export function setGuestMode() { guest = true; }
 /** false | 'suspended' (a logout is being prepared) | 'committed' (the cache is being emptied). */
 let closed = false;
 let localWrites = Promise.resolve();   // keystroke writes to IndexedDB, in order
@@ -155,6 +162,20 @@ function recordEdit() {
     const p = page;
     const rev = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const answers = collectAnswers();
+    if (guest) {
+        // The answer rows are the guest's only copy: no marker, no server.
+        localWrites = localWrites.then(() => storage.atomic(async (tx) => {
+            for (const { questionId } of p.editors) {
+                const mine = answers.find((a) => a.questionId === questionId);
+                if (mine) await tx.set(answerKey(p.assignmentId, p.subId, questionId), mine.answer);
+                else await tx.remove(answerKey(p.assignmentId, p.subId, questionId));
+            }
+        })).then(
+            () => updateSaveStatus('browser'),
+            (error) => { console.error('Failed to save locally:', error); updateSaveStatus('error'); },
+        );
+        return;
+    }
     p.rev = rev;
     updateSaveStatus('saving');
     localWrites = localWrites.then(() => storage.atomic(async (tx) => {
@@ -322,7 +343,7 @@ function renderQuill(data, assignmentId, subId, initialAnswers, assignmentData) 
 
         guardEditor(quill, {
             isActive: () => !isInitializing && closed !== 'committed',
-            report: (event) => reportPaste(assignmentId, subId, question.id, event),
+            report: (event) => (guest ? Promise.resolve() : reportPaste(assignmentId, subId, question.id, event)),
             showMessage: (message) => showTemporaryMessage(message, quill.root),
         });
 
@@ -409,7 +430,17 @@ export async function renderSubAssignment(assignmentData, assignmentId, subId, d
         console.error('Failed to read the unsynced marker:', error);
     }
     if (!unsynced || !Array.isArray(unsynced.answers) || !unsynced.rev) unsynced = null;
-    const serverAnswers = draftData?.assignments?.[assignmentId]?.[subId]?.answers || [];
+    let serverAnswers = draftData?.assignments?.[assignmentId]?.[subId]?.answers || [];
+    if (guest) {
+        // A guest has no server copy: what this browser holds is the truth.
+        unsynced = null;
+        serverAnswers = [];
+        for (const q of subAssignmentData.questions || []) {
+            let answer = null;
+            try { answer = await storage.get(answerKey(assignmentId, subId, q.id)); } catch (error) { console.error('Failed to read a local answer:', error); }
+            if (!isEmptyHtml(answer)) serverAnswers.push({ questionId: String(q.id), answer });
+        }
+    }
 
     if (subAssignmentData.type === 'quill') {
         page = {
@@ -421,6 +452,7 @@ export async function renderSubAssignment(assignmentData, assignmentId, subId, d
             rev: unsynced ? unsynced.rev : null,
         };
         renderQuill(subAssignmentData, assignmentId, subId, unsynced ? unsynced.answers : serverAnswers, assignmentData);
+        if (guest && serverAnswers.length) updateSaveStatus('browser');
         if (unsynced) {
             updateSaveStatus(['error', 'too_large'].includes(unsynced.state) ? unsynced.state : 'local');
             enqueueSave();

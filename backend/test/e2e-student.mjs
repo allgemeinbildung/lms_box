@@ -14,6 +14,7 @@ import { chromium } from 'playwright-core';
 import { getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { publicCopy } from '../scripts/public-assignment.mjs';
 
 const LOCAL = /^(127\.0\.0\.1|localhost|\[::1\]):\d+$/;
 for (const name of ['FIRESTORE_EMULATOR_HOST', 'FIREBASE_AUTH_EMULATOR_HOST']) {
@@ -41,7 +42,7 @@ const draftId = (uid, a, s) => `${uid}__${enc(a)}__${enc(s)}`;
 
 // ---- extra fixtures ------------------------------------------------------------------
 
-await box.doc(`assignments/${enc(A3)}`).set({
+const a3 = {
     assignmentId: A3,
     assignmentTitle: 'Drei Teile (E2E)',
     formativ: false,
@@ -50,7 +51,9 @@ await box.doc(`assignments/${enc(A3)}`).set({
         type: 'quill',
         questions: [{ id: 'q1', text: `Frage zu Teil ${i + 1}: Was fällt Ihnen auf?` }],
     }])),
-});
+};
+await box.doc(`assignments/${enc(A3)}`).set(a3);
+await box.doc(`publicAssignments/${enc(A3)}`).set(publicCopy(a3));
 // An account that still has its start password.
 try { await auth.deleteUser('e2e-dora'); } catch { /* not there */ }
 await auth.createUser({ uid: 'e2e-dora', email: 'dora.neu@lernende.bbw.ch', password: PASSWORD, displayName: 'Dora Neu' });
@@ -137,7 +140,9 @@ async function newContext(browser) {
     return context;
 }
 
+/** Signs in; a guest page first opens the dialog through its banner. */
 async function login(scope, username, password = PASSWORD) {
+    if (await scope.locator('#auth-dialog').count() === 0) await scope.locator('#guest-login').click();
     await scope.locator('#auth-username').fill(username);
     await scope.locator('#auth-password').fill(password);
     await scope.locator('#auth-login-btn').click();
@@ -172,9 +177,9 @@ async function threeFrames(context, username, texts) {
     const host = await context.newPage();
     await host.goto(`http://localhost:${PORT}/__host.html`);
     const frames = [0, 1, 2].map((i) => host.frameLocator(`iframe[name="f${i}"]`));
-    for (const f of frames) await f.locator('#auth-dialog').waitFor();
+    for (const f of frames) await f.locator('#guest-banner').waitFor();
     await login(frames[0], username);
-    for (const f of frames) await editor(f).waitFor();
+    for (const f of frames) await f.locator('#auth-user').waitFor();
     for (const [i, f] of frames.entries()) await typeInto(host, f, 0, texts[i]);
     for (const f of frames) await saved(f);
     return { host, frames };
@@ -185,6 +190,20 @@ const cacheRows = (target) => target.evaluate(async () => {
     if (!(await indexedDB.databases()).some((d) => d.name === 'LMS_AssignmentsDB')) return null;
     return new Promise((resolve, reject) => {
         const open = indexedDB.open('LMS_AssignmentsDB');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+            const db = open.result;
+            const all = db.transaction('user_data').objectStore('user_data').getAll();
+            all.onsuccess = () => { db.close(); resolve(all.result); };
+            all.onerror = () => { db.close(); reject(all.error); };
+        };
+    });
+});
+/** Rows of the guest database (LMS_GuestDB), or null when it does not exist. */
+const guestRows = (target) => target.evaluate(async () => {
+    if (!(await indexedDB.databases()).some((d) => d.name === 'LMS_GuestDB')) return null;
+    return new Promise((resolve, reject) => {
+        const open = indexedDB.open('LMS_GuestDB');
         open.onerror = () => reject(open.error);
         open.onsuccess = () => {
             const db = open.result;
@@ -270,8 +289,10 @@ try {
     const ctx = await newContext(browser);
     const page = await ctx.newPage();
 
-    await step('(e) wrong password: German error, dialog stays, no assignment', async () => {
+    await step('(e) wrong password: German error, dialog stays, still a guest', async () => {
         await page.goto(pageUrl(A1, A1_SUB));
+        await page.locator('#guest-banner').waitFor();
+        await page.locator('#guest-login').click();
         await page.locator('#auth-dialog').waitFor();
         assert.equal(await page.locator('#auth-first-login').getAttribute('href'), LOGIN_URL);
         assert.equal(await page.locator('#auth-first-login').getAttribute('target'), '_blank');
@@ -279,7 +300,7 @@ try {
         await page.locator('#auth-status:not(:empty)').waitFor();
         assert.equal(await page.locator('#auth-status').innerText(), 'Benutzername oder Passwort ist falsch.');
         assert.equal(await page.locator('#auth-dialog').count(), 1);
-        assert.equal(await page.locator('.ql-editor').count(), 0);
+        assert.equal(await page.locator('#guest-banner').count(), 1);
         assert.equal(await page.locator('#auth-user').count(), 0);
     });
 
@@ -296,6 +317,7 @@ try {
 
     await step('(a) login, type, reload with emptied IndexedDB: text is back from Firestore', async () => {
         await login(page, 'anna.beispiel');
+        await page.locator('#auth-user').waitFor();
         await editor(page).waitFor();
         assert.equal(await page.locator('#auth-dialog').count(), 0);
         assert.match(await page.locator('#auth-user').innerText(), /Anna Beispiel/);
@@ -351,10 +373,12 @@ try {
         const before = await cacheRows(page);
         assert.ok(before.length > 0 && before.some((r) => String(r.value).includes(TEXT_ANNA)));
         await page.locator('#auth-logout').click();
-        await page.locator('#auth-dialog').waitFor();
+        await page.locator('#guest-banner').waitFor();
         assert.deepEqual(await cacheRows(page), []);
         assert.equal(await page.evaluate(() => localStorage.getItem('lmsbox-last-uid')), null);
-        assert.equal(await page.locator('.ql-editor').count(), 0);
+        await editor(page).waitFor();   // back as a guest: the assignment, without Anna's text
+        assert.equal((await editor(page).innerText()).trim(), '');
+        assert.equal(await page.locator('#auth-user').count(), 0);
     });
 
     await step('(b) a second student on the same browser sees none of the first one\'s text', async () => {
@@ -371,10 +395,11 @@ try {
         await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('firebase:')).forEach((k) => localStorage.removeItem(k)));
         await page.goto('about:blank');
         await page.goto(pageUrl(A1, A1_SUB));
-        await page.locator('#auth-dialog').waitFor();
+        await page.locator('#guest-banner').waitFor();
         assert.ok((await cacheRows(page)).some((r) => String(r.value).includes(TEXT_ANNA)), 'precondition: Anna\'s text is still cached');
 
         await login(page, 'ben.muster');
+        await page.locator('#auth-user').waitFor();
         await editor(page).waitFor();
         assert.match(await page.locator('#auth-user').innerText(), /Ben Muster/);
         await page.waitForTimeout(1500);   // anything that would still arrive has arrived
@@ -388,7 +413,7 @@ try {
         await until('Ben\'s draft', async () => answerOf(await draft('seed-ben', A1, A1_SUB), 'q1').includes(TEXT_BEN));
         assert.equal(answerOf(await draft('seed-anna', A1, A1_SUB), 'q1'), `<p>${TEXT_ANNA}</p>`);
         await page.locator('#auth-logout').click();
-        await page.locator('#auth-dialog').waitFor();
+        await page.locator('#guest-banner').waitFor();
     });
     await ctx.close();
 
@@ -397,7 +422,7 @@ try {
         const host = await c.newPage();
         await host.goto(`http://localhost:${PORT}/__host.html`);
         const frames = [0, 1, 2].map((i) => host.frameLocator(`iframe[name="f${i}"]`));
-        for (const f of frames) await f.locator('#auth-dialog').waitFor();
+        for (const f of frames) await f.locator('#guest-banner').waitFor();
 
         // really cross-site: the frame cannot reach into its host page
         const inner = host.frame({ name: 'f0' });
@@ -408,7 +433,7 @@ try {
         // sign in inside the middle frame only
         const t0 = Date.now();
         await login(frames[1], 'cleo.probe');
-        const waits = await Promise.all(frames.map(async (f) => { await editor(f).waitFor(); return Date.now() - t0; }));
+        const waits = await Promise.all(frames.map(async (f) => { await f.locator('#auth-user').waitFor(); return Date.now() - t0; }));
         for (const f of frames) {
             assert.equal(await f.locator('#auth-dialog').count(), 0);
             assert.match(await f.locator('#auth-user').innerText(), /Cleo Probe/);
@@ -439,14 +464,14 @@ try {
         // the same page opened as its own tab does not see the session of the iframes.
         const tab = await c.newPage();
         await tab.goto(pageUrl(A3, A3_SUBS[0]));
-        await Promise.race([tab.locator('#auth-dialog').waitFor(), tab.locator('.ql-editor').first().waitFor()]);
-        assert.equal(await tab.locator('#auth-dialog').count(), 1, 'third-party storage partitioning is not active - this run did not test the iframe case');
-        console.log('    storage is partitioned: the page as its own tab on 127.0.0.1 asks for a login');
+        await Promise.race([tab.locator('#guest-banner').waitFor(), tab.locator('#auth-user').waitFor()]);
+        assert.equal(await tab.locator('#guest-banner').count(), 1, 'third-party storage partitioning is not active - this run did not test the iframe case');
+        console.log('    storage is partitioned: the page as its own tab on 127.0.0.1 is a guest');
         await tab.close();
 
         // logout in one frame ends the session in all of them
         await frames[2].locator('#auth-logout').click();
-        for (const f of frames) await f.locator('#auth-dialog').waitFor();
+        for (const f of frames) await f.locator('#guest-banner').waitFor();
         assert.deepEqual(await cacheRows(host.frame({ name: 'f0' })), []);
         await c.close();
     });
@@ -461,7 +486,7 @@ try {
         assert.equal(await p.locator('.ql-editor').count(), 0);
         assert.equal(await p.locator('#auth-dialog').count(), 0);
         await p.locator('#auth-notice .auth-logout').click();
-        await p.locator('#auth-dialog').waitFor();
+        await p.locator('#guest-banner').waitFor();
         await c.close();
     });
 
@@ -487,6 +512,7 @@ try {
         const FULL = `${FIRST} und der neue Schluss`;
         await p.goto(pageUrl(A3, A3_SUBS[0]));
         await login(p, 'emil.faden');
+        await p.locator('#auth-user').waitFor();
         await editor(p).waitFor();
         await typeInto(p, p, 0, FIRST);
         await saved(p);
@@ -586,7 +612,7 @@ try {
         await open();
         await appendTo(host, frames[1], ' und ein Zusatz');
         await frames[2].locator('#auth-logout').click();
-        for (const f of frames) await f.locator('#auth-dialog').waitFor();
+        for (const f of frames) await f.locator('#guest-banner').waitFor();
         assert.equal(await frames[2].locator('#logout-confirm').count(), 0);
         assert.deepEqual(await cacheRows(host.frame({ name: 'f0' })), []);
         await host.waitForTimeout(2500);   // any timer that was still running has fired
@@ -603,6 +629,7 @@ try {
         const p = await c.newPage();
         await p.goto(pageUrl(A3, A3_SUBS[0]));
         await login(p, 'hana.vogt');
+        await p.locator('#auth-user').waitFor();
         await editor(p).waitFor();
         await typeInto(p, p, 0, 'Hana schreibt und verwirft');
         await saved(p);
@@ -628,6 +655,7 @@ try {
         const p = await c.newPage();
         await p.goto(pageUrl(A3, A3_SUBS[0]));
         await login(p, 'ivo.lang');
+        await p.locator('#auth-user').waitFor();
         await editor(p).waitFor();
         await typeInto(p, p, 0, 'Ivo gespeichert');
         await saved(p);
@@ -637,7 +665,7 @@ try {
         await p.locator('#logout-confirm').waitFor({ timeout: 10000 });
         assert.equal(await p.locator('#auth-dialog').count(), 0);
         await p.locator('#logout-confirm-leave').click();
-        await p.locator('#auth-dialog').waitFor();
+        await p.locator('#guest-banner').waitFor();
         assert.deepEqual(await cacheRows(p), []);
         assert.equal(await p.evaluate(() => localStorage.getItem('lmsbox-last-uid')), null);
         assert.deepEqual((await draft('e2e-ivo', A3, A3_SUBS[0])).answers, [{ questionId: 'q1', answer: '<p>Ivo gespeichert</p>' }]);
@@ -649,6 +677,7 @@ try {
         const p = await c.newPage();
         await p.goto(pageUrl(A3, A3_SUBS[1]));
         await login(p, 'jana.frei');
+        await p.locator('#auth-user').waitFor();
         await editor(p).waitFor();
         const events = async () => (await box.collection('pasteEvents').where('uid', '==', 'e2e-jana').get())
             .docs.map((d) => d.data()).sort((a, b) => a.at.toMillis() - b.at.toMillis());
@@ -702,6 +731,64 @@ try {
             assert.equal(e.subId, A3_SUBS[1]);
             assert.equal(e.questionId, 'q1');
         }
+        await c.close();
+    });
+
+    await step('(o) guest: assignment without login, answers only in this browser, nothing sent; a login does not mix them', async () => {
+        const c = await newContext(browser);
+        const requests = [];
+        c.on('request', (r) => requests.push(`${r.method()} ${r.url()} ${r.postData() || ''}`));
+        const p = await c.newPage();
+        const draftsBefore = (await box.collection('drafts').get()).size;
+        const pastesBefore = (await box.collection('pasteEvents').get()).size;
+        const GUEST_TEXT = 'Gast schreibt ohne Konto 2468';
+
+        await p.goto(pageUrl(A1, A1_SUB));
+        await p.locator('#guest-banner').waitFor();
+        await editor(p).waitFor();
+        assert.equal(await p.locator('#auth-dialog').count(), 0, 'no dialog until asked for');
+        assert.equal(await p.locator('#main-title').innerText(), 'Testauftrag (Emulator)');
+        assert.match(await p.locator('#guest-banner').innerText(), /nur in diesem Browser/);
+
+        await typeInto(p, p, 0, GUEST_TEXT);
+        await state(p, 'browser');
+        // a long insert would be a paste hint for a student; a guest reports nothing
+        await editor(p).evaluate((el) => document.execCommand('insertText', false, ' ' + 'Eingefügt '.repeat(10)));
+        await p.waitForTimeout(2500);
+
+        await p.reload();
+        await p.locator('#guest-banner').waitFor();
+        await shows(p, GUEST_TEXT);
+        await state(p, 'browser');
+        assert.ok((await guestRows(p)).some((r) => String(r.value).includes(GUEST_TEXT)), 'guest text is in LMS_GuestDB');
+        assert.ok(!JSON.stringify(await cacheRows(p) ?? []).includes(GUEST_TEXT), 'guest text is not in the account cache');
+
+        // nothing left the browser but the public assignment
+        const backend = requests.filter((u) => /:(8280|5101|9190)\//.test(u));
+        const isPublicRead = (u) => /documents:batchGet|\/documents\/publicAssignments\//.test(u) && u.includes('publicAssignments') && !/documents\/(assignments|drafts|feedbackReleased)\//.test(u);
+        assert.ok(backend.some(isPublicRead), `reads the public copy: ${backend.join(' | ')}`);
+        assert.deepEqual(backend.filter((u) => !isPublicRead(u) && !u.startsWith('OPTIONS ')), [], 'a guest makes no other backend request');
+        assert.equal((await box.collection('drafts').get()).size, draftsBefore);
+        assert.equal((await box.collection('pasteEvents').get()).size, pastesBefore);
+
+        // the dialog can be closed again
+        await p.locator('#guest-login').click();
+        await p.locator('#auth-close').click();
+        assert.equal(await p.locator('#auth-dialog').count(), 0);
+        await shows(p, GUEST_TEXT);
+
+        // sign in: the account's own text, not the guest's; the guest copy stays as it was
+        await login(p, 'anna.beispiel');
+        await p.locator('#auth-user').waitFor();
+        await shows(p, TEXT_ANNA);
+        assert.equal(await p.locator('#guest-banner').count(), 0);
+        assert.doesNotMatch(await editor(p).innerText(), /Gast schreibt/);
+        assert.doesNotMatch(answerOf(await draft('seed-anna', A1, A1_SUB), 'q1'), /Gast schreibt/);
+
+        // and back to guest: the guest text is still there
+        await p.locator('#auth-logout').click();
+        await p.locator('#guest-banner').waitFor();
+        await shows(p, GUEST_TEXT);
         await c.close();
     });
 

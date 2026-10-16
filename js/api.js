@@ -81,8 +81,21 @@ export async function getStudent() {
 
 // ---- assignments ------------------------------------------------------------------
 
+/**
+ * The public copy of the assignment (no solutions; CONTRACT.md, «Public copy and guest mode»).
+ * Readable without sign-in; the page uses it signed in or not.
+ */
 export async function getAssignment(assignmentId) {
-    const snap = await getDoc(doc(db, 'assignments', assignmentDoc(assignmentId)));
+    let snap;
+    try {
+        snap = await getDoc(doc(db, 'publicAssignments', assignmentDoc(assignmentId)));
+    } catch (e) {
+        // ROLLOUT ONLY (16.10.2026): while the old rules are live they do not know
+        // `publicAssignments`; a signed-in student then still reads `assignments`.
+        // Remove this branch once the new rules are deployed (they refuse it anyway).
+        if (e?.code !== 'permission-denied' || !auth.currentUser) throw e;
+        snap = await getDoc(doc(db, 'assignments', assignmentDoc(assignmentId)));
+    }
     if (!snap.exists()) throw new ApiError(`Aufgabe "${assignmentId}" nicht gefunden.`, { status: 404, code: 'not_found' });
     return snap.data();
 }
@@ -185,6 +198,7 @@ export async function getReleasedFeedback(assignmentId) {
 
 /** HttpsError -> ApiError: `details.code` is what the old ApiError.code carried. */
 async function call(name, payload) {
+    requireUid();   // a guest sends nothing to the functions
     try {
         return (await httpsCallable(functions, name)(payload)).data;
     } catch (e) {

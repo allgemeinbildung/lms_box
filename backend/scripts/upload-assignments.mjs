@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Uploads content/*.json to Firestore database "lmsbox", collection "assignments" (see backend/CONTRACT.md).
+// Uploads content/*.json to Firestore database "lmsbox", collections "assignments" and "publicAssignments" (see backend/CONTRACT.md).
 //   doc id  = encodeURIComponent(assignmentId)   (assignmentId = file name without .json)
 //   fields  = the content JSON unchanged + assignmentId   -- written as a whole with set(), never update().
+//   publicAssignments gets the whitelisted copy without solutions (scripts/public-assignment.mjs), in the same batch.
 //
 // Modes (exactly one; --dry-run is the default):
 //   --dry-run                                  validate and print what would be written; needs no node_modules
@@ -13,10 +14,12 @@
 import { readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { join, resolve, dirname, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { publicCopy } from './public-assignment.mjs';
 
 const LIVE_PROJECT = 'interactive-media-2a1fc';
 const DATABASE = 'lmsbox';
 const COLLECTION = 'assignments';
+const PUBLIC_COLLECTION = 'publicAssignments';
 const MAX_DOC_BYTES = 1048576 - 4096;   // Firestore limit is 1 MiB; JSON bytes only approximate Firestore's own size, keep a margin
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -71,7 +74,9 @@ for (const f of readdirSync(contentDir).filter((n) => n.endsWith('.json')).sort(
   const data = { ...content, assignmentId };
   const bytes = Buffer.byteLength(JSON.stringify(data), 'utf8');
   if (bytes > MAX_DOC_BYTES) problems.push(`${f}: document ~${bytes} bytes exceeds the Firestore limit`);
-  docs.push({ file: f, id, assignmentId, data, bytes });
+  const pub = publicCopy(data);
+  if (/"solution/.test(JSON.stringify(pub))) problems.push(`${f}: public copy still carries a solution field`);
+  docs.push({ file: f, id, assignmentId, data, pub, bytes });
 }
 
 const target = live ? `LIVE project ${LIVE_PROJECT}, database ${DATABASE}`
@@ -86,7 +91,7 @@ const largest = docs.reduce((a, b) => (b.bytes > (a?.bytes ?? -1) ? b : a), null
 if (largest) console.log(`largest document: ${largest.bytes} bytes (${(largest.bytes / 1024).toFixed(1)} KiB) -- ${largest.file}`);
 
 if (dry) {
-  for (const d of docs) console.log(`  would set ${DATABASE}/${COLLECTION}/${d.id}  (${d.bytes} bytes, ${Object.keys(d.data.subAssignments ?? {}).length} subAssignments)  <- ${d.file}`);
+  for (const d of docs) console.log(`  would set ${DATABASE}/${COLLECTION}/${d.id}  (${d.bytes} bytes, ${Object.keys(d.data.subAssignments ?? {}).length} subAssignments) + ${PUBLIC_COLLECTION}/${d.id}  <- ${d.file}`);
   console.log(`\nDRY RUN: ${docs.length} document(s) would be written, ${skipped.length} skipped, ${problems.length} problem(s).`);
   process.exit(problems.length ? 1 : 0);
 }
@@ -94,7 +99,7 @@ if (dry) {
 if (problems.length) die('fix the problems above before writing');
 
 if (live) {
-  console.log(`\nAbout to WRITE ${docs.length} documents to project ${LIVE_PROJECT}, database ${DATABASE}, collection ${COLLECTION}.`);
+  console.log(`\nAbout to WRITE ${docs.length} documents to project ${LIVE_PROJECT}, database ${DATABASE}, collections ${COLLECTION} and ${PUBLIC_COLLECTION}.`);
   if (!has('--yes')) die('refusing to touch the real project without the literal flag --yes');
 }
 
@@ -117,11 +122,15 @@ if (live) {
 const db = getFirestore(app, DATABASE);
 
 let done = 0;
-for (let i = 0; i < docs.length; i += 400) {
+const CHUNK = 200;   // two writes per assignment; a batch holds at most 500
+for (let i = 0; i < docs.length; i += CHUNK) {
   const batch = db.batch();
-  for (const d of docs.slice(i, i + 400)) batch.set(db.collection(COLLECTION).doc(d.id), d.data);   // whole document, no merge
+  for (const d of docs.slice(i, i + CHUNK)) {
+    batch.set(db.collection(COLLECTION).doc(d.id), d.data);   // whole document, no merge
+    batch.set(db.collection(PUBLIC_COLLECTION).doc(d.id), d.pub);
+  }
   await batch.commit();
-  done += Math.min(400, docs.length - i);
+  done += Math.min(CHUNK, docs.length - i);
   console.log(`committed ${done}/${docs.length}`);
 }
-console.log(`done: ${done} document(s) written to ${DATABASE}/${COLLECTION}`);
+console.log(`done: ${done} assignment(s) written to ${DATABASE}/${COLLECTION} and ${DATABASE}/${PUBLIC_COLLECTION}`);

@@ -1,6 +1,10 @@
 //
 //  js/auth.js — login with the Lernportal account (username + password).
 //
+//  Without a session the page runs as a guest (CONTRACT.md, guest mode): the
+//  assignment is shown, answers stay in this browser, and the login dialog opens
+//  only when asked for.
+//
 //  The session lives in the browser (Firebase Auth, kept across reloads) and is
 //  shared by every iframe of this page on the same host page: when one of them
 //  signs in, the others are told through the auth state and close their dialog.
@@ -77,7 +81,8 @@ function closeLoginDialog() {
     document.getElementById('auth-dialog')?.remove();
 }
 
-function showLoginDialog() {
+/** `closable`: a guest may close the dialog and go on without an account. */
+function showLoginDialog({ closable = false } = {}) {
     if (document.getElementById('auth-dialog')) return;
 
     const dialog = document.createElement('div');
@@ -112,6 +117,7 @@ function showLoginDialog() {
                 <a id="auth-first-login" href="${LOGIN_HELP_URL}" target="_blank" rel="noopener" style="color: #007bff;">im Lernportal</a> setzen.
             </p>
             <p id="auth-forgot-help" hidden style="margin: 0.6em 0 0 0; padding: 0.6em 0.8em; background: #f8f9fa; border-left: 4px solid #007bff; font-size: 0.85em; color: #333;">Melde dich bei deiner Lehrperson. Sie schickt dir einen Link, mit dem du selbst ein neues Passwort setzt, oder gibt dir ein Startpasswort.</p>
+            ${closable ? '<p style="margin: 0.6em 0 0 0; text-align: center; font-size: 0.85em;"><a id="auth-close" href="#" role="button" style="color: #6c757d;">Ohne Anmeldung weiter</a></p>' : ''}
         </form>
     `;
     document.body.appendChild(dialog);
@@ -130,6 +136,11 @@ function showLoginDialog() {
         e.preventDefault();
         forgotHelp.hidden = !forgotHelp.hidden;
         forgotLink.setAttribute('aria-expanded', String(!forgotHelp.hidden));
+    });
+
+    dialog.querySelector('#auth-close')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        closeLoginDialog();
     });
 
     form.addEventListener('submit', async (e) => {
@@ -229,6 +240,22 @@ function showUser(name) {
     link.style.color = '#6c757d';
     span.append(el('span', '', name), ' · ', link);
     actions.appendChild(span);
+}
+
+// ---- not signed in: a short line above the assignment ------------------------------------
+
+function showGuest() {
+    if (document.getElementById('guest-banner')) return;
+    const box = el('p', 'margin: 0 0 0.6em 0; padding: 0.4em 0.7em; background: #f8f9fa; border-left: 4px solid #6c757d; border-radius: 4px; font-size: 0.85em; color: #333;');
+    box.id = 'guest-banner';
+    const login = el('a', 'color: #007bff; cursor: pointer; font-weight: bold;', 'Anmelden');
+    login.href = '#';
+    login.id = 'guest-login';
+    login.addEventListener('click', (e) => { e.preventDefault(); showLoginDialog({ closable: true }); });
+    box.append('Nicht angemeldet: Deine Antworten bleiben nur in diesem Browser, und es gibt keine KI-Rückmeldung. ',
+        login, ' – dann ist alles auf jedem Gerät da.');
+    const renderer = document.getElementById('content-renderer');
+    renderer.parentNode.insertBefore(box, renderer);
 }
 
 // ---- IndexedDB cache: one browser, several people --------------------------------------
@@ -414,10 +441,17 @@ export async function logout() {
 }
 
 /**
- * Resolves with `{ uid, student }` once a student is signed in and may work.
- * Until then it shows the login dialog, or a message for accounts that cannot
- * work here; in those cases it does not resolve, and the page reloads when the
- * account changes.
+ * For a page that cannot work without an account (hko.html, backend/HKO.md "Phase P1 -
+ * Vertrag" §7): opens the login dialog for a guest, as before the guest mode. Additive;
+ * index.html does not call it.
+ */
+export function requireLogin() { showLoginDialog(); }
+
+/**
+ * Resolves with `{ uid, student, guest: false }` once a student is signed in and may
+ * work, or with `{ uid: null, student: null, guest: true }` when nobody is signed in.
+ * For accounts that cannot work here it shows a message and does not resolve. The page
+ * reloads whenever the account changes afterwards - also a guest who signs in.
  */
 export function authenticate() {
     return new Promise((resolve) => {
@@ -430,7 +464,12 @@ export function authenticate() {
                 return;
             }
             const mine = ++run;
-            if (!user) { showLoginDialog(); return; }
+            if (!user) {
+                decidedFor = null;
+                showGuest();
+                resolve({ uid: null, student: null, guest: true });
+                return;
+            }
 
             closeLoginDialog();   // also when a sibling iframe did the login
             let student = null;
@@ -446,7 +485,7 @@ export function authenticate() {
 
             await prepareCache(user.uid);
             showUser(name);
-            resolve({ uid: user.uid, student: { ...student, name } });
+            resolve({ uid: user.uid, student: { ...student, name }, guest: false });
         });
     });
 }

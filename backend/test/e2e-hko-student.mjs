@@ -148,7 +148,8 @@ async function login(scope, username, password = PASSWORD) {
     await scope.locator('#auth-password').fill(password);
     await scope.locator('#auth-login-btn').click();
 }
-const ready = (scope) => scope.locator('#content-renderer[data-modus]').waitFor();
+// 'gast' is the signed-out page; after a login in a sibling iframe it reloads, so it does not count as ready.
+const ready = (scope, opts) => scope.locator('#content-renderer[data-modus]:not([data-modus="gast"])').waitFor(opts);
 const textEditor = (scope) => scope.locator('.hko-text .ql-editor');
 /**
  * Clicks a field and makes sure it has the keyboard focus before anything is typed. The iframes
@@ -327,6 +328,11 @@ try {
         await host.goto(hostWith('a', frames.map(([name, block]) => ({ name, src: hkoUrl(UNIT, block) }))));
         const fl = Object.fromEntries(frames.map(([n]) => [n, host.frameLocator(`iframe[name="${n}"]`)]));
         for (const n of Object.keys(fl)) await fl[n].locator('#auth-dialog').waitFor();
+        // Signed out = lms_box guest mode; the hko box has none: hint, no block, no guest banner, nothing saved.
+        assert.equal(await fl.f0.locator('#content-renderer').getAttribute('data-modus'), 'gast');
+        assert.equal(await fl.f0.locator('#hko-hinweis[data-reason="gast"]').count(), 1);
+        assert.equal(await fl.f0.locator('#guest-banner, .ql-editor, #auth-close').count(), 0);
+        assert.equal(await fl.f0.locator('#save-status').textContent(), '');
 
         const inner = frameOf(host, 'f0');
         assert.equal(new URL(inner.url()).hostname, '127.0.0.1');
@@ -635,7 +641,9 @@ try {
         // writes work again: the next logout flushes the HKO frame and asks nothing
         await open();
         await fb.locator('#auth-logout').click();
-        for (const x of [fb, fh]) await x.locator('#auth-dialog').waitFor();
+        // signed out: the lms_box frame runs as a guest (main a6331df), the HKO frame asks for a login
+        await fb.locator('#guest-banner').waitFor();
+        await fh.locator('#auth-dialog').waitFor();
         assert.equal((await answerDoc(me2.uid, 'entscheid')).value.text, 'Ivan gespeichert und ungespeichert');
         await c2.close();
     });
@@ -1019,7 +1027,7 @@ try {
         await fl.o0.locator('#auth-dialog').waitFor();
         const t0 = Date.now();
         await login(fl.o0, me.username);
-        await Promise.all(frames.map(([n]) => fl[n].locator('#content-renderer[data-modus]').waitFor({ timeout: 10000 })));
+        await Promise.all(frames.map(([n]) => ready(fl[n], { timeout: 10000 })));
         const took = Date.now() - t0;
         console.log(`    10 iframes ready ${took} ms after the login click`);
         assert.ok(took < 10000, `took ${took} ms`);

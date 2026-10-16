@@ -97,9 +97,18 @@ service cloud.firestore {
 
     // ---- collections --------------------------------------------------------
 
+    // With solutions and rubrics: teachers only. Students and guests read the
+    // public copy below; the formativ function reads this with the Admin SDK.
     match /assignments/{assignmentDoc} {
-      allow read: if isTeacher() || notAnonymous();
+      allow read: if isTeacher();
       allow write: if isTeacher();
+    }
+
+    // The public copy without solutions (CONTRACT.md, «Public copy and guest mode»).
+    // Readable one by one without sign-in; written only by the upload script (Admin SDK).
+    match /publicAssignments/{assignmentDoc} {
+      allow get: if true;
+      allow list: if isTeacher();
     }
 
     match /drafts/{draftId} {

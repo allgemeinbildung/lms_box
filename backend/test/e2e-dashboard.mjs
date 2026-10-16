@@ -18,6 +18,7 @@ import { dirname, extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { getApps } from 'firebase-admin/app';
+import { publicCopy } from '../scripts/public-assignment.mjs';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { sanitizerCases } from './sanitize.test.mjs';
@@ -76,6 +77,7 @@ const ASSIGNMENT = {
     },
 };
 await box.doc(`assignments/${enc(A)}`).set(ASSIGNMENT);
+await box.doc(`publicAssignments/${enc(A)}`).set(publicCopy(ASSIGNMENT));   // what the student page reads
 // Leftovers of an earlier run against the same emulators.
 for (const c of ['drafts', 'feedback', 'feedbackReleased', 'formativUsage', 'pasteEvents']) {
     for (const d of (await box.collection(c).get()).docs) await d.ref.delete();
@@ -260,9 +262,11 @@ async function newContext(browser, label) {
 
 async function studentLogin(page, username) {
     await page.goto(STUDENT_URL);
+    await page.locator('#guest-login').click();   // not signed in: the page opens as a guest
     await page.locator('#auth-username').fill(username);
     await page.locator('#auth-password').fill(PASSWORD);
     await page.locator('#auth-login-btn').click();
+    await page.locator('#auth-user').waitFor();
     await page.locator('.ql-editor').first().waitFor();
 }
 async function dashboardLogin(page, username) {

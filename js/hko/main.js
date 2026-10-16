@@ -7,7 +7,7 @@
 //  data-modus = 'bearbeiten' | 'lesen' | 'kn' | 'fehler' und ein Hinweis #hko-hinweis data-reason.
 //
 import { initEmbedHeight } from '../embedHeight.js';
-import { authenticate } from '../auth.js';
+import { authenticate, requireLogin } from '../auth.js';
 import * as api from './api.js';
 import { ID_PATTERN } from './api.js';
 import { blockEntry } from './registry.js';
@@ -80,8 +80,20 @@ async function start() {
         return;
     }
 
-    // 2. Anmeldung (geteilter Dialog, js/auth.js). Löst nur für Lernende mit Roster-Eintrag auf.
-    const { uid, student } = await authenticate();
+    // 2. Anmeldung (geteilter Dialog, js/auth.js). Löst für Lernende mit Roster-Eintrag auf, oder
+    //    sofort als Gast (lms_box-Gastmodus). Die hko-box hat keinen Gastmodus (Vertrag §7): ohne uid
+    //    sind units/classes nicht lesbar und answers nicht schreibbar. Also nichts anzeigen, nichts
+    //    speichern, Hinweis und Anmeldedialog. Nach der Anmeldung lädt auth.js die Seite neu.
+    const { uid, student, guest } = await authenticate();
+    if (guest) {
+        $('guest-banner')?.remove();   // dessen Text («bleiben in diesem Browser») gilt hier nicht
+        setTitles('', 'Anmeldung nötig');
+        container().dataset.modus = 'gast';
+        container().replaceChildren(hinweis('gast', 'Diesen Auftrag können Sie nur angemeldet bearbeiten. Ohne Anmeldung wird nichts angezeigt und nichts gespeichert.'));
+        $('action-container').hidden = true;
+        requireLogin();
+        return;
+    }
 
     // 3. Einheit und Variante parallel.
     let unit = null;

@@ -34,7 +34,8 @@ Sub-assignment keys contain dots (`"A. Grundsätze …"`). Documents holding the
 
 | Path | Fields | Student | Teacher |
 |---|---|---|---|
-| `assignments/{assignmentDoc}` | the content JSON unchanged, plus `assignmentId` | read when signed in | read, write |
+| `assignments/{assignmentDoc}` | the content JSON unchanged, plus `assignmentId` — with solutions and rubrics | none | read, write |
+| `publicAssignments/{assignmentDoc}` | the public copy of the same assignment (see «Public copy») | get, also without sign-in | read |
 | `drafts/{draftDoc}` | `uid, classId, assignmentId, subId, title, type, questions[], answers[{questionId, answer}], updatedAt` | read/create/update own only | read all |
 | `feedback/{pairDoc}` | `uid, assignmentId`, the evaluator result (`results[]`, `date_str`, …), `released`, `releaseSettings{kurzbericht, ausfuehrlich, punkte, loesung}`, `publishedAt` | none | read, write |
 | `feedbackReleased/{pairDoc}` | `uid, assignmentId, results[], date_str, releaseSettings` — already filtered | read own | read, write, delete |
@@ -49,13 +50,36 @@ Rules that must hold:
 - `formativUsage` is written only by the function (Admin SDK).
 - `pasteEvents`: students create, never read, update or delete — not even their own, so a student cannot erase an entry. Same id and `uid` checks and the same school-account and server-time (`at`) conditions as `drafts`. An entry is a hint for the teacher, not proof: the page decides what it reports, and a student who blocks the request reports nothing.
 - `drafts` can be written only by a password sign-in with an address ending in `@lernende.bbw.ch`, and `updatedAt` must be the server time. Anonymous sessions read nothing. This raises the bar; it does not prove roster membership (rules cannot read the roster in `(default)`). That is why the dashboard looks drafts up by the uids on the class roster and never by the `classId` a draft carries, and why it renders every draft field as text or through `dashboard/modules/sanitize.js`.
+- `publicAssignments` is written only by `scripts/upload-assignments.mjs` (Admin SDK), in the same batch as `assignments`. Anyone may `get` a document; nobody may `list` the collection or write to it.
 - Everything not listed is denied.
+
+## Public copy and guest mode
+
+The student page reads the assignment from `publicAssignments`, signed in or not. The copy is a **whitelist** of the content JSON, made by `scripts/public-assignment.mjs` and nothing else:
+
+```
+{ assignmentId, assignmentTitle, formativ?: boolean,
+  subAssignments: { [subId]: { type, titel?, formativ?: boolean, questions: [{ id, text, formativ?: boolean }] } } }
+```
+
+No `solution`, no `solution_keys`, no rubric, nothing that is not listed. A `formativ` that is an object in the content becomes `true` (the page only needs to know whether to show the button; the rubric stays in `assignments` for the function). A field added to the content later stays private until it is added here.
+
+Without sign-in the page runs as a **guest**:
+
+- The assignment is shown at once; the login dialog opens only when the visitor asks for it, and can be closed again.
+- Answers are kept in this browser only, in a separate IndexedDB database `LMS_GuestDB` (never in `LMS_AssignmentsDB`, which belongs to the signed-in account and is emptied on logout or account change). A login neither reads nor clears it. Guest answers are never written to Firestore and never sent anywhere.
+- No formativ, no released feedback, no paste hints — guests make no request but the assignment `get`.
+- After a sign-in the page reloads and shows that account's drafts; guest text is not taken over into the account.
 
 Limits the rules enforce on `drafts` (security rules have no loops and a 1000-expression budget, so these are fixed small numbers):
 
 - required: `uid, classId, assignmentId, subId, answers, updatedAt`; optional: `title, type, questions`. `assignmentId` and `subId` cannot change on update.
 - at most 6 `answers` and 6 `questions` (content has at most 2 per sub-assignment); a question is `{id, text}` only.
 - all `answer` strings together at most 200 000 characters. The page must show the student an error when a save is refused, not fail silently.
+
+`assignments` carries the solutions and rubrics: only a teacher reads it (until 16.10.2026 every non-anonymous sign-in could, self-registered accounts included). Students and guests read `publicAssignments`; the formativ function reads `assignments` with the Admin SDK.
+
+Rollout (16.10.2026), in this order: live upload (writes `publicAssignments`) → push the page (`js/api.js` falls back to `assignments` while the old rules refuse `publicAssignments`) → deploy the rules. Afterwards remove that fallback.
 
 Student queries on `drafts` and `feedbackReleased` must carry `where('uid', '==', uid)`.
 
