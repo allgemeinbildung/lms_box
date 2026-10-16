@@ -1,4 +1,4 @@
-# HKO-Parallelsystem — Backend (Phase P0)
+# HKO-Parallelsystem — Backend (Phasen P0 und P1)
 
 Neben dem Altsystem `lmsbox` (Vertrag: `CONTRACT.md`) entsteht im selben Firebase-Projekt
 `interactive-media-2a1fc` das HKO-Parallelsystem: eigene benannte Datenbank **`hko`**
@@ -7,7 +7,7 @@ Grundlage: `hko-content/_input/HKO_PARALLELSYSTEM_HANDOFF_v1.md` (§5, §11, §1
 `ANTWORTEN_HKO_PARALLELSYSTEM_v1.md` (D1, D2). Öffentliche URL der Box später:
 `https://allgemeinbildung.github.io/lms_box/hko.html` (`app/` ist der Repo-Stamm).
 
-Stand 15.10.2026: Die Datenbank `hko` existiert noch nicht. Der Standard-Bucket
+Stand 15.10.2026 (P0), unverändert am 16.10.2026 (P1 gebaut, nichts deployt): Die Datenbank `hko` existiert noch nicht. Der Standard-Bucket
 `interactive-media-2a1fc.firebasestorage.app` liegt in `EUROPE-WEST6`, Blaze ist aktiv (C1).
 
 ## Dateien
@@ -21,6 +21,24 @@ Stand 15.10.2026: Die Datenbank `hko` existiert noch nicht. Der Standard-Bucket
 | `test/hko-rules.test.mjs` | Rules-Tests, `npm run test:hko` |
 | `test/fixtures/unit-lj1-konsum-budget.json` | fiktive Einheit für die Lesetests |
 | `scripts/seed-hko.mjs` | fiktive Testdaten (`classes`, Roster, Konten) für die Emulatoren |
+
+P1 (16.10.2026), Pfade ab `app-hko/` bzw. `app/`:
+
+| Datei | Zweck |
+|---|---|
+| `backend/HKO-P1-PLAN.md` | Plan und Entscheide P1-E1 bis P1-E6 |
+| `backend/HKO-P1-ANLEITUNG-LP.md` | Kurzanleitung LP-Ansicht und lokales Ansehen |
+| `backend/firebase.hko-e2e.json` | Emulator-Konfiguration nur mit `hko`-Rules, aber auf den lmsbox-Ports 9190/8280 (e2e) |
+| `backend/scripts/hko-upload.mjs` | Build → `units`/`items`/`solutions`/`itemSolutions` (Trockenlauf, `--emulator`, `--live`) |
+| `backend/scripts/lib/hko-target.mjs` | Projekt-ID, Datenbank, Basis-URL, Schuldomain für Node (eine Stelle) |
+| `backend/scripts/lib/hko-validate.mjs` | Prüfung des Builds vor dem Upload |
+| `backend/test/hko-upload.test.mjs`, `hko-upload.emu.test.mjs`, `hko-csv.test.mjs` | Tests Upload (ohne und mit Emulator) und CSV |
+| `backend/test/e2e-hko-student.mjs`, `e2e-hko-dashboard.mjs` | e2e Lernendenseite und LP-Ansicht |
+| `backend/test/fixtures/hko-build/` | fiktiver Build (`lj1-test-box`, `lj1-test-andere`) |
+| `hko.html` | Lernendenseite der Box (`?unit=…&block=…`) |
+| `js/hko/` | Box: `main`, `api`, `save`, `registry`, `config`, `channel`, `print`, `quelle`, `variante`, `kiRegel`, `plainGuard`, `util`, `blocks/*` |
+| `js/firebase.js`, `js/auth.js` | geteilt, nur additiv: `namedDb(id)`, `registerSaver(…)` |
+| `dashboard/hko.html`, `dashboard/hko/*.js`, `hko.css` | LP-Ansicht (nur lesend): `main`, `api`, `firestore`, `grid`, `detail`, `csv` |
 
 ## Rules-Isolation und Tests
 
@@ -79,11 +97,13 @@ Folgen und Lösung:
 4. Kein Emulator-Test beweist etwas über die Rules von `(default)`, und keiner etwas über das
    Zusammenspiel von `lmsbox` und `hko` in Produktion — nur, dass jede Datei für sich das Richtige tut.
 
-`test:all` bleibt das lmsbox-Gate und enthält `test:hko` **nicht**: so beweist ein grünes
+`test:all` bleibt das lmsbox-Gate und enthält `test:hko` (jetzt die Kette aus §8) **nicht**: so beweist ein grünes
 `test:all` weiterhin genau, dass das Altsystem unverändert funktioniert, und ein hko-Fehler blockiert
 keine Arbeit am Altsystem. Vor jedem Merge von `hko` nach `main` laufen beide.
 
-### Inhalt der Rules in P0
+### Inhalt der Rules in P0 (überholt — gilt ab P1: «Phase P1 — Vertrag» §3–§5 und `firestore.hko.rules`)
+
+Nur noch Geschichte: In P1 sind `answers` und `pasteEvents` offen, `classes` ist für LP schreibbar. `solutions`/`itemSolutions` bleiben auch in P1 zu (geöffnet wird erst mit P2, nicht mit der LP-Ansicht).
 
 | Collection | Lesen | Schreiben |
 |---|---|---|
@@ -103,13 +123,13 @@ Entscheide:
   Personendaten; die Box braucht sie in P1 als Erstes, und `seed-hko.mjs` schreibt sie schon.
   Schreiben für LP kommt erst mit der LP-Ansicht.
 
-Die Tests (`npm run test:hko`) zeigen: unangemeldet, anonym, fremde Domain und Nicht-Passwort-Anbieter
+Die Tests (`npm run test:hko:rules`) zeigen: unangemeldet, anonym, fremde Domain und Nicht-Passwort-Anbieter
 lesen `units`/`items`/`classes` nicht (get und list); Schulkonto und LP lesen sie; niemand — auch LP
 und Schulkonto nicht — schreibt irgendwo (create, set, update, delete in allen Collections aus §5.1);
 Schulkonto und alle anderen lesen `solutions`/`itemSolutions` nicht (get und list); eine unbekannte
 Collection ist zu.
 
-Testdaten für die hko-Emulatoren:
+Testdaten für die hko-Emulatoren (seit P1 zusätzlich Konten, siehe Vertrag §7a):
 
 ```bash
 npm run emu -- emulators:exec --config firebase.hko-test.json --project interactive-media-2a1fc --only auth,firestore "node scripts/seed-hko.mjs"
@@ -217,7 +237,7 @@ Projekt» weiter unten listet, was beim Umzug zu ändern ist.
 | `units/{unitId}` | `build/units/<id>.json` 1:1 + `updatedAt` | lesen | lesen |
 | `items/{slug}` | `build/items/<slug>.json` + `updatedAt` | lesen | lesen |
 | `solutions/{unitId}`, `itemSolutions/{slug}` | Lösungen | nichts | **nichts in P1** |
-| `classes/{classId}` | `{variante: '3J'/'4J'/'2J', lehrjahr: int 1–4, aktiv: bool}` | lesen | lesen, schreiben (genau diese Keys) |
+| `classes/{classId}` | `{variante: '3J'/'4J'/'2J', lehrjahr: int 1–4, aktiv: bool}` | lesen | lesen, anlegen/ändern (genau diese Keys, `classId` ≤ 100 Zeichen); **löschen nicht** (stattdessen `aktiv: false`) |
 | `answers/{answerId}` | §4 | eigene lesen/anlegen/ändern, kein Delete | lesen |
 | `pasteEvents/{eventId}` | §5 | nur anlegen | lesen |
 | `students/{uid}` | nur Emulator, lesend | eigenes | alle |
@@ -251,6 +271,18 @@ Felder genau: `uid, classId, unitId, blockId, unitVersion, variante, type, value
 `stufen`, `begruendung`, `verbessere`. Ohne `feld`: die ganze Antwort, typgerecht als Text.
 
 Keine leeren Erstdokumente: ein Block, in dem die Person nichts eingegeben hat, schreibt nichts.
+`items.collect()` nimmt dazu nur beantwortete Fragen auf (Text nicht leer, in Fragenreihenfolge); ein Block ohne
+Eingabe ergibt `{ antworten: [] }` und gilt als leer.
+
+Rules-Details (`firestore.hko.rules`, nachgeführt am 16.10.2026):
+
+| Punkt | Verhalten |
+|---|---|
+| Ausdrucksbudget | Rules haben höchstens 1000 Ausdrücke pro Anfrage und keine Schleifen; Listen sind Index für Index ausgerollt. Gemessen im Emulator (Tests «11 budget»): volles Raster 8 × 6 × 500 und 12 Fragen × 3000 gehen durch, create und update |
+| Raster-Zeile | Zellen werden mit U+0001 verbunden; **eine** Regex (≤ 6 Segmente à ≤ 500) und ein `split` müssen die Liste exakt zurückgeben. Folge: eine Zelle darf **kein U+0001** enthalten, eine Nicht-String-Zelle wird abgelehnt. Eine Zeile ist `{c: [string]}` (Firestore kennt keine Liste in der Liste) |
+| `classId` | String ≤ 100 Zeichen; in `answers` und als Dokument-Id in `classes` |
+| `solutions`, `itemSolutions` | zu, auch für LP (der Lehrer-Claim ist mit dem Lernportal geteilt); Öffnung frühestens P2, mit Test |
+| `students/{uid}` | nur Emulator, lesend (eigenes Dokument oder LP) |
 
 ## 5. `pasteEvents`
 
@@ -291,7 +323,8 @@ bitte der Lehrperson melden».
 
 - **Konfiguration:** `js/hko/config.js` exportiert `HKO = { database, baseUrl, schoolDomain }` (§1).
 - **DB-Zugriff:** `js/firebase.js` exportiert zusätzlich `namedDb(databaseId)` (Firestore **Lite**, beim ersten Aufruf
-  erzeugt und pro Id gecacht, verbindet im Emulator-Modus mit demselben Port wie `db`). Nur `js/hko/api.js` ruft es auf, mit
+  erzeugt und pro Id gecacht, verbindet im Emulator-Modus mit demselben Port wie `db`). `namedDb('lmsbox')` und
+  `namedDb('(default)')` geben die **bestehenden** Instanzen `db` bzw. `rosterDb` zurück, nie eine neue. Nur `js/hko/api.js` ruft es auf, mit
   `HKO.database`. lms_box-Seiten erzeugen nie eine dritte Instanz.
 - **Logout-Koordination:** `js/auth.js` exportiert zusätzlich `registerSaver({ flush, hasUnsaved, hasUnsynced, suspend, resume, close })`;
   die bestehenden Aufrufstellen berücksichtigen registrierte Saver zusätzlich. Ohne registrierten Saver ist das
@@ -301,27 +334,47 @@ bitte der Lehrperson melden».
 - **DOM-Vertrag `hko.html`:** `#assignment-container` > `#assignment-header` (`#main-title`, `#sub-title`), `#hko-ki-regel`,
   `#content-renderer`, `#action-container` (`#print-answers`, `#save-status`). Klasse `embedded` auf `<html>` wie `index.html`.
   Der Container hängt nicht an `100vh`.
-- **Block-Modul** (`js/hko/blocks/<typ>.js`, statisch in `js/hko/registry.js` registriert):
-  `render(block, ctx)`, `collect()`, `restore(value)` (ohne `ctx.changed()`, verträgt ältere Werte), `validate()` →
-  `{ok, hinweise[], zuGross}`, `setEnabled(bool)`, `printHtml(value, block, unit)` (escaped). `mitnahme` braucht kein `collect/restore`.
+- **Block-Modul** (`js/hko/blocks/<typ>.js`, statisch in `js/hko/registry.js` registriert). Das Modul exportiert
+  `create()` (Fabrik, liefert eine neue Instanz) und `printHtml(value, block, unit)` (rein, escaped, `value` kann `null` sein).
+  Die Instanz hat `render(block, ctx)`, `collect()`, `restore(value)` (ohne `ctx.changed()`, verträgt ältere Werte; `main.js` ruft es
+  synchron nach `render()`), `validate()` → `{ok, hinweise[], zuGross}`, `setEnabled(bool)`. `mitnahme` und `platzhalter` speichern
+  nichts und haben kein `collect/restore`. Die Registry: `blockEntry(type) → { modul, speichert }`; `speichert` ist `true` für
+  `items|text|raster|selbst`, unbekannte und spätere Typen (`upload`, `link`, `roleplay`, `peer`, `audio`) liefern den Platzhalter.
   `ctx = { uid, classId, variante, unit, block, unitId, blockId, readonly, api, changed(), container, reportPaste(feld, event) }`.
   Ein Modul hält seinen Zustand pro `render()`-Aufruf (Fabrik `create()` → Instanz), nie modulglobal.
 - **Speichern:** Debounce 2 s, ein Schreibvorgang gleichzeitig, Revisionslogik und `isInitializing` wie `js/renderer.js`
   (nachgebaut, nicht importiert); immer aus dem eigenen DOM. Status `#save-status`: `saving | local | cloud | error | too_large`, Sie-Form.
 - **Live-Mitnahme:** `BroadcastChannel('hko-answers')`, Nachricht `{ v: 1, uid, unitId, blockId, value, rev }` nach jeder lokalen
-  Änderung; Empfänger prüfen `uid`. Bei `visibilitychange`/`focus` neu vom Server lesen.
+  Änderung; Empfänger prüfen `uid`. Bei `visibilitychange`/`focus` neu vom Server lesen (ausgelassen, wenn in den letzten 5 s
+  ein Broadcast kam). Eine gültige Marke `unsynced_hko_…` im Cache gewinnt über den Server, wie beim Laden des Blocks.
 - **Variante:** Roster `students/{uid}.classId` → `classes/{classId}`; Fälle und Texte nach Plan §2.4. Formativ, im Client fälschbar (P1-E3).
-- **Druck:** `listOwnAnswers(unitId)` (`where uid ==`, `where unitId ==`) → Popup mit allen Blöcken der eigenen Variante.
+- **Druck:** `listOwnAnswers(unitId)` (`where uid ==`, `where unitId ==`) → Popup mit allen Blöcken der eigenen Variante;
+  ungespeicherter eigener Text (Marke im Cache, auch aus einem Geschwister-iframe) gewinnt über den Server.
 - Alle Werte aus der DB gehen per `textContent` oder escaped ins DOM, nie als HTML.
+
+### 7a. Testkonten im Seed (`scripts/seed-hko.mjs`, nur Emulator, fiktiv)
+
+| Konto (`@lernende.bbw.ch`) | Klasse | Zweck |
+|---|---|---|
+| `test.3j`, `test.3jb` | `test-3j-a` (3J) | zwei Konten derselben Klasse |
+| `test.4j` | `test-4j-a` (4J) | Variante 4J |
+| `test.2j` | `test-2j-a` (2J) | Variante 2J |
+| `test.inaktiv` | `test-3j-inaktiv` (`aktiv: false`) | inaktive Klasse |
+| `test.unbekannt` | `test-unbekannt` (kein `classes`-Dokument) | Klasse nicht erfasst |
+| `test.zwei` | `classIds: [test-3j-a, test-4j-a]` | zwei Klassen, die erste zählt |
+| `test.lehrperson` | – | Lehrperson (Claim `role=teacher`) |
+
+Das Passwort steht im Skript (`SEED_PASSWORD`, sonst Vorgabe); es gilt nur im Emulator und steht hier nicht.
 
 ## 8. Tests und Emulatoren
 
 | Skript | Config | Ports | Projekt |
 |---|---|---|---|
 | `test:hko:rules` | `firebase.hko-test.json` | Auth 9230, Firestore 8320 | `demo-hko` |
-| `test:hko:upload` | – (`node --test`, ohne Emulator) | – | – |
+| `test:hko:upload` | – (`node --test`: Upload und CSV, ohne Emulator) | – | – |
+| `test:hko:upload:emu` | `firebase.hko-test.json` | 9230 / 8320 | `demo-hko` |
 | `test:e2e:hko`, `test:e2e:hko-dashboard` | `firebase.hko-e2e.json` (nur `hko`-Rules, **lmsbox-Ports** 9190/8280, weil `js/firebase.js` fest dorthin verbindet) | 9190/8280 | `interactive-media-2a1fc` |
-| `test:hko` | Kette der vier | | |
+| `test:hko` | Kette: `test:hko:rules`, `test:hko:upload`, `test:hko:upload:emu`, `test:e2e:hko`, `test:e2e:hko-dashboard` | | |
 
 `firebase.hko-e2e.json` belegt dieselben Ports wie `test:all`: **nie gleichzeitig laufen lassen**.
 
@@ -335,3 +388,69 @@ bitte der Lehrperson melden».
 | V4 | `beispielzeile` (eine Zeile) | `beispielzeilen[{c}]` | Build-Format |
 | V5 | `raster.quelle_ref` immer | `quelle_ref` **oder** `lehrmittel_seiten` | Build-Format (z. B. `a-raster-text-4j`) |
 | V6 | – | Quellen-Map `unit.quellen` mit `quellenverweis`, `lizenz`, `vault_bild`; Box zeigt Verweis, bettet nicht ein | Rahmen §1a, quelle 1.2.0 |
+| V7 | P0-Text: Öffnung von `solutions` mit der LP-Ansicht (P1) | `solutions`/`itemSolutions` bleiben in P1 für alle zu | kein P1-Client braucht sie; Öffnung mit P2 |
+| V8 | – | `classes`: LP darf anlegen/ändern, nicht löschen | `aktiv: false` statt Löschen |
+
+## 10. Umzug in ein eigenes Projekt
+
+Auslöser: Nach dem Klassentest zieht die hko-box aus `interactive-media-2a1fc` in ein eigenes Firebase-Projekt (hep-Verlag-Prototyp).
+Diese Liste ist der Plan; ausgeführt ist nichts.
+
+### 10.1 Was zu ändern ist
+
+| Datei / Ort | Änderung |
+|---|---|
+| `js/config.js` | neue Web-Konfiguration (`apiKey`, `authDomain`, `projectId`, …). **Geteilt mit lms_box:** im eigenen Projekt braucht die Box eine eigene Kopie oder einen eigenen Build, sonst ändert sich das Altsystem mit |
+| `js/hko/config.js` | `database` (im eigenen Projekt reicht `(default)`), `baseUrl` (neue Hosting-Adresse), `schoolDomain` |
+| `backend/scripts/lib/hko-target.mjs` | `PROJECT_ID`, `DATABASE_ID`, `BASE_URL`, `SCHOOL_DOMAIN` |
+| `isSchoolAccount()` in `firestore.hko.rules` | Schuldomain (einzige Stelle in den Rules); überlegen, ob für Dritte (Verlag, andere Testklassen) statt der Domain eine andere Prüfung nötig ist |
+| `backend/firebase.json` | `firestore`-Eintrag: `database` ggf. `(default)`; ohne `lmsbox`-Eintrag; `functions`-Eintrag neu, sobald es Functions gibt |
+| `.firebaserc` (existiert bisher nicht) | neue Projekt-ID als Standard anlegen; Deploy-Befehle behalten trotzdem `--project <neu>` |
+| `package.json`, `scripts/seed-hko.mjs`, `scripts/hko-upload.mjs` | Emulator-Projekt-Id `interactive-media-2a1fc` (e2e-Skripte, Seed-Vorgabe) auf die neue Id. Die festen Emulator-Ports 9190/8280 in `js/firebase.js` bleiben, solange die Box diese Datei teilt |
+| Vault-iframes der Inhalts-Session | Basis-URL `https://allgemeinbildung.github.io/lms_box/hko.html?unit=…&block=…` auf die neue Adresse |
+| `dashboard/modules/auth.js` | Die LP-Ansicht verlangt den Claim `role == 'teacher'`. Im neuen Projekt den Claim für die Lehrpersonen neu setzen (Admin-Skript), sonst kommt niemand in die Ansicht |
+| Roster `students/{uid}` in `(default)` des Lernportals | **Abhängigkeit:** Die LP-Ansicht (`dashboard/hko/api.js` `loadRoster`) und die Variantenwahl lesen `students/{uid}` (`name`, `classId`, `classIds`). Ein eigenes Projekt hat keinen Roster und muss das neu lösen: eigene Collection pro uid (Rules: eigenes Dokument, LP alle), gefüllt aus der Klassenliste von Schule oder Verlag. Das berührt Router §4 (Lernendendaten) sowie O2 und O3 |
+
+### 10.2 Welche Daten mitziehen
+
+| Daten | Weg |
+|---|---|
+| `units`, `items`, `solutions`, `itemSolutions` | **neu hochladen** aus dem Build (`hko-upload.mjs --live` mit Schlüssel des neuen Projekts); nicht exportieren |
+| `classes` | neu anlegen (kleine Dokumente `{variante, lehrjahr, aktiv}`) |
+| `answers`, `pasteEvents` | per Admin-Skript exportieren und importieren. Die Dokument-Ids tragen die `uid` (`<uid>__<unit>__<block>`), und `uid`s hängen am Auth-Projekt: entweder **Konten migrieren** (Auth-Export/-Import mit gleichen `uid`s) oder **Neuanmeldung** mit neuer `uid` und einer Zuordnungstabelle alt → neu, nach der `uid` in Id und Feld umgeschrieben werden. Ohne Zuordnung sind die Antworten unbrauchbar. Antworten sind Lernendendaten: Export nur lokal, nie in ein Repo |
+| Roster | wird **nicht** pauschal kopiert; nur die nötige Zuordnung (uid → Name/Klasse), und nur mit Einwilligung (O2/O3). Sonst im neuen Projekt neu aufbauen |
+
+### 10.3 Reihenfolge
+
+1. Neues Projekt anlegen (Region `europe-west6`, Auth-Anbieter Passwort). O1–O3 klären, bevor echte Daten fliessen.
+2. Konfiguration ändern (Tabelle 10.1), `test:hko` mit der neuen Emulator-Projekt-Id laufen lassen.
+3. Datenbank anlegen (mit Löschschutz), Rules nur für diese Datenbank deployen.
+4. Konten und Claims: Lehrpersonen mit `role=teacher`, Lernende per Migration oder Neuanmeldung; Roster-Lösung stellen.
+5. Inhalte hochladen (Trockenlauf, dann `--live`), `classes` anlegen.
+6. `answers`/`pasteEvents` importieren (nur bei Konten-Migration oder mit Zuordnungstabelle).
+7. Vault-iframes auf die neue Basis-URL umstellen, dann die alte `hko`-Datenbank abschalten. Löschen erst nach einer ruhigen Woche und nur auf Pietros Entscheid (Löschschutz vorher aufheben).
+
+## 11. Befehle für Pietro
+
+Nichts davon ist ausgeführt. Aus `app-hko/backend/`, **immer mit Ziel und `--project interactive-media-2a1fc`**, nie ein nacktes
+`firebase deploy`, nie `--only firestore`. Vorher `npm run test:all` und `npm run test:hko` grün (nicht gleichzeitig: gleiche Ports).
+
+```bash
+# 1. Datenbank anlegen (einmalig, falls noch nicht da; mit Löschschutz)
+firebase firestore:databases:create hko --location europe-west6 --delete-protection ENABLED --project interactive-media-2a1fc
+
+# 2. Rules und Indexe nur für hko
+firebase deploy --only firestore:hko --project interactive-media-2a1fc
+
+# 3. Inhalte: zuerst Trockenlauf, dann live (Schlüssel ausserhalb des Repos)
+node scripts/hko-upload.mjs --build ../../hko-content/build
+node scripts/hko-upload.mjs --live --key <pfad-ausserhalb-des-repos>/firebase-admin.json --yes --build ../../hko-content/build
+
+# Kontrolle der Datenbank
+firebase firestore:databases:get hko --project interactive-media-2a1fc
+```
+
+4. **`classes` live anlegen:** ein Dokument pro Klasse (`{variante, lehrjahr, aktiv}`, Id = `classId` aus dem Roster), in der Konsole oder mit einem kleinen Admin-Skript; die Seed-Klassen `test-*` nicht live anlegen. Ohne `classes`-Dokument zeigt die Box «Klasse nicht erfasst».
+5. **Merge/Push nur durch Pietro:** `hko` nach `main` erst nach grünem `test:all` **und** `test:hko`. Der Push auf `main` ist der Deploy des Frontends (GitHub Pages). `git diff main -- backend/firestore.lmsbox.rules` muss leer sein.
+6. **Testseite im Vault:** ein iframe auf `https://allgemeinbildung.github.io/lms_box/hko.html?unit=<unitId>&block=<blockId>` in eine eigene Testseite (nicht in die Lernenden-Seiten des Altsystems); mit einem Schul-Testkonto öffnen und eine Eingabe speichern.
+7. LP-Ansicht prüfen: `https://allgemeinbildung.github.io/lms_box/dashboard/hko.html`, Anleitung `HKO-P1-ANLEITUNG-LP.md`.

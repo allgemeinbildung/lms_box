@@ -5,11 +5,15 @@
 //  Wert der eigenen Antwort `answers/{uid}__{unitId}__{blockId}` (auch aus anderen Einheiten).
 //  Speichert nie (kein collect/restore). Live über BroadcastChannel('hko-answers') (nur die eigene
 //  uid), dazu neu vom Server lesen, sobald die Seite wieder sichtbar wird oder den Fokus bekommt.
-//  Quellen mit kn: true (an der Quelle, am Block der eigenen Einheit oder an der Antwort) zeigen nichts.
+//  Quellen mit kn: true (an der Quelle, am Block der Einheit der Quelle oder an der Antwort) zeigen nichts.
+//  Eine Marke `unsynced_hko_…` im Cache (eigener Text, noch nicht auf dem Server) gewinnt über den
+//  Server, wie beim Laden des Blocks selbst: ein iframe, das kurz nach dem Tippen lädt, zeigt sonst
+//  bis zum nächsten Tastendruck den alten Stand. Der Cache gehört der angemeldeten Person (js/auth.js).
 //  Alles per textContent; Zeilenumbrüche per CSS (white-space: pre-wrap).
 //
 import { onAnswer, onWake } from '../channel.js';
 import { el } from '../util.js';
+import { readMarker } from '../save.js';
 
 export const LEER = 'Noch nichts geschrieben.';
 const FELDER = new Set(['text', 'befund', 'zeilen', 'stufen', 'begruendung', 'verbessere']);
@@ -17,6 +21,8 @@ const ID = /^[a-z0-9-]{1,100}$/;
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' ? v : '');
+const own = (o, k) => (isObj(o) && Object.hasOwn(o, k) ? o[k] : undefined);
+const LIVE_MS = 5000;   // so lange nach einem Broadcast liest das Aufwachen nicht neu (Debounce 2 s + Schreiben)
 
 /** Typ aus der Form des Werts (Broadcast-Nachrichten tragen keinen `type`). */
 function typVon(value) {
@@ -54,11 +60,11 @@ const brauchtEinheit = (type, value, feld) => (feld ? feld === 'stufen' : ['item
 export function wertText(value, type, feld, unit, blockId) {
     if (!isObj(value)) return '';
     const frageVon = (id) => {
-        const fragen = unit?.blocks?.[blockId]?.fragen;
+        const fragen = own(own(unit?.blocks, blockId), 'fragen');
         const f = Array.isArray(fragen) ? fragen.find((x) => x?.id === id) : null;
         return str(f?.text) || id;
     };
-    const titelVon = (id) => str(unit?.kriterien?.[id]?.name) || id;
+    const titelVon = (id) => str(own(own(unit?.kriterien, id), 'name')) || id;
 
     if (feld) {
         const m = /^antworten\.([a-z0-9-]{1,100})$/.exec(feld);
@@ -121,11 +127,18 @@ export function create() {
     async function lade(z) {
         const gen = z.gen;
         try {
-            const doc = await ctx.api.getAnswer(z.q.unitId, z.q.blockId);
+            const [doc, marker, unit] = await Promise.all([
+                ctx.api.getAnswer(z.q.unitId, z.q.blockId),
+                readMarker(z.q.unitId, z.q.blockId),
+                z.q.unitId === ctx.unitId ? null : einheit(z.q.unitId),
+            ]);
             if (z.gen !== gen) return;
-            if (doc && doc.kn === true) { z.sectionEl.hidden = true; return; }
-            z.value = doc ? doc.value : null;
-            z.type = doc ? doc.type : null;
+            if ((doc && doc.kn === true) || own(own(unit?.blocks, z.q.blockId), 'kn') === true) {
+                z.sectionEl.hidden = true;
+                return;
+            }
+            z.value = marker ? marker.value : doc ? doc.value : null;
+            z.type = marker ? null : doc ? doc.type : null;
         } catch (error) {
             console.error('[hko] mitnahme:', error);
             if (z.value === undefined) {
@@ -158,7 +171,7 @@ export function create() {
                 wrap.appendChild(sectionEl);
                 zeilen.push({
                     q: { unitId: q.unitId, blockId: q.blockId, feld: str(q.feld) },
-                    sectionEl, wertEl, gen: 0, seq: 0, value: undefined, type: null,
+                    sectionEl, wertEl, gen: 0, seq: 0, liveAt: 0, value: undefined, type: null,
                 });
             }
             c.container.appendChild(wrap);
@@ -167,13 +180,15 @@ export function create() {
                 for (const z of zeilen) {
                     if (z.q.unitId !== unitId || z.q.blockId !== blockId || z.sectionEl.hidden) continue;
                     z.gen++;
+                    z.liveAt = Date.now();
                     z.value = value;
                     z.type = null;
                     zeige(z);
                 }
             }));
-            // Nach dem Aufwachen nur dort neu lesen, wo noch kein Broadcast Neueres gebracht hat.
-            aus.push(onWake(() => { for (const z of zeilen) if (z.gen === 0) lade(z); }));
+            // Nach dem Aufwachen neu lesen, ausser dort, wo eben ein Broadcast Neueres gebracht hat
+            // (dessen Marke oder Speicherung kann noch unterwegs sein).
+            aus.push(onWake(() => { for (const z of zeilen) if (!z.sectionEl.hidden && Date.now() - z.liveAt > LIVE_MS) lade(z); }));
             for (const z of zeilen) lade(z);
         },
         destroy() { while (aus.length) aus.pop()(); },

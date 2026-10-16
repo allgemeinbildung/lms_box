@@ -150,8 +150,32 @@ async function login(scope, username, password = PASSWORD) {
 }
 const ready = (scope) => scope.locator('#content-renderer[data-modus]').waitFor();
 const textEditor = (scope) => scope.locator('.hko-text .ql-editor');
+/**
+ * Clicks a field and makes sure it has the keyboard focus before anything is typed. The iframes
+ * are cross-site, so out-of-process: a click there is routed and the focus moved asynchronously,
+ * and on a page with several iframes it now and then did not arrive. The keys then went to the
+ * frame focused before (seen as rare timeouts in (d) and (o): status never set, editor empty,
+ * focus on <body>). No page code moves the focus (only the logout dialog, which is not open here).
+ */
+async function clickFocus(target) {
+    for (let attempt = 1; ; attempt++) {
+        await target.click();
+        const focused = await target.evaluate((el) => new Promise((resolve) => {
+            const end = Date.now() + 2000;
+            const check = () => {
+                const has = document.hasFocus() && (el === document.activeElement || el.contains(document.activeElement));
+                if (has || Date.now() > end) resolve(has);
+                else setTimeout(check, 20);
+            };
+            check();
+        }));
+        if (focused) return;
+        if (attempt === 3) throw new Error('the clicked field did not get the keyboard focus');
+        console.log(`    (click did not focus the field, attempt ${attempt}; clicking again)`);
+    }
+}
 async function typeText(page, scope, text) {
-    await textEditor(scope).click();
+    await clickFocus(textEditor(scope));
     await page.keyboard.press('Control+End');
     await page.keyboard.type(text);
 }
@@ -160,7 +184,15 @@ async function state(scope, s, timeout = 20000) {
         await scope.locator(`#save-status[data-state="${s}"]`).waitFor({ timeout });
     } catch (e) {
         const now = await scope.locator('#save-status').getAttribute('data-state', { timeout: 1000 }).catch(() => '?');
-        throw new Error(`save status "${s}" not reached (shown: "${now}"): ${e.message}`);
+        const page = await scope.locator('body').evaluate(() => JSON.stringify({
+            modus: document.querySelector('#content-renderer')?.dataset.modus,
+            hinweis: document.querySelector('#hko-hinweis')?.dataset.reason,
+            dialog: !!document.getElementById('auth-dialog'),
+            disabled: !!document.querySelector('.ql-container.ql-disabled'),
+            text: document.querySelector('.ql-editor')?.innerText.slice(0, 80),
+            focus: `${document.hasFocus()} ${document.activeElement?.className}`,
+        }), undefined, { timeout: 1000 }).catch(() => '?');
+        throw new Error(`save status "${s}" not reached (shown: "${now}", page: ${page}): ${e.message}`);
     }
 }
 const saved = (scope) => state(scope, 'cloud');
@@ -336,7 +368,7 @@ try {
         await until('first height from f0', lastHeight);
         await sleep(400);   // the dialog is gone; the last report is the page itself
         const before = await lastHeight();
-        await textEditor(fl.f0).click();
+        await clickFocus(textEditor(fl.f0));
         for (let i = 0; i < 14; i++) { await host.keyboard.type(`Zeile ${i}`); await host.keyboard.press('Enter'); }
         const after = await until('a larger height', async () => {
             const h = await lastHeight();
@@ -687,7 +719,332 @@ try {
         await c.close();
     });
 
-    // ---- more steps (items, raster, selbst, mitnahme, print, load) go here ----
+    const ATTACK = '<img src=x onerror="window.__pwned=1"> Ich waehle A & B.';
+    const LONG = 'Dieser Absatz kommt aus der Zwischenablage und ist deutlich laenger als vierzig Zeichen.';
+    const wertIn = (scope, block) => scope.locator(`.hko-mitnahme-quelle[data-block="${block}"] .hko-mitnahme-wert`);
+    const wertState = (scope, block, leer) => scope.locator(`.hko-mitnahme-quelle[data-block="${block}"] .hko-mitnahme-wert[data-leer="${leer}"]`).waitFor();
+    const answerBase = (uid) => ({ uid, classId: 'test-3j-a', unitVersion: 1, variante: '3J', status: 'entwurf', kn: false, updatedAt: Timestamp.now() });
+    /** Adds an iframe to a host page that is already open. */
+    const addFrame = (host, name, src) => host.evaluate(([n, s]) => {
+        const i = document.createElement('iframe');
+        i.name = n; i.src = s; i.width = '100%'; i.height = 460;
+        document.body.appendChild(i);
+    }, [name, src]);
+
+    await step('(g) mitnahme: live from a sibling, a late iframe gets the unsaved state, other unit, escaped; another uid on the channel and a second person see nothing', async () => {
+        const me = await person('hko-e2e-g', 'hko.gina', 'Test Gina');
+        const other = await person('hko-e2e-g2', 'hko.gil', 'Test Gil');
+        await hko.doc(`answers/${me.uid}__${OTHER}__notiz`).set({ ...answerBase(me.uid), unitId: OTHER, blockId: 'notiz', type: 'text', value: { text: 'Notiz <b>fett</b>\nzweite Zeile' } });
+        await hko.doc(`answers/${me.uid}__${UNIT}__raster-quelle`).set({ ...answerBase(me.uid), unitId: UNIT, blockId: 'raster-quelle', type: 'raster', value: { zeilen: [{ c: ['a', 'b', 'c'] }], befund: 'Mein <u>Befund</u>' } });
+
+        const c = await newContext(browser);
+        const host = await c.newPage();
+        await host.goto(hostWith('g', [{ name: 'f0', src: hkoUrl(UNIT, 'entscheid') }, { name: 'f1', src: hkoUrl(UNIT, 'rueckblick') }]));
+        const [f0, f1] = ['f0', 'f1'].map((n) => host.frameLocator(`iframe[name="${n}"]`));
+        await f0.locator('#auth-dialog').waitFor();
+        await login(f0, me.username);
+        await textEditor(f0).waitFor();
+        await wertState(f1, 'entscheid', 'ja');
+        assert.equal(await wertIn(f1, 'entscheid').innerText(), 'Noch nichts geschrieben.');
+        assert.deepEqual(await f1.locator('.hko-mitnahme-label').allInnerTexts(), ['Mein Entscheid', 'Befund zur Quelle', 'Notiz aus der anderen Einheit']);
+        await wertState(f1, 'raster-quelle', 'nein');
+        assert.equal(await wertIn(f1, 'raster-quelle').innerText(), 'Mein <u>Befund</u>', 'feld befund only, as text');
+        await wertState(f1, 'notiz', 'nein');
+        assert.equal(await wertIn(f1, 'notiz').innerText(), 'Notiz <b>fett</b>\nzweite Zeile', 'other unit, line break kept');
+        assert.equal(await f1.locator('.hko-mitnahme b, .hko-mitnahme u').count(), 0);
+        assert.equal(await f1.locator('.ql-editor, textarea, input').count(), 0, 'mitnahme has no input');
+
+        // live: the sibling shows the text while it is typed, before the server has it
+        await typeText(host, f0, ATTACK);
+        await f1.locator('.hko-mitnahme-quelle[data-block="entscheid"] .hko-mitnahme-wert[data-leer="nein"]').waitFor({ timeout: 5000 });
+        await until('the whole text in f1', async () => (await wertIn(f1, 'entscheid').innerText()) === ATTACK, 5000);
+        assert.equal(await f1.locator('.hko-mitnahme img').count(), 0);
+        assert.equal(await frameOf(host, 'f1').evaluate(() => window.__pwned), undefined);
+        await saved(f0);
+        assert.deepEqual((await answerDoc(me.uid, 'entscheid')).value, { text: ATTACK });
+        assert.equal(await answerDoc(me.uid, 'rueckblick'), null, 'mitnahme writes nothing');
+
+        // late iframe while the newest text is only local (writes fail): it shows the local state
+        const open = await blockWrites(c);
+        await typeText(host, f0, ' Nachtrag');
+        await state(f0, 'error');
+        assert.equal((await answerDoc(me.uid, 'entscheid')).value.text, ATTACK);
+        await addFrame(host, 'f2', hkoUrl(UNIT, 'rueckblick'));
+        const f2 = host.frameLocator('iframe[name="f2"]');
+        await ready(f2);
+        await until('f2 shows the unsaved Nachtrag', async () => (await wertIn(f2, 'entscheid').innerText()) === `${ATTACK} Nachtrag`, 8000);
+        await open();
+
+        // the channel: a message with another uid changes nothing; the same with the own uid does
+        const post = (uid, text) => frameOf(host, 'f0').evaluate(([u, t, unit]) => {
+            const ch = new BroadcastChannel('hko-answers');
+            ch.postMessage({ v: 1, uid: u, unitId: unit, blockId: 'entscheid', value: { text: t }, rev: 'x' });
+            ch.close();
+        }, [uid, text, UNIT]);
+        await post(other.uid, 'Fremder Text von Gil');
+        await sleep(800);
+        assert.equal(await wertIn(f1, 'entscheid').innerText(), `${ATTACK} Nachtrag`, 'another uid is ignored');
+        await post(me.uid, 'Kontrolle mit eigener uid');
+        await until('own uid is shown', async () => (await wertIn(f1, 'entscheid').innerText()) === 'Kontrolle mit eigener uid', 5000);
+
+        // a second person in another tab (its own top-level site, its own login) sees none of it
+        const tab = await c.newPage();
+        await tab.goto(hkoUrl(UNIT, 'rueckblick'));
+        await tab.locator('#auth-dialog').waitFor();
+        await login(tab, other.username);
+        await ready(tab);
+        for (const b of ['entscheid', 'raster-quelle', 'notiz']) await wertState(tab, b, 'ja');
+        await typeText(host, f0, ' noch mehr');
+        await sleep(1500);
+        for (const b of ['entscheid', 'raster-quelle', 'notiz']) assert.equal(await wertIn(tab, b).innerText(), 'Noch nichts geschrieben.', b);
+        assert.doesNotMatch(await tab.locator('body').innerText(), /Gina|Nachtrag|Befund<|fett/);
+        await c.close();
+    });
+
+    await step('(h2) limits: 12 items and the full 8 x 6 raster (500 characters per cell) save; 501 characters is "zu lang" and the server keeps the last state', async () => {
+        const me = await person('hko-e2e-h2', 'hko.hanna', 'Test Hanna');
+        const c = await newContext(browser);
+        const p = await c.newPage();
+        await p.goto(hkoUrl(UNIT, 'begriffe-voll'));
+        await login(p, me.username);
+        await ready(p);
+        const ed = p.locator('.hko-items .ql-editor');
+        assert.equal(await ed.count(), 12);
+        for (let i = 0; i < 12; i++) { await clickFocus(ed.nth(i)); await p.keyboard.type(`Antwort ${i + 1}`); }
+        await saved(p);
+        const d = await answerDoc(me.uid, 'begriffe-voll');
+        assert.equal(d.type, 'items');
+        assert.deepEqual(Object.keys(d.value), ['antworten']);
+        assert.equal(d.value.antworten.length, 12);
+        assert.equal(new Set(d.value.antworten.map((a) => a.frageId)).size, 12);
+        assert.deepEqual(d.value.antworten.map((a) => a.text), Array.from({ length: 12 }, (_, i) => `Antwort ${i + 1}`));
+
+        await p.goto(hkoUrl(UNIT, 'raster-voll'));
+        await ready(p);
+        const cells = p.locator('textarea.hko-raster-zelle');
+        assert.equal(await cells.count(), 48);
+        const z = 'z'.repeat(500);
+        for (let i = 0; i < 48; i++) await cells.nth(i).fill(z);
+        await p.locator('textarea.hko-raster-befund-feld').fill('y'.repeat(3000));
+        await state(p, 'cloud', 30000);
+        const r = await answerDoc(me.uid, 'raster-voll');
+        assert.deepEqual(Object.keys(r.value).sort(), ['befund', 'zeilen']);
+        assert.equal(r.value.zeilen.length, 8);
+        assert.ok(r.value.zeilen.every((row) => Object.keys(row).join() === 'c' && row.c.length === 6 && row.c.every((s) => s === z)));
+        assert.equal(r.value.befund.length, 3000);
+        await cells.nth(0).fill('x'.repeat(501));
+        await state(p, 'too_large');
+        assert.match(await p.locator('#save-status').innerText(), /zu lang/);
+        await sleep(500);
+        assert.equal((await answerDoc(me.uid, 'raster-voll')).updatedAt.toMillis(), r.updatedAt.toMillis(), 'server unchanged');
+        await c.close();
+    });
+
+    await step('(e2) variants with raster input: own raster saves with the own variant, the other raster is locked and writes nothing; an unknown class writes nothing', async () => {
+        for (const [own, other, classId] of [['3j', '4j', 'test-3j-a'], ['4j', '3j', 'test-4j-a']]) {
+            const me = await person(`hko-e2e-e${own}`, `hko.erik${own}`, `Test Erik ${own.toUpperCase()}`, classId);
+            const c = await newContext(browser);
+            const host = await c.newPage();
+            await host.goto(hostWith(`e2-${own}`, [
+                { name: 'own', src: hkoUrl(UNIT, `raster-${own}`) },
+                { name: 'other', src: hkoUrl(UNIT, `raster-${other}`) },
+            ]));
+            const [fo, fx] = ['own', 'other'].map((n) => host.frameLocator(`iframe[name="${n}"]`));
+            await fo.locator('#auth-dialog').waitFor();
+            await login(fo, me.username);
+            for (const x of [fo, fx]) await ready(x);
+            assert.equal(await fo.locator('#content-renderer').getAttribute('data-modus'), 'bearbeiten');
+            assert.equal(await fo.locator('textarea.hko-raster-zelle').count(), 9);
+            await fo.locator('textarea.hko-raster-zelle').nth(0).fill(`Eintrag ${own}`);
+            await fo.locator('textarea.hko-raster-befund-feld').fill(`Befund ${own}`);
+            await saved(fo);
+            const d = await answerDoc(me.uid, `raster-${own}`);
+            assert.equal(d.type, 'raster');
+            assert.equal(d.variante, own.toUpperCase());
+            assert.equal(d.classId, classId);
+            assert.equal(d.value.zeilen[0].c[0], `Eintrag ${own}`);
+            assert.equal(d.value.befund, `Befund ${own}`);
+
+            assert.equal(await fx.locator('#content-renderer').getAttribute('data-modus'), 'lesen');
+            assert.equal(await fx.locator('#hko-hinweis').getAttribute('data-reason'), 'block-variante');
+            assert.equal(await fx.locator('textarea:not([disabled])').count(), 0, 'other raster locked');
+            await frameOf(host, 'other').evaluate(() => {
+                const f = document.querySelector('textarea.hko-raster-zelle');
+                f.value = 'darf nicht ankommen';
+                f.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+            await sleep(2600);
+            assert.equal(await answerDoc(me.uid, `raster-${other}`), null, `raster-${other}: no document`);
+            assert.equal(await fx.locator('#save-status').getAttribute('data-state'), null);
+            await c.close();
+        }
+        const c = await newContext(browser);
+        const p = await c.newPage();
+        await p.goto(hkoUrl(UNIT, 'raster-3j'));
+        await login(p, 'test.unbekannt');
+        await ready(p);
+        assert.equal(await p.locator('#content-renderer').getAttribute('data-modus'), 'lesen');
+        assert.equal(await p.locator('#hko-hinweis').getAttribute('data-reason'), 'klasse-fehlt');
+        assert.equal(await p.locator('textarea:not([disabled])').count(), 0);
+        await sleep(2600);
+        assert.equal(await answerDoc('hko-seed-unbekannt', 'raster-3j'), null);
+        await c.close();
+    });
+
+    await step('(k2) paste hints in a raster cell (feld r<z>c<s>) and in an item (feld = frageId); typing reports nothing; selbst stores levels as numbers', async () => {
+        const me = await person('hko-e2e-k2', 'hko.kai', 'Test Kai');
+        const c = await newContext(browser);
+        const p = await c.newPage();
+        await p.goto(hkoUrl(UNIT, 'raster-quelle'));
+        await login(p, me.username);
+        await ready(p);
+        await clickFocus(p.locator('textarea[data-feld="r1c1"]'));
+        await p.keyboard.type('Selbst getippt in der Zelle, Buchstabe fuer Buchstabe.', { delay: 20 });
+        await p.locator('textarea[data-feld="r1c1"]').evaluate((el, text) => {
+            const data = new DataTransfer();
+            data.setData('text/plain', text);
+            el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+        }, LONG);
+        await p.locator('.hko-feld-meldung').first().waitFor();
+        await saved(p);
+        await sleep(1500);
+        assert.deepEqual(await pasteOf(me.uid), [], 'typing and a blocked paste report nothing');
+        assert.equal(await p.locator('textarea[data-feld="r1c1"]').inputValue(), 'Selbst getippt in der Zelle, Buchstabe fuer Buchstabe.');
+
+        await p.locator('textarea[data-feld="r2c0"]').focus();
+        await p.evaluate((text) => document.execCommand('insertText', false, text), LONG);
+        await until('raster paste event', async () => (await pasteOf(me.uid)).length === 1);
+        let [ev] = await pasteOf(me.uid);
+        assert.deepEqual(Object.keys(ev).sort(), PASTE_KEYS);
+        assert.equal(ev.feld, 'r2c0');
+        assert.equal(ev.kind, 'bulk');
+        assert.equal(ev.blockId, 'raster-quelle');
+        assert.equal(ev.excerpt, LONG);
+        await saved(p);
+
+        await p.goto(hkoUrl(UNIT, 'begriffe-a'));
+        await ready(p);
+        const ed = p.locator('.hko-items .ql-editor');
+        await clickFocus(ed.nth(1));
+        await p.keyboard.type('Eigene Worte', { delay: 20 });
+        await sleep(300);
+        await ed.nth(1).evaluate((el, text) => document.execCommand('insertText', false, text), ` ${LONG}`);
+        await until('item paste event', async () => (await pasteOf(me.uid)).length === 2);
+        ev = (await pasteOf(me.uid))[1];
+        assert.equal(ev.feld, 'testbegriff-2');
+        assert.equal(ev.blockId, 'begriffe-a');
+        await saved(p);
+        assert.deepEqual((await answerDoc(me.uid, 'begriffe-a')).value, { antworten: [{ frageId: 'testbegriff-2', text: `Eigene Worte ${LONG}` }] });
+
+        await p.goto(hkoUrl(UNIT, 'selbst-entscheid'));
+        await ready(p);
+        await p.locator('.hko-krit[data-krit="argumentation"] label', { hasText: 'Stufe 2' }).click();
+        await p.locator('.hko-krit[data-krit="position"] label', { hasText: 'Stufe 0' }).click();
+        await saved(p);
+        const s = await answerDoc(me.uid, 'selbst-entscheid');
+        assert.deepEqual(s.value.stufen, { argumentation: 2, position: 0 });
+        assert.ok(Object.values(s.value.stufen).every((n) => typeof n === 'number' && Number.isInteger(n)), 'levels are numbers');
+        assert.equal(s.type, 'selbst');
+        assert.equal((await pasteOf(me.uid)).length, 2, 'clicking levels reports nothing');
+        await c.close();
+    });
+
+    await step('(n) print: popup with every block of the own variant in order, the name, escaped answers, unsaved local text; nothing of other people; popup blocked gives a hint, no alert', async () => {
+        const me = await person('hko-e2e-n', 'hko.nora', 'Nora <i>Fiktiv</i> & Co');
+        const other = await person('hko-e2e-n2', 'hko.nils', 'Test Nils');
+        const base = answerBase(me.uid);
+        await hko.doc(`answers/${me.uid}__${UNIT}__begriffe-a`).set({ ...base, unitId: UNIT, blockId: 'begriffe-a', type: 'items', value: { antworten: [{ frageId: 'testbegriff-1', text: '<script>window.__pwned=1</script>Antwort eins' }] } });
+        await hko.doc(`answers/${me.uid}__${UNIT}__raster-3j`).set({ ...base, unitId: UNIT, blockId: 'raster-3j', type: 'raster', value: { zeilen: [{ c: ['<b>Zelle</b>', 'zwei', 'drei'] }], befund: 'Befund 3J' } });
+        await hko.doc(`answers/${me.uid}__${UNIT}__raster-4j`).set({ ...base, unitId: UNIT, blockId: 'raster-4j', type: 'raster', value: { zeilen: [{ c: ['Nur fuer 4J', '', ''] }], befund: '' } });
+        await hko.doc(`answers/${me.uid}__${UNIT}__selbst-entscheid`).set({ ...base, unitId: UNIT, blockId: 'selbst-entscheid', type: 'selbst', value: { stufen: { argumentation: 3 }, begruendung: 'Weil <i>so</i>', verbessere: '' } });
+        await hko.doc(`answers/${other.uid}__${UNIT}__entscheid`).set({ ...answerBase(other.uid), unitId: UNIT, blockId: 'entscheid', type: 'text', value: { text: 'Fremder Text von Nils' } });
+
+        const c = await newContext(browser);
+        const host = await c.newPage();
+        await host.goto(hostWith('n', [{ name: 'f0', src: hkoUrl(UNIT, 'entscheid') }]));
+        const f0 = host.frameLocator('iframe[name="f0"]');
+        await f0.locator('#auth-dialog').waitFor();
+        await login(f0, me.username);
+        await textEditor(f0).waitFor();
+        await typeText(host, f0, ATTACK);
+        await saved(f0);
+        const open = await blockWrites(c);
+        await typeText(host, f0, ' und noch ungespeichert');
+        await state(f0, 'error');
+
+        const popupP = c.waitForEvent('page');
+        await f0.locator('#print-answers').click();
+        const pop = await popupP;
+        await pop.locator('.hko-kopf').waitFor();
+        const body = await pop.locator('body').innerText();
+        assert.match(body, /Testeinheit Box/);
+        assert.ok(body.includes('Nora <i>Fiktiv</i> & Co'), 'name shown, as text');
+        assert.ok(body.includes(`${ATTACK} und noch ungespeichert`), 'the unsaved local text is printed, as text');
+        assert.ok(body.includes('<script>window.__pwned=1</script>Antwort eins'));
+        assert.ok(body.includes('<b>Zelle</b>'));
+        assert.ok(body.includes('Weil <i>so</i>'));
+        assert.equal(await pop.locator('img, i, b, script').count(), 0, 'nothing injected');
+        assert.equal(await pop.evaluate(() => window.__pwned), undefined);
+        assert.doesNotMatch(body, /Nur fuer 4J|Fremder Text|Nils/);
+        const ids = await pop.locator('.hko-druck-block').evaluateAll((l) => l.map((e) => e.dataset.block));
+        assert.deepEqual(ids, ['begriffe-a', 'begriffe-voll', 'raster-quelle', 'raster-voll', 'raster-3j', 'entscheid', 'selbst-entscheid'], 'own variant, order of reihenfolge; no raster-4j, mitnahme, kn, placeholder');
+        await pop.close();
+        await open();
+        await c.close();
+
+        const c2 = await newContext(browser);
+        await c2.addInitScript(() => { window.open = () => null; window.alert = () => { window.__alert = 1; }; });
+        const p = await c2.newPage();
+        await p.goto(hkoUrl(UNIT, 'entscheid'));
+        await login(p, other.username);
+        await textEditor(p).waitFor();
+        await p.locator('#print-answers').click();
+        await p.locator('#hko-meldung').waitFor();
+        assert.match(await p.locator('#hko-meldung').innerText(), /blockiert.*Erlauben Sie/);
+        assert.equal(await p.evaluate(() => window.__alert), undefined);
+        await c2.close();
+    });
+
+    await step('(o) load: a host page with 10 HKO iframes shows every block in under 10 s after the login; every frame with input saves', async () => {
+        const me = await person('hko-e2e-o', 'hko.olga', 'Test Olga');
+        const frames = [
+            ['o0', UNIT, 'begriffe-a', 'items'], ['o1', UNIT, 'begriffe-voll', 'items'], ['o2', UNIT, 'raster-quelle', 'raster'],
+            ['o3', UNIT, 'raster-voll', 'raster'], ['o4', UNIT, 'raster-3j', 'raster'], ['o5', UNIT, 'entscheid', 'text'],
+            ['o6', UNIT, 'selbst-entscheid', 'selbst'], ['o7', OTHER, 'notiz', 'text'], ['o8', UNIT, 'rueckblick', null], ['o9', UNIT, 'raster-4j', null],
+        ];
+        const c = await newContext(browser);
+        const host = await c.newPage();
+        await host.goto(hostWith('o', frames.map(([name, unit, block]) => ({ name, src: hkoUrl(unit, block) }))));
+        const fl = Object.fromEntries(frames.map(([n]) => [n, host.frameLocator(`iframe[name="${n}"]`)]));
+        await fl.o0.locator('#auth-dialog').waitFor();
+        const t0 = Date.now();
+        await login(fl.o0, me.username);
+        await Promise.all(frames.map(([n]) => fl[n].locator('#content-renderer[data-modus]').waitFor({ timeout: 10000 })));
+        const took = Date.now() - t0;
+        console.log(`    10 iframes ready ${took} ms after the login click`);
+        assert.ok(took < 10000, `took ${took} ms`);
+        for (const [n] of frames) assert.notEqual(await fl[n].locator('#content-renderer').getAttribute('data-modus'), 'fehler', n);
+        assert.equal(await fl.o9.locator('#content-renderer').getAttribute('data-modus'), 'lesen');
+
+        for (const [n, , block, type] of frames) {
+            const f = fl[n];
+            if (type === 'items') { await clickFocus(f.locator('.hko-items .ql-editor').first()); await host.keyboard.type(`Last ${block}`); }
+            if (type === 'raster') await f.locator('textarea.hko-raster-zelle').first().fill(`Last ${block}`);
+            if (type === 'text') await typeText(host, f, `Last ${block}`);
+            if (type === 'selbst') await f.locator('.hko-krit[data-krit="argumentation"] label', { hasText: 'Stufe 1' }).click();
+        }
+        for (const [n, , , type] of frames) if (type) await saved(fl[n]);
+        for (const [, unit, block, type] of frames) {
+            const d = await answerDoc(me.uid, block, unit);
+            if (!type) { assert.equal(d, null, block); continue; }
+            assert.equal(d?.type, type, block);
+            if (type !== 'selbst') assert.match(JSON.stringify(d.value), new RegExp(`Last ${block}`), block);
+        }
+        await until('rueckblick shows the entscheid text', async () => (await wertIn(fl.o8, 'entscheid').innerText()) === 'Last entscheid', 5000);
+        await c.close();
+    });
+
+    // ---- more steps go here ----
 
     assert.deepEqual(blocked, [], 'the page requested hosts other than the emulators and its two CDNs');
 } catch (e) {

@@ -9,9 +9,13 @@
 //  (window.open('') + document.write + print()). Kein Download (die Einbettung hat kein
 //  allow-downloads). Ausgelassen werden: Blöcke einer anderen Variante, kn: true, mitnahme und
 //  Platzhalter-Typen. Jeder Wert aus DB und Inhalt geht durch escapeHtml().
+//  Eine Marke `unsynced_hko_…` im Cache (eigener Text, der noch auf den Debounce wartet oder nicht
+//  gespeichert werden konnte, auch aus einem Geschwister-iframe) gewinnt über den Server: gedruckt
+//  wird, was die Person sieht. Der Cache gehört der angemeldeten Person (js/auth.js).
 //  Bei Popup-Sperre ein Hinweis über notify(), nie alert().
 //
 import { escapeHtml } from './util.js';
+import { readMarker } from './save.js';
 
 const STILE = `
 body { font: 11pt/1.45 Arial, Helvetica, sans-serif; color: #111; margin: 18mm 16mm; }
@@ -90,10 +94,18 @@ export async function printAnswers({ unit, unitId, variante, studentName, api, b
             notify('Ihre Antworten konnten nicht geladen werden. Prüfen Sie Ihre Internetverbindung und versuchen Sie es nochmals.');
             return;
         }
+        const bloecke = druckBloecke(unit, variante, blockEntry);
+        const marken = await Promise.all(bloecke.map(({ id }) => readMarker(unitId, id)));
+        bloecke.forEach(({ id, block }, i) => {
+            if (!marken[i]) return;
+            antworten = antworten.filter((x) => !(x && x.blockId === id));
+            antworten.push({ blockId: id, type: block.type, value: marken[i].value });
+        });
         const html = druckDokument({
             unit, unitId, variante, studentName, antworten, blockEntry,
             datum: new Date().toLocaleDateString('de-CH', { day: 'numeric', month: 'long', year: 'numeric' }),
         });
+        if (w.closed) return;   // in der Zwischenzeit von Hand geschlossen
         w.document.open();
         w.document.write(html);
         w.document.close();
