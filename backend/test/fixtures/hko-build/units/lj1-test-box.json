@@ -1,0 +1,613 @@
+{
+  "unitId": "lj1-test-box",
+  "version": 1,
+  "schema_version": "1.1.0",
+  "status": "review",
+  "titel": "Testeinheit Box",
+  "lehrjahr": 1,
+  "situation_kurz": "Eine erfundene Situation für automatische Tests der Box. Eine Person plant ihre Ausgaben für einen Monat und muss zwischen zwei erfundenen Angeboten entscheiden. Die Angaben sind frei erfunden und dienen nur dazu, alle Auftragstypen einmal zu zeigen.",
+  "lernaufgaben": {
+    "a": {
+      "titel": "Testlernaufgabe A",
+      "situation_kurz": "Erfundene Kurzsituation der Lernaufgabe A: Sie vergleichen zwei Angebote und halten fest, was Ihnen wichtig ist."
+    },
+    "b": {
+      "titel": "Testlernaufgabe B",
+      "situation_kurz": null
+    }
+  },
+  "quelle_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "varianten": {
+    "3J": {
+      "kompetenzen": [
+        "3.1.1",
+        "3.1.2"
+      ],
+      "modi": [
+        "Rezeption audiovisuell"
+      ],
+      "sk": [
+        "SK1",
+        "SK3"
+      ],
+      "aspekte": [
+        "Wirtschaft",
+        "Ethik"
+      ],
+      "methode_kn": "Mini Cases",
+      "lektionen": 6,
+      "thema": 3,
+      "lebensbezuege": [
+        "3.1"
+      ],
+      "kn": {
+        "kriterien": [
+          "fachkorrektheit",
+          "argumentation",
+          "wirtschaftliches-prinzip",
+          "position"
+        ],
+        "bloecke": [
+          "kn-fall"
+        ]
+      }
+    },
+    "4J": {
+      "kompetenzen": [
+        "1.3.1",
+        "1.3.2"
+      ],
+      "modi": [
+        "Rezeption schriftlich und bildlich"
+      ],
+      "sk": [
+        "SK2",
+        "SK6"
+      ],
+      "aspekte": [
+        "Wirtschaft",
+        "Ethik"
+      ],
+      "methode_kn": "Mini Cases",
+      "lektionen": 8,
+      "thema": 1,
+      "lebensbezuege": [
+        "1.3"
+      ],
+      "kn": {
+        "kriterien": [
+          "fachkorrektheit",
+          "argumentation",
+          "wirtschaftliches-prinzip",
+          "position"
+        ],
+        "bloecke": [
+          "kn-fall"
+        ]
+      }
+    }
+  },
+  "kriterien": {
+    "fachkorrektheit": {
+      "name": "Fachkorrektheit",
+      "dimension": "SuK",
+      "stufen": {
+        "0": "Testtext Stufe 0 Fachkorrektheit.",
+        "1": "Testtext Stufe 1 Fachkorrektheit.",
+        "2": "Testtext Stufe 2 Fachkorrektheit.",
+        "3": "Testtext Stufe 3 Fachkorrektheit."
+      },
+      "indikatoren_3J": "Testindikator 3J Fachkorrektheit.",
+      "indikatoren_4J": "Testindikator 4J Fachkorrektheit."
+    },
+    "argumentation": {
+      "name": "Argumentation",
+      "dimension": "SuK",
+      "stufen": {
+        "0": "Testtext Stufe 0 Argumentation.",
+        "1": "Testtext Stufe 1 Argumentation.",
+        "2": "Testtext Stufe 2 Argumentation.",
+        "3": "Testtext Stufe 3 Argumentation."
+      }
+    },
+    "wirtschaftliches-prinzip": {
+      "name": "Wirtschaftliches Prinzip",
+      "dimension": "Ges",
+      "aspekt": "Wirtschaft",
+      "stufen": {
+        "0": "Testtext Stufe 0 Wirtschaft.",
+        "1": "Testtext Stufe 1 Wirtschaft.",
+        "2": "Testtext Stufe 2 Wirtschaft.",
+        "3": "Testtext Stufe 3 Wirtschaft."
+      }
+    },
+    "position": {
+      "name": "Position/Werthaltung",
+      "dimension": "Ges",
+      "aspekt": "Ethik",
+      "stufen": {
+        "0": "Testtext Stufe 0 Position.",
+        "1": "Testtext Stufe 1 Position.",
+        "2": "Testtext Stufe 2 Position.",
+        "3": "Testtext Stufe 3 Position."
+      }
+    }
+  },
+  "quellen": {
+    "test-srf-video": {
+      "typ": "video",
+      "titel": "Erfundener Testbeitrag über Monatsbudgets",
+      "herausgeber": "SRF Testsendung",
+      "datum": "2026-01-15",
+      "plattform": "srf",
+      "embed_url": "https://www.srf.ch/play/embed?urn=urn:srf:video:00000000-0000-0000-0000-000000000001",
+      "url": "https://www.srf.ch/play/tv/testsendung/video/erfundener-testbeitrag?urn=urn:srf:video:00000000-0000-0000-0000-000000000001",
+      "vault_bild": null,
+      "quellenverweis": "SRF, Testsendung: Erfundener Testbeitrag über Monatsbudgets, 15.01.2026, https://www.srf.ch/play/tv/redirect/detail/00000000-0000-0000-0000-000000000001",
+      "lizenz": "srf-einbettung"
+    },
+    "test-nanoo-video": {
+      "typ": "video",
+      "titel": "Erfundenes Testvideo auf nanoo",
+      "herausgeber": "Testverlag",
+      "plattform": "nanoo",
+      "embed_url": "https://www.nanoo.tv/link/v/TESTTEST",
+      "vault_bild": null,
+      "quellenverweis": null,
+      "lizenz": null
+    },
+    "test-grafik": {
+      "typ": "grafik",
+      "titel": "Erfundene Grafik zu Ausgaben",
+      "herausgeber": "Eigene Darstellung nach erfundenen Testdaten",
+      "datum": "2026-02-01",
+      "plattform": "web",
+      "embed_url": "https://example.org/testdaten.pdf",
+      "url": "https://example.org/testdaten",
+      "vault_bild": "HKO/_medien/test-grafik.svg",
+      "quellenverweis": "Erfundene Testdaten, Februar 2026 (eigene Darstellung), https://example.org/testdaten",
+      "lizenz": "eigen"
+    }
+  },
+  "blocks": {
+    "begriffe-a": {
+      "type": "items",
+      "titel": "Begriffe A",
+      "auftrag": "Beantworten Sie die drei Testfragen in eigenen Worten.",
+      "k": 1,
+      "phase": "kompetenzaufbau",
+      "lernaufgabe": "a",
+      "items": [
+        {
+          "slug": "testbegriff",
+          "fragen": [
+            "testbegriff-1",
+            "testbegriff-2",
+            "testbegriff-3"
+          ]
+        }
+      ],
+      "fragen": [
+        {
+          "id": "testbegriff-1",
+          "k": 1,
+          "text": "Testfrage 1: Erklären Sie den erfundenen Begriff Nummer 1 in eigenen Worten."
+        },
+        {
+          "id": "testbegriff-2",
+          "k": 1,
+          "text": "Testfrage 2: Erklären Sie den erfundenen Begriff Nummer 2 in eigenen Worten."
+        },
+        {
+          "id": "testbegriff-3",
+          "k": 1,
+          "text": "Testfrage 3: Erklären Sie den erfundenen Begriff Nummer 3 in eigenen Worten."
+        }
+      ],
+      "feedback": {
+        "aktiv": true,
+        "max_versuche": 2
+      },
+      "ki_regel": {
+        "stufe": "verboten",
+        "text": "Beantworten Sie die Testfragen selbst. KI-Werkzeuge sind hier nicht erlaubt."
+      },
+      "nur_variante": null,
+      "kn": false,
+      "kriterien": []
+    },
+    "begriffe-voll": {
+      "type": "items",
+      "titel": "Alle Begriffe",
+      "auftrag": "Beantworten Sie alle zwölf Testfragen in eigenen Worten.",
+      "k": 2,
+      "phase": "kompetenzaufbau",
+      "lernaufgabe": "a",
+      "items": [
+        {
+          "slug": "testbegriff"
+        }
+      ],
+      "fragen": [
+        {
+          "id": "testbegriff-1",
+          "k": 1,
+          "text": "Testfrage 1: Erklären Sie den erfundenen Begriff Nummer 1 in eigenen Worten."
+        },
+        {
+          "id": "testbegriff-2",
+          "k": 1,
+          "text": "Testfrage 2: Erklären Sie den erfundenen Begriff Nummer 2 in eigenen Worten."
+        },
+        {
+          "id": "testbegriff-3",
+          "k": 1,
+          "text": "Testfrage 3: Erklären Sie den erfundenen Begriff Nummer 3 in eigenen Worten."
+        },
+        {
+          "id": "testbegriff-4",
+          "k": 1,
+          "text": "Testfrage 4: Erklären Sie den erfundenen Begriff Nummer 4 in eigenen Worten."
+        },
+        {
+          "id": "testbegriff-5",
+          "k": 1,
+          "text": "Testfrage 5: Erklären Sie den erfundenen Begriff Nummer 5 in eigenen Worten."
+        },
+        {
+          "id": "testbegriff-6",
+          "k": 1,
+          "text": "Testfrage 6: Erklären Sie den erfundenen Begriff Nummer 6 in eigenen Worten."
+        },
+        {
+          "id": "testbegriff-7",
+          "k": 1,
+          "text": "Testfrage 7: Erklären Sie den erfundenen Begriff Nummer 7 in eigenen Worten."
+        },
+        {
+          "id": "testbegriff-8",
+          "k": 1,
+          "text": "Testfrage 8: Erklären Sie den erfundenen Begriff Nummer 8 in eigenen Worten."
+        },
+        {
+          "id": "testbegriff-9",
+          "k": 2,
+          "text": "Testfrage 9: Erklären Sie den erfundenen Begriff Nummer 9 in eigenen Worten."
+        },
+        {
+          "id": "testbegriff-10",
+          "k": 2,
+          "text": "Testfrage 10: Erklären Sie den erfundenen Begriff Nummer 10 in eigenen Worten."
+        },
+        {
+          "id": "testbegriff-11",
+          "k": 2,
+          "text": "Testfrage 11: Erklären Sie den erfundenen Begriff Nummer 11 in eigenen Worten."
+        },
+        {
+          "id": "testbegriff-12",
+          "k": 2,
+          "text": "Testfrage 12: Erklären Sie den erfundenen Begriff Nummer 12 in eigenen Worten."
+        }
+      ],
+      "feedback": {
+        "aktiv": true,
+        "max_versuche": 2
+      },
+      "ki_regel": {
+        "stufe": "eingeschraenkt",
+        "text": "Sie dürfen KI nur zum Nachschlagen von Begriffen nutzen. Geben Sie an, wofür."
+      },
+      "nur_variante": null,
+      "kn": false,
+      "kriterien": []
+    },
+    "raster-quelle": {
+      "type": "raster",
+      "titel": "Raster zur Quelle",
+      "auftrag": "Schauen Sie den Testbeitrag und halten Sie vier Stellen fest. Befund in zwei Sätzen.",
+      "k": 2,
+      "nur_variante": null,
+      "phase": "kompetenzaufbau",
+      "lernaufgabe": "a",
+      "quelle_ref": "test-srf-video",
+      "spalten": [
+        "Stelle",
+        "Aussage",
+        "→ Begriff"
+      ],
+      "zeilen": 4,
+      "beispielzeilen": [
+        {
+          "c": [
+            "z. B. 00:30 Moderation",
+            "z. B. Das Budget ist knapp",
+            "→ z. B. fixe Kosten"
+          ]
+        }
+      ],
+      "befund": true,
+      "kriterien": [
+        "fachkorrektheit"
+      ],
+      "indikatoren": {
+        "fachkorrektheit": "Ich gebe wieder, was im Testbeitrag vorkommt."
+      },
+      "feedback": {
+        "aktiv": true,
+        "max_versuche": 2,
+        "min_woerter": 30
+      },
+      "ki_regel": {
+        "stufe": "verboten",
+        "text": "Halten Sie Ihre eigenen Beobachtungen fest. KI-Werkzeuge sind hier nicht erlaubt."
+      },
+      "kn": false
+    },
+    "raster-voll": {
+      "type": "raster",
+      "titel": "Grosses Raster",
+      "auftrag": "Lesen Sie im Lehrmittel die angegebenen Seiten und füllen Sie alle acht Zeilen aus.",
+      "k": 2,
+      "nur_variante": null,
+      "phase": "kompetenzaufbau",
+      "lernaufgabe": "b",
+      "lehrmittel_seiten": [
+        {
+          "kapitel": "9.1",
+          "abschnitt": "A",
+          "seiten": [
+            101,
+            102
+          ]
+        },
+        {
+          "kapitel": "9.2",
+          "seiten": [
+            110
+          ]
+        }
+      ],
+      "spalten": [
+        "Absatz",
+        "Kernaussage",
+        "Beleg",
+        "Beispiel",
+        "Frage",
+        "→ Begriff"
+      ],
+      "zeilen": 8,
+      "befund": true,
+      "kriterien": [
+        "fachkorrektheit"
+      ],
+      "indikatoren": {
+        "fachkorrektheit": "Ich gebe den Text richtig wieder."
+      },
+      "feedback": {
+        "aktiv": true,
+        "max_versuche": 2,
+        "min_woerter": 30
+      },
+      "ki_regel": {
+        "stufe": "verboten",
+        "text": "Lesen Sie selbst. KI-Werkzeuge sind hier nicht erlaubt."
+      },
+      "kn": false
+    },
+    "raster-3j": {
+      "type": "raster",
+      "titel": "Raster nur 3J",
+      "auftrag": "Testauftrag nur für die dreijährige Lehre.",
+      "k": 2,
+      "nur_variante": "3J",
+      "phase": "kompetenzaufbau",
+      "lernaufgabe": "b",
+      "quelle_ref": "test-nanoo-video",
+      "spalten": [
+        "Stelle",
+        "Aussage",
+        "→ Begriff"
+      ],
+      "zeilen": 3,
+      "befund": true,
+      "kriterien": [
+        "fachkorrektheit"
+      ],
+      "feedback": {
+        "aktiv": false
+      },
+      "ki_regel": {
+        "stufe": "verboten",
+        "text": "KI-Werkzeuge sind hier nicht erlaubt."
+      },
+      "kn": false
+    },
+    "raster-4j": {
+      "type": "raster",
+      "titel": "Raster nur 4J",
+      "auftrag": "Testauftrag nur für die vierjährige Lehre. Lesen Sie die Grafik.",
+      "k": 2,
+      "nur_variante": "4J",
+      "phase": "kompetenzaufbau",
+      "lernaufgabe": "b",
+      "quelle_ref": "test-grafik",
+      "spalten": [
+        "Wert",
+        "Bedeutung",
+        "→ Begriff"
+      ],
+      "zeilen": 3,
+      "befund": true,
+      "kriterien": [
+        "fachkorrektheit"
+      ],
+      "feedback": {
+        "aktiv": false
+      },
+      "ki_regel": {
+        "stufe": "verboten",
+        "text": "KI-Werkzeuge sind hier nicht erlaubt."
+      },
+      "kn": false
+    },
+    "entscheid": {
+      "type": "text",
+      "titel": "Mein Entscheid",
+      "auftrag": "Entscheiden Sie sich für eines der beiden erfundenen Angebote und begründen Sie Ihren Entscheid mit zwei Gründen.",
+      "k": 3,
+      "nur_variante": null,
+      "phase": "wissensanwendung",
+      "lernaufgabe": "a",
+      "genre": "Begründeter Entscheid",
+      "konventionen": [
+        "Entscheid im ersten Satz",
+        "Zwei Gründe, ein Gegenargument"
+      ],
+      "min_woerter": 80,
+      "max_woerter": 250,
+      "kriterien": [
+        "argumentation",
+        "position"
+      ],
+      "indikatoren": {
+        "argumentation": "Ich nenne zwei Gründe und ein Gegenargument."
+      },
+      "feedback": {
+        "aktiv": true,
+        "max_versuche": 2,
+        "min_woerter": 40
+      },
+      "ki_regel": {
+        "stufe": "verboten",
+        "text": "Den Entscheid treffen Sie selbst. KI-Werkzeuge sind hier nicht erlaubt."
+      },
+      "kn": false
+    },
+    "selbst-entscheid": {
+      "type": "selbst",
+      "titel": "Einschätzung Entscheid",
+      "auftrag": "Schätzen Sie Ihren Entscheid auf den beiden Kriterien ein.",
+      "k": 3,
+      "nur_variante": null,
+      "phase": "wissensanwendung",
+      "lernaufgabe": "a",
+      "bezug_block": "entscheid",
+      "kriterien": [
+        "argumentation",
+        "position"
+      ],
+      "indikatoren": {
+        "position": "Ich mache klar, was mir wichtig ist."
+      },
+      "ki_regel": {
+        "stufe": "verboten",
+        "text": "Die Einschätzung kommt von Ihnen. KI-Werkzeuge sind hier nicht erlaubt."
+      },
+      "kn": false,
+      "feedback": {
+        "aktiv": false
+      }
+    },
+    "rueckblick": {
+      "type": "mitnahme",
+      "titel": "Rückblick",
+      "auftrag": "Lesen Sie Ihre früheren Antworten nochmals.",
+      "k": 1,
+      "phase": "wissensanwendung",
+      "lernaufgabe": "b",
+      "quellen": [
+        {
+          "unitId": "lj1-test-box",
+          "blockId": "entscheid",
+          "feld": "text",
+          "label": "Mein Entscheid"
+        },
+        {
+          "unitId": "lj1-test-box",
+          "blockId": "raster-quelle",
+          "feld": "befund",
+          "label": "Befund zur Quelle"
+        },
+        {
+          "unitId": "lj1-test-andere",
+          "blockId": "notiz",
+          "label": "Notiz aus der anderen Einheit"
+        }
+      ],
+      "ki_regel": {
+        "stufe": "verboten",
+        "text": "Hier sehen Sie nur Ihre eigenen Antworten. KI-Werkzeuge sind nicht erlaubt."
+      },
+      "nur_variante": null,
+      "kn": false,
+      "kriterien": [],
+      "feedback": {
+        "aktiv": false
+      }
+    },
+    "kn-fall": {
+      "type": "text",
+      "titel": "Kompetenznachweis Testfall",
+      "auftrag": "Sie erhalten von der Lehrperson einen erfundenen Fall. Beantworten Sie die Fragen.",
+      "k": 4,
+      "nur_variante": null,
+      "phase": "kompetenznachweis",
+      "kn": true,
+      "genre": "Antworten auf Fallfragen",
+      "min_woerter": 100,
+      "max_woerter": 600,
+      "kriterien": [
+        "fachkorrektheit",
+        "argumentation",
+        "wirtschaftliches-prinzip",
+        "position"
+      ],
+      "feedback": {
+        "aktiv": false
+      },
+      "ki_regel": {
+        "stufe": "verboten",
+        "text": "Im Kompetenznachweis sind KI-Werkzeuge nicht erlaubt."
+      }
+    },
+    "spaeter": {
+      "type": "upload",
+      "titel": "Foto hochladen",
+      "auftrag": "Laden Sie ein Foto Ihrer Skizze hoch.",
+      "k": 2,
+      "phase": "wissensanwendung",
+      "lernaufgabe": "b",
+      "accept": [
+        "image/*",
+        "application/pdf"
+      ],
+      "max_dateien": 1,
+      "max_mb": 10,
+      "begleittext": "Beschreiben Sie in einem Satz, was die Skizze zeigt.",
+      "ki_regel": {
+        "stufe": "verboten",
+        "text": "KI-Werkzeuge sind hier nicht erlaubt."
+      },
+      "nur_variante": null,
+      "kn": false,
+      "kriterien": [],
+      "feedback": {
+        "aktiv": false
+      }
+    }
+  },
+  "reihenfolge": [
+    "begriffe-a",
+    "begriffe-voll",
+    "raster-quelle",
+    "raster-voll",
+    "raster-3j",
+    "raster-4j",
+    "entscheid",
+    "selbst-entscheid",
+    "rueckblick",
+    "kn-fall",
+    "spaeter"
+  ]
+}

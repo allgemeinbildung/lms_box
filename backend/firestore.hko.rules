@@ -1,16 +1,20 @@
 rules_version = '2';
 
-// Rules for the named database `hko` ONLY (HKO parallel system). Spec: HKO.md.
+// Rules for the named database `hko` ONLY (HKO parallel system). Spec: HKO.md,
+// section "Phase P1 - Vertrag" (sections 2-5), plan HKO-P1-PLAN.md section 3.
 // Deploy only with an explicit target:
 //   firebase deploy --only firestore:hko --project interactive-media-2a1fc
 // Never `--only firestore` (that deploys lmsbox too) and never a bare deploy.
 // `lmsbox` has its own file (firestore.lmsbox.rules); the `(default)` database
 // (Lernportal) has its rules in another repo and is never deployed from here.
 //
-// Phase P0: everything closed except reading units, items and classes.
-// No client writes anything; content comes in through the Admin SDK (bypasses rules).
+// Phase P1: content readable; school accounts write their own answers and paste
+// hints; teachers read both and write classes. Content (units, items, solutions,
+// itemSolutions) comes in through the Admin SDK only (bypasses rules).
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ---- helpers (copies from firestore.lmsbox.rules; rules cannot import) ---
 
     function signedIn() {
       return request.auth != null;
@@ -18,16 +22,197 @@ service cloud.firestore {
     function isTeacher() {
       return signedIn() && request.auth.token.role == 'teacher';
     }
+    function notAnonymous() {
+      return signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
     // Same definition as in lmsbox: the shared project allows anonymous sign-in and
-    // self-sign-up, so a password sign-in with an @lernende.bbw.ch address is the bar.
-    // It does not prove roster membership (rules cannot read `(default)`).
+    // self-sign-up, so a password sign-in with a school address is the bar. It does
+    // not prove roster membership (rules cannot read `(default)`).
+    // The school domain stands HERE and nowhere else in this file (HKO.md P1 section 1).
     function isSchoolAccount() {
       return signedIn()
         && request.auth.token.firebase.sign_in_provider == 'password'
         && request.auth.token.email.matches('.*@lernende[.]bbw[.]ch$');
     }
+    // Document ids of per-person documents start with `${uid}__`.
+    function idIsOwn(docId) {
+      return signedIn()
+        && docId.size() > request.auth.uid.size() + 2
+        && docId[0:request.auth.uid.size() + 2] == request.auth.uid + '__';
+    }
+    function shortString(v, max) {
+      return v is string && v.size() <= max;
+    }
+    function slugId(v) {
+      return v is string && v.matches('^[a-z0-9-]{1,80}$');
+    }
+    // Fields in `keys` are the same before and after the write.
+    function unveraendert(keys) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
+    }
 
-    // ---- readable content (Handoff 5.1) -------------------------------------
+    // ---- answers: value per type (HKO.md P1 section 4) -----------------------
+    //
+    // Expression budget: rules have no loops and evaluate at most 1000 expressions
+    // per request (the emulator enforces it). Lists are unrolled index by index, and
+    // every unrolled index costs expressions even when the list is shorter. Measured
+    // in the emulator on 16.10.2026 (hko-rules.test.mjs, tests "11 budget"):
+    //   - the first, straightforward version (per entry `a[i] is map`, hasAll,
+    //     hasOnly, two shortString; per raster cell shortString) ran out at
+    //     11 items and at 4 raster rows of 6 cells - far below the contract;
+    //   - per raster cell `is string` on top of a regex per row still ran out
+    //     at 8 rows;
+    //   - this version: an entry is passed to its own function once (no repeated
+    //     a[i]), and a raster row is checked with one regex and one split over its
+    //     joined cells (zeileOk). Full raster 8 x 6 x 500 and 12 items x 3000 pass,
+    //     create and update.
+    // valueOk is a nested ternary, so only the branch of the answer's type counts.
+
+    function textOk(v) {
+      return v.keys().hasOnly(['text']) && v.text is string && v.text.size() <= 20000;
+    }
+
+    // A missing key makes `e.frageId` / `e.text` an error = deny, so hasOnly suffices.
+    function eintragOk(e) {
+      return e.keys().hasOnly(['frageId', 'text'])
+        && e.frageId is string && e.frageId.size() <= 100
+        && e.text is string && e.text.size() <= 3000;
+    }
+    function antwortOk(a, i) {
+      return a.size() <= i || eintragOk(a[i]);
+    }
+    function itemsOk(v) {
+      return v.keys().hasOnly(['antworten'])
+        && v.antworten is list && v.antworten.size() <= 12
+        && antwortenOk(v.antworten);
+    }
+    function antwortenOk(a) {
+      return antwortOk(a, 0) && antwortOk(a, 1) && antwortOk(a, 2)
+        && antwortOk(a, 3) && antwortOk(a, 4) && antwortOk(a, 5)
+        && antwortOk(a, 6) && antwortOk(a, 7) && antwortOk(a, 8)
+        && antwortOk(a, 9) && antwortOk(a, 10) && antwortOk(a, 11);
+    }
+
+    // One raster row is a map {c: [string]} - Firestore cannot store a list in a list.
+    // The cells are joined with U+0001: one regex allows at most 6 segments of at most
+    // 500 characters, and splitting the joined text again must give back exactly the
+    // list - that fails for a non-string cell (join() turns 1 into "1") and for a cell
+    // that itself contains U+0001. A few expressions per row instead of six per cell.
+    // The trailing '|' keeps empty last cells: split() drops trailing empty strings
+    // (checked in the emulator: ['', '', ''] came back shorter without it).
+    function zeileOk(z) {
+      return z.keys().hasOnly(['c'])
+        && z.c is list && z.c.size() <= 6
+        && (z.c.size() == 0 || zellenOk(z.c, z.c.join('\u0001')));
+    }
+    function zellenOk(c, j) {
+      return j.matches('^[^\u0001]{0,500}(\u0001[^\u0001]{0,500}){0,5}$')
+        && (j + '\u0001|').split('\u0001') == c.concat(['|']);
+    }
+    function zeileAt(zs, i) {
+      return zs.size() <= i || zeileOk(zs[i]);
+    }
+    function rasterOk(v) {
+      return v.keys().hasOnly(['zeilen', 'befund'])
+        && v.befund is string && v.befund.size() <= 3000
+        && v.zeilen is list && v.zeilen.size() <= 8
+        && zeilenOk(v.zeilen);
+    }
+    function zeilenOk(zs) {
+      return zeileAt(zs, 0) && zeileAt(zs, 1) && zeileAt(zs, 2) && zeileAt(zs, 3)
+        && zeileAt(zs, 4) && zeileAt(zs, 5) && zeileAt(zs, 6) && zeileAt(zs, 7);
+    }
+
+    function stufeOk(s, i) {
+      return s.size() <= i || (s[i] is int && s[i] >= 0 && s[i] <= 3);
+    }
+    function stufenOk(s, kriterien) {
+      return s is map && s.size() <= 6 && s.keys().hasOnly(kriterien)
+        && stufenWerteOk(s.values());
+    }
+    function stufenWerteOk(w) {
+      return stufeOk(w, 0) && stufeOk(w, 1) && stufeOk(w, 2)
+        && stufeOk(w, 3) && stufeOk(w, 4) && stufeOk(w, 5);
+    }
+    function selbstOk(v, blk) {
+      return v.keys().hasOnly(['stufen', 'begruendung', 'verbessere'])
+        && shortString(v.begruendung, 1500)
+        && shortString(v.verbessere, 1500)
+        && stufenOk(v.stufen, blk.kriterien);
+    }
+
+    function valueOk(t, v, blk) {
+      return v is map
+        && (t == 'text' ? textOk(v)
+          : t == 'items' ? itemsOk(v)
+          : t == 'raster' ? rasterOk(v)
+          : t == 'selbst' ? selbstOk(v, blk)
+          : false);
+    }
+
+    // ---- answers: the whole document (HKO.md P1 section 4, plan 3.2) --------
+    //
+    // Cheap checks first; `&&` stops before the one get() on the unit runs.
+    // A missing unit or block makes the expression an error = deny, so nobody can
+    // write answers to invented blocks.
+    function blockOk(d, blk) {
+      return blk.type in ['items', 'text', 'raster', 'selbst']
+        && d.type == blk.type
+        && d.kn == blk.get('kn', false)
+        && (blk.get('nur_variante', null) == null || d.variante == blk.nur_variante)
+        && valueOk(d.type, d.value, blk);
+    }
+    function answerOk(answerId) {
+      let d = request.resource.data;
+      let keys = ['uid', 'classId', 'unitId', 'blockId', 'unitVersion', 'variante',
+                  'type', 'value', 'status', 'kn', 'updatedAt'];
+      return isSchoolAccount()
+        && d.keys().hasAll(keys) && d.keys().hasOnly(keys)
+        && d.uid == request.auth.uid
+        && slugId(d.unitId) && slugId(d.blockId)
+        && answerId == d.uid + '__' + d.unitId + '__' + d.blockId
+        && shortString(d.classId, 100)
+        && d.unitVersion is int && d.unitVersion >= 1
+        && d.variante in ['3J', '4J', '2J']
+        && d.status in ['entwurf', 'abgegeben']
+        && d.kn is bool
+        && d.type is string
+        && d.updatedAt == request.time
+        && blockOk(d, get(/databases/$(database)/documents/units/$(d.unitId)).data.blocks[d.blockId]);
+    }
+
+    // ---- paste hints (HKO.md P1 section 5) -----------------------------------
+    function pasteOk(eventDoc) {
+      let d = request.resource.data;
+      let keys = ['uid', 'unitId', 'blockId', 'feld', 'kind', 'chars', 'excerpt', 'at'];
+      let p = d.uid + '__' + d.unitId + '__' + d.blockId + '__';
+      return isSchoolAccount()
+        && d.keys().hasAll(keys) && d.keys().hasOnly(keys)
+        && d.uid == request.auth.uid
+        && slugId(d.unitId) && slugId(d.blockId)
+        && eventDoc.size() > p.size()
+        && eventDoc[0:p.size()] == p
+        && eventDoc[p.size():eventDoc.size()].matches('^[A-Za-z0-9]{8,40}$')
+        && d.feld is string && d.feld.size() >= 1 && d.feld.size() <= 100
+        && d.kind in ['paste', 'drop', 'bulk', 'fast']
+        && d.chars is int && d.chars >= 0 && d.chars <= 20000
+        && shortString(d.excerpt, 300)
+        && d.at == request.time;
+    }
+
+    // ---- classes (HKO.md P1 section 3) ----------------------------------------
+    function classOk(classId) {
+      let d = request.resource.data;
+      return isTeacher()
+        && classId.size() <= 100
+        && d.keys().hasAll(['variante', 'lehrjahr', 'aktiv'])
+        && d.keys().hasOnly(['variante', 'lehrjahr', 'aktiv'])
+        && d.variante in ['3J', '4J', '2J']
+        && d.lehrjahr is int && d.lehrjahr >= 1 && d.lehrjahr <= 4
+        && d.aktiv is bool;
+    }
+
+    // ---- collections ----------------------------------------------------------
 
     match /units/{unitId} {
       allow read: if isSchoolAccount() || isTeacher();
@@ -39,16 +224,45 @@ service cloud.firestore {
 
     // { variante, lehrjahr, aktiv } - no personal data. The box needs it to pick
     // the variant of a person (roster classId -> classes/{classId}.variante).
+    // In P1 only the admin script writes it in practice; teachers may, with exactly
+    // these keys. No delete (set aktiv: false instead).
     match /classes/{classId} {
       allow read: if isSchoolAccount() || isTeacher();
+      allow create, update: if classOk(classId);
     }
 
-    // ---- closed in P0 ---------------------------------------------------------
-    // solutions, itemSolutions: the Handoff allows teachers and functions. In P0 no
-    // client needs them; functions use the Admin SDK. Opened for teachers in P1 with
-    // the teacher view, together with a test. Until then: no match = no access.
-    // answers, feedback, feedbackLP, feedbackReleased, peerAssignments, usage,
-    // pasteEvents, knGrades: no match yet = no access (P1-P3).
+    // solutions, itemSolutions: closed in P1, also for teachers (the teacher claim
+    // is shared with the Lernportal). Opened with P2 (feedback), with a test.
+    // No match = no access.
+
+    match /answers/{answerId} {
+      // get: a missing own document answers "does not exist", not "denied".
+      allow get: if isTeacher()
+        || (notAnonymous() && idIsOwn(answerId)
+            && (resource == null || resource.data.uid == request.auth.uid));
+      // list: a student query must carry where('uid', '==', own uid).
+      allow list: if isTeacher()
+        || (notAnonymous() && resource.data.uid == request.auth.uid);
+      allow create: if answerOk(answerId);
+      // KN lock (prepared, P1 has no kn block in the box): a stored kn answer with
+      // status 'abgegeben' cannot be changed any more. Checked before answerOk, so
+      // the get() on the unit does not run for a locked or foreign document.
+      allow update: if resource.data.uid == request.auth.uid
+        && !(resource.data.kn == true && resource.data.status == 'abgegeben')
+        && unveraendert(['uid', 'unitId', 'blockId', 'type', 'kn'])
+        && answerOk(answerId);
+      // No delete - not for students, not for teachers. Teachers do not write in P1.
+    }
+
+    // Hints that text was inserted rather than typed. Create-only for the student:
+    // no read, update or delete, so an entry cannot be taken back. No get() on units.
+    match /pasteEvents/{eventDoc} {
+      allow read: if isTeacher();
+      allow create: if pasteOk(eventDoc);
+    }
+
+    // Everything else (feedback, feedbackLP, feedbackReleased, peerAssignments,
+    // usage, knGrades ...) has no match yet = no access (P2-P3).
 
     // Emulator-only exception (as in lmsbox): the emulator applies this one ruleset to
     // every database, including `(default)` where the roster lives. Read only, own

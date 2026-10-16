@@ -177,3 +177,161 @@ z. B. ≤ 10 MB, `image/*` und `application/pdf`; LP liest (Antwort D4).
 > sind nicht bekannt. Vor dem ersten Storage-Deploy: aktuelle Rules aus der Konsole sichern und
 > in `storage.hko.rules` übernehmen, oder einen **eigenen Bucket** in `europe-west6` nur für HKO
 > anlegen (sauberer, entscheidet Pietro).
+
+---
+
+# Phase P1 — Vertrag (verbindlich ab 16.10.2026)
+
+Grundlage: `HKO-P1-PLAN.md` mit den Entscheiden P1-E1 bis P1-E6 (alle Empfehlungen
+übernommen) und dem Rahmen aus `hko-content/_plan/BOX-P1_PROMPT.md` §1a. Wer am Code etwas
+braucht, das dieser Abschnitt nicht erlaubt, ändert zuerst diesen Abschnitt. Wo er vom Plan
+abweicht, gilt er; die Abweichungen stehen in §9.
+
+## 1. Eine Stelle pro Projektwert (Regel für den Umzug)
+
+Die hko-box ist ein persönlicher Prototyp für den hep-Verlag und zieht später in ein eigenes
+Firebase-Projekt um. Deshalb steht jeder projektgebundene Wert an **genau einer** Stelle pro Laufzeit:
+
+| Wert | Browser | Backend (Node) | Rules |
+|---|---|---|---|
+| Projekt-ID, Web-Konfiguration | `js/config.js` (unverändert, geteilt mit lms_box) | `scripts/lib/hko-target.mjs` `PROJECT_ID` | – |
+| Datenbankname `hko` | `js/hko/config.js` `HKO.database` | `scripts/lib/hko-target.mjs` `DATABASE_ID` | – (Deploy-Ziel in `firebase.json`) |
+| Basis-URL `https://allgemeinbildung.github.io/lms_box/` | `js/hko/config.js` `HKO.baseUrl` | `scripts/lib/hko-target.mjs` `BASE_URL` | – |
+| Domain der Schulkonten `lernende.bbw.ch` | `js/hko/config.js` `HKO.schoolDomain` | `scripts/lib/hko-target.mjs` `SCHOOL_DOMAIN` (Seed, Tests) | `isSchoolAccount()` in `firestore.hko.rules`, sonst nirgends |
+
+Texte für Lernende tragen **kein BBW-Branding** (kein «BBW», kein Schullogo). Der geteilte
+Login-Dialog in `js/auth.js` bleibt, wie er ist (P1-E6). Der Abschnitt «Umzug in ein eigenes
+Projekt» weiter unten listet, was beim Umzug zu ändern ist.
+
+## 2. Ids und URL
+
+- Lernende: `<baseUrl>hko.html?unit=<unitId>&block=<blockId>`; LP: `<baseUrl>dashboard/hko.html`.
+- `unitId`, `blockId`: `^[a-z0-9-]{1,80}$`; `frageId`, `kritId`: `^[a-z0-9-]{1,100}$`.
+- `answers/{uid}__{unitId}__{blockId}`; `pasteEvents/{uid}__{unitId}__{blockId}__{eventId}`,
+  `eventId` `^[A-Za-z0-9]{8,40}$`.
+
+## 3. Collections der DB `hko`
+
+| Pfad | Inhalt | Lernende (Schulkonto) | LP (`role == 'teacher'`) |
+|---|---|---|---|
+| `units/{unitId}` | `build/units/<id>.json` 1:1 + `updatedAt` | lesen | lesen |
+| `items/{slug}` | `build/items/<slug>.json` + `updatedAt` | lesen | lesen |
+| `solutions/{unitId}`, `itemSolutions/{slug}` | Lösungen | nichts | **nichts in P1** |
+| `classes/{classId}` | `{variante: '3J'/'4J'/'2J', lehrjahr: int 1–4, aktiv: bool}` | lesen | lesen, schreiben (genau diese Keys) |
+| `answers/{answerId}` | §4 | eigene lesen/anlegen/ändern, kein Delete | lesen |
+| `pasteEvents/{eventId}` | §5 | nur anlegen | lesen |
+| `students/{uid}` | nur Emulator, lesend | eigenes | alle |
+
+Alles Übrige ist zu (`feedback`, `usage`, `knGrades` … ab P2). Schreiben von `units`, `items`,
+`solutions`, `itemSolutions` nur über das Admin-SDK (`scripts/hko-upload.mjs`).
+
+## 4. `answers`
+
+Felder genau: `uid, classId, unitId, blockId, unitVersion, variante, type, value, status, kn, updatedAt`.
+
+- `classId` = Roster-`classId` der Person (String ≤ 100), `unitVersion` = `unit.version` (int ≥ 1),
+  `variante` ∈ `3J|4J|2J`, `status` in P1 immer `'entwurf'` (Rules erlauben auch `'abgegeben'`),
+  `kn` = `block.kn`, `updatedAt` = `serverTimestamp()`.
+- Geschrieben wird immer das ganze Dokument per `setDoc` (kein Merge, kein `updateDoc`).
+- Rules prüfen per `get()` auf `units/{unitId}`, dass der Block existiert, `type` und `kn` passen,
+  `blk.type ∈ {items, text, raster, selbst}` und `nur_variante` zur `variante` passt.
+- Update: `uid, unitId, blockId, type, kn` unveränderlich; KN-Sperre: ist das gespeicherte
+  Dokument `kn == true && status == 'abgegeben'`, ist jedes Update verboten. Kein Delete.
+
+`value` je Typ (gespeichert wird **reiner Text**, nie HTML):
+
+| `type` | `value` | Grenzen (Rules und `validate().zuGross`) |
+|---|---|---|
+| `text` | `{ text }` | Keys nur `text`, ≤ 20 000 Zeichen |
+| `items` | `{ antworten: [{ frageId, text }] }` | ≤ 12 Einträge, Keys genau `frageId, text`, `frageId` ≤ 100, `text` ≤ 3 000 |
+| `raster` | `{ zeilen: [{ c: [string] }], befund }` | ≤ 8 Zeilen, je ≤ 6 Zellen à ≤ 500; `befund` String ≤ 3 000 (auch leer) |
+| `selbst` | `{ stufen: { <kritId>: int 0–3 }, begruendung, verbessere }` | `stufen`-Keys ⊆ `blk.kriterien`, ≤ 6; `begruendung`, `verbessere` je String ≤ 1 500 |
+
+`mitnahme.quellen[].feld` ist ein Pfad in `value`: `text`, `befund`, `zeilen`, `antworten.<frageId>`,
+`stufen`, `begruendung`, `verbessere`. Ohne `feld`: die ganze Antwort, typgerecht als Text.
+
+Keine leeren Erstdokumente: ein Block, in dem die Person nichts eingegeben hat, schreibt nichts.
+
+## 5. `pasteEvents`
+
+Felder genau `uid, unitId, blockId, feld, kind, chars, excerpt, at`; `feld` String 1–100 (`text`, eine
+`frageId`, `r<zeile>c<spalte>` mit 0-basiertem Index, `befund`, `begruendung`, `verbessere`);
+`kind ∈ paste|drop|bulk|fast`; `chars` int 0–20 000; `excerpt` ≤ 300; `at = serverTimestamp()`.
+Nur `create`, nur Schulkonto mit eigener uid in Id und Daten. Kein `get()` auf `units`.
+
+## 6. Was die Box aus `units/{unitId}` liest (Build-Format, `hko-content/schema/README.md`)
+
+Einheit: `unitId, version, titel, varianten{3J,4J,…}, kriterien{}, quellen{}, lernaufgaben{}, blocks{}, reihenfolge[]`.
+Block, gemeinsam: `type, titel, auftrag, k, nur_variante, kn, kriterien[], indikatoren{}, ki_regel{stufe, text}`.
+`phase`, `lernaufgabe`, `feedback` sind nur Information; die Box stützt sich nicht darauf (`feedback` in P1 ignoriert).
+
+| Typ | Box P1 |
+|---|---|
+| `items` | `fragen[{id, k, text}]` (aufgelöst), je Frage ein Quill-Feld |
+| `text` | Quill-Feld; `genre`, `konventionen[]`, `min_woerter`, `max_woerter` als Hinweis (blockiert nichts), Wortzähler |
+| `raster` | `spalten[]` (letzte «→ Begriff»), `zeilen` (int), `beispielzeilen[{c}]?` (grau, nicht editierbar), `befund` (bool) → Textfeld Befund. Bezug: `quelle_ref` → `unit.quellen[ref]` **oder** `lehrmittel_seiten[{kapitel, abschnitt?, seiten[]}]`. Handy (< 600 px): Zeilen als Karten |
+| `selbst` | je Kriterium aus `blk.kriterien` die Stufen `3…0` aus `unit.kriterien[k].stufen` (Radio), dazu `indikatoren[k]` falls vorhanden; Texte «Begründung» und «Das verbessere ich»; `bezug_block` als Hinweis «Bezieht sich auf: <titel>» |
+| `mitnahme` | `quellen[{unitId, blockId, feld?, label}]` → eigene Antworten, nur Text |
+| `upload`, `link`, `roleplay`, `peer`, `audio`, unbekannt | neutraler Platzhalter «Dieser Auftragstyp ist in der Box noch nicht verfügbar.» |
+| **jeder Block mit `kn: true`** | **Hinweis statt Eingabe** (KN findet in P1 ausserhalb der Box statt, Plan A14): «Dieser Teil ist der Kompetenznachweis. Er findet nicht hier statt; Ihre Lehrperson gibt Ihnen die Unterlagen.» Nichts speicherbar. Die Rules-Sperre für `kn: true` ist trotzdem vorbereitet und getestet |
+
+**Quellen** (`unit.quellen[ref]`: `typ, titel, herausgeber, datum?, plattform, embed_url, url?, quellenverweis, lizenz, vault_bild`):
+Die Box bettet **nichts** ein (das tut die Vault-Seite). Sie zeigt über dem Raster «Quelle: <titel> (<herausgeber>)»
+und, wenn `quellenverweis` gesetzt ist, sichtbar «Quellenverweis: <quellenverweis>». Bei `plattform: 'srf'` ist der
+Verweis Pflicht; fehlt er, zeigt die Box «Quellenverweis fehlt – bitte der Lehrperson melden» und warnt in der
+Konsole. Bei `plattform: 'nanoo'` kein Verweis. `url` (sonst `embed_url`; bei gesetztem `vault_bild` mit Text
+«Zu den Daten») höchstens als Link (`target=_blank`, `rel=noopener`), nur `https:`. Alles per `textContent`.
+**Lehrmittel**: «Grundlage: Lehrmittel Kapitel 2.7 A, S. 73, 74; Kapitel 1.5 Bewusster Konsum, S. 37».
+
+**KI-Regel**: Kasten über jedem Block mit Stufe (`verboten | eingeschraenkt | erlaubt | gegenstand`, angezeigt
+als «KI nicht erlaubt», «KI eingeschränkt», «KI erlaubt», «KI ist Gegenstand») und `text`. Fehlt sie: «KI-Regel fehlt –
+bitte der Lehrperson melden».
+
+## 7. Client (Browser)
+
+- **Konfiguration:** `js/hko/config.js` exportiert `HKO = { database, baseUrl, schoolDomain }` (§1).
+- **DB-Zugriff:** `js/firebase.js` exportiert zusätzlich `namedDb(databaseId)` (Firestore **Lite**, beim ersten Aufruf
+  erzeugt und pro Id gecacht, verbindet im Emulator-Modus mit demselben Port wie `db`). Nur `js/hko/api.js` ruft es auf, mit
+  `HKO.database`. lms_box-Seiten erzeugen nie eine dritte Instanz.
+- **Logout-Koordination:** `js/auth.js` exportiert zusätzlich `registerSaver({ flush, hasUnsaved, hasUnsynced, suspend, resume, close })`;
+  die bestehenden Aufrufstellen berücksichtigen registrierte Saver zusätzlich. Ohne registrierten Saver ist das
+  Verhalten identisch. `js/hko/save.js` registriert sich.
+- **Cache:** `js/storage.js` unverändert (DB `LMS_AssignmentsDB`), Schlüssel `unsynced_hko_<unitId>_<blockId>` =
+  `{ rev, state: 'local'|'error'|'too_large', value }`. `hasUnsyncedWork()` von lms_box findet sie über das Präfix `unsynced_`.
+- **DOM-Vertrag `hko.html`:** `#assignment-container` > `#assignment-header` (`#main-title`, `#sub-title`), `#hko-ki-regel`,
+  `#content-renderer`, `#action-container` (`#print-answers`, `#save-status`). Klasse `embedded` auf `<html>` wie `index.html`.
+  Der Container hängt nicht an `100vh`.
+- **Block-Modul** (`js/hko/blocks/<typ>.js`, statisch in `js/hko/registry.js` registriert):
+  `render(block, ctx)`, `collect()`, `restore(value)` (ohne `ctx.changed()`, verträgt ältere Werte), `validate()` →
+  `{ok, hinweise[], zuGross}`, `setEnabled(bool)`, `printHtml(value, block, unit)` (escaped). `mitnahme` braucht kein `collect/restore`.
+  `ctx = { uid, classId, variante, unit, block, unitId, blockId, readonly, api, changed(), container, reportPaste(feld, event) }`.
+  Ein Modul hält seinen Zustand pro `render()`-Aufruf (Fabrik `create()` → Instanz), nie modulglobal.
+- **Speichern:** Debounce 2 s, ein Schreibvorgang gleichzeitig, Revisionslogik und `isInitializing` wie `js/renderer.js`
+  (nachgebaut, nicht importiert); immer aus dem eigenen DOM. Status `#save-status`: `saving | local | cloud | error | too_large`, Sie-Form.
+- **Live-Mitnahme:** `BroadcastChannel('hko-answers')`, Nachricht `{ v: 1, uid, unitId, blockId, value, rev }` nach jeder lokalen
+  Änderung; Empfänger prüfen `uid`. Bei `visibilitychange`/`focus` neu vom Server lesen.
+- **Variante:** Roster `students/{uid}.classId` → `classes/{classId}`; Fälle und Texte nach Plan §2.4. Formativ, im Client fälschbar (P1-E3).
+- **Druck:** `listOwnAnswers(unitId)` (`where uid ==`, `where unitId ==`) → Popup mit allen Blöcken der eigenen Variante.
+- Alle Werte aus der DB gehen per `textContent` oder escaped ins DOM, nie als HTML.
+
+## 8. Tests und Emulatoren
+
+| Skript | Config | Ports | Projekt |
+|---|---|---|---|
+| `test:hko:rules` | `firebase.hko-test.json` | Auth 9230, Firestore 8320 | `demo-hko` |
+| `test:hko:upload` | – (`node --test`, ohne Emulator) | – | – |
+| `test:e2e:hko`, `test:e2e:hko-dashboard` | `firebase.hko-e2e.json` (nur `hko`-Rules, **lmsbox-Ports** 9190/8280, weil `js/firebase.js` fest dorthin verbindet) | 9190/8280 | `interactive-media-2a1fc` |
+| `test:hko` | Kette der vier | | |
+
+`firebase.hko-e2e.json` belegt dieselben Ports wie `test:all`: **nie gleichzeitig laufen lassen**.
+
+## 9. Abweichungen vom Plan P1
+
+| # | Plan | Vertrag | Grund |
+|---|---|---|---|
+| V1 | `raster.value.zellen` | `raster.value.zeilen` | so dokumentiert im Build-Format (`schema/README.md` Designentscheid 9); ein Name für Box, Inhalt und später hkoFormativ |
+| V2 | `hkoDb()` in `js/firebase.js` | `namedDb(databaseId)`, Name aus `js/hko/config.js` | Regel «eine Stelle pro Projektwert» (§1) |
+| V3 | `kn: true`-Blöcke nicht vorgesehen | Build liefert `kn-3j-faelle`, `kn-4j-faelle`, `kn-4j-besprechung`; Box zeigt einen Hinweis, speichert nichts | Plan A14: KN in P1 ausserhalb der Box |
+| V4 | `beispielzeile` (eine Zeile) | `beispielzeilen[{c}]` | Build-Format |
+| V5 | `raster.quelle_ref` immer | `quelle_ref` **oder** `lehrmittel_seiten` | Build-Format (z. B. `a-raster-text-4j`) |
+| V6 | – | Quellen-Map `unit.quellen` mit `quellenverweis`, `lizenz`, `vault_bild`; Box zeigt Verweis, bettet nicht ein | Rahmen §1a, quelle 1.2.0 |
