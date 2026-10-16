@@ -68,3 +68,71 @@ body.hko #action-container { margin-top: 10px; }
 #save-status.hko-status-cloud { color: #198754; }
 #save-status.hko-status-error, #save-status.hko-status-too_large { color: #b02a37; }
 .hko-meldung { margin: 0.4em 0 0 0; font-size: 0.85em; color: #495057; }
+
+/* --- raster --- */
+.hko-raster-tabelle { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0 0 0.8em 0; }
+.hko-raster-tabelle th, .hko-raster-tabelle td { border: 1px solid #ced4da; padding: 4px; vertical-align: top; text-align: left; }
+.hko-raster-tabelle th { background: #f1f3f5; font-size: 0.9em; padding: 6px; }
+.hko-raster-tabelle th.hko-raster-begriff { background: #e7f1ff; color: #084298; border-bottom: 3px solid #0d6efd; }
+.hko-raster-zelle, .hko-raster-befund-feld {
+    display: block; width: 100%; box-sizing: border-box; font: inherit; padding: 6px; border: 1px solid #ced4da;
+    border-radius: 4px; background: #fff; resize: none; overflow: hidden; min-height: 2.4em;
+}
+.hko-raster-befund-feld { resize: vertical; overflow: auto; min-height: 5em; }
+.hko-raster-zelle:disabled, .hko-raster-befund-feld:disabled { background: #f1f3f5; color: #495057; }
+.hko-raster-beispiel td { background: #f1f3f5; color: #6c757d; font-style: italic; padding: 6px; }
+.hko-raster-marke {
+    display: inline-block; margin-right: 0.5em; padding: 0 6px; border-radius: 4px; background: #adb5bd;
+    color: #fff; font-size: 0.75em; font-style: normal; font-weight: 600; text-transform: uppercase; vertical-align: middle;
+}
+.hko-raster-befund { margin: 0.6em 0 0 0; }
+.hko-raster-befund-titel { display: block; margin: 0 0 0.25em 0; font-weight: 600; }
+.hko-print-raster { width: 100%; border-collapse: collapse; margin: 0 0 0.6em 0; }
+.hko-print-raster th, .hko-print-raster td { border: 1px solid #999; padding: 4px; vertical-align: top; text-align: left; white-space: pre-wrap; }
+
+@media (max-width: 599px) {
+    .hko-raster-tabelle, .hko-raster-tabelle tbody, .hko-raster-tabelle tr, .hko-raster-tabelle td { display: block; width: 100%; }
+    .hko-raster-tabelle thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .hko-raster-tabelle tr { margin: 0 0 0.8em 0; border: 1px solid #ced4da; border-radius: 6px; padding: 6px 8px; background: #fff; box-sizing: border-box; }
+    .hko-raster-tabelle td { border: 0; padding: 4px 0; box-sizing: border-box; }
+    .hko-raster-tabelle td::before { content: attr(data-label); display: block; font-size: 0.8em; font-weight: 600; color: #495057; margin: 0 0 2px 0; }
+    .hko-raster-tabelle td:last-child::before { color: #084298; }
+    .hko-raster-beispiel { background: #f1f3f5 !important; }
+}
+
+/* --- items, selbst --- */
+.hko-item { margin: 0 0 1em 0; }
+.hko-item-frage { margin: 0 0 0.3em 0; font-weight: 600; }
+.hko-item-nr { margin-right: 0.15em; }
+.hko-item-editor, .hko-item-editor .ql-editor { min-height: 4.5em; }
+.hko-print-frage { margin: 0 0 0.8em 0; }
+.hko-print-fragetext { margin: 0 0 0.2em 0; }
+.hko-print-stufen { margin: 0 0 0.6em 0; padding-left: 1.3em; }
+
+.hko-bezug-block { margin: 0 0 0.8em 0; font-size: 0.88em; color: #495057; }
+.hko-krit { margin: 0 0 1em 0; padding: 0.6em 0.8em 0.4em 0.8em; border: 1px solid #ced4da; border-radius: 6px; min-width: 0; }
+.hko-krit-name { padding: 0 0.3em; font-weight: 600; }
+.hko-krit-indikator { margin: 0 0 0.5em 0; font-size: 0.88em; color: #495057; }
+.hko-stufe { display: flex; align-items: flex-start; gap: 0.5em; margin: 0 0 0.3em 0; }
+.hko-stufe input { flex: 0 0 auto; margin: 0.35em 0 0 0; width: 1.1em; height: 1.1em; }
+.hko-stufe label { flex: 1 1 auto; min-width: 0; padding: 0.2em 0; overflow-wrap: anywhere; cursor: pointer; }
+.hko-stufe-nr { font-weight: 600; }
+.hko-selbst-feld { margin: 0 0 0.9em 0; }
+.hko-selbst-label { display: block; margin: 0 0 0.25em 0; font-weight: 600; }
+.hko-selbst-text {
+    display: block; box-sizing: border-box; width: 100%; min-height: 4.5em; padding: 0.5em;
+    font: inherit; border: 1px solid #ced4da; border-radius: 4px; resize: none; overflow: hidden; background: #fff;
+}
+@media (max-width: 480px) {
+    .hko-krit { padding: 0.5em 0.5em 0.3em 0.5em; }
+    .hko-stufe label { padding: 0.3em 0; }
+}
+
+/* --- mitnahme, druck --- */
+.hko-mitnahme-quelle { margin: 0 0 0.9em 0; }
+.hko-mitnahme-label { margin: 0 0 0.25em 0; font-size: 0.95em; }
+.hko-mitnahme-wert {
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    border-left: 3px solid #ced4da; padding: 0.2em 0 0.2em 0.7em;
+}
+.hko-mitnahme-wert.hko-leer { border-left-color: transparent; }
