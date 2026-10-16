@@ -451,6 +451,6 @@ firebase firestore:databases:get hko --project interactive-media-2a1fc
 ```
 
 4. **`classes` live anlegen:** ein Dokument pro Klasse (`{variante, lehrjahr, aktiv}`, Id = `classId` aus dem Roster), in der Konsole oder mit einem kleinen Admin-Skript; die Seed-Klassen `test-*` nicht live anlegen. Ohne `classes`-Dokument zeigt die Box «Klasse nicht erfasst».
-5. **Merge/Push nur durch Pietro:** `hko` nach `main` erst nach grünem `test:all` **und** `test:hko`. Der Push auf `main` ist der Deploy des Frontends (GitHub Pages). `git diff main -- backend/firestore.lmsbox.rules` muss leer sein.
+5. **Merge/Push nur durch Pietro:** `hko` nach `main` erst nach grünem `test:all` **und** `test:hko`. Der Push auf `main` ist der Deploy des Frontends (GitHub Pages). `git diff main...hko -- backend/firestore.lmsbox.rules` (ab der Merge-Basis) muss leer sein. **Zuerst `hko` auf den neuen `main` nachziehen:** seit P1-Start kam `a6331df` «Gastmodus ohne Anmeldung» dazu (ändert `js/auth.js`, `renderer.js`, `storage.js`, lmsbox-Rules); in `js/auth.js` ist ein Konflikt mit `registerSaver` zu erwarten. Danach beide Testläufe erneut.
 6. **Testseite im Vault:** ein iframe auf `https://allgemeinbildung.github.io/lms_box/hko.html?unit=<unitId>&block=<blockId>` in eine eigene Testseite (nicht in die Lernenden-Seiten des Altsystems); mit einem Schul-Testkonto öffnen und eine Eingabe speichern.
 7. LP-Ansicht prüfen: `https://allgemeinbildung.github.io/lms_box/dashboard/hko.html`, Anleitung `HKO-P1-ANLEITUNG-LP.md`.
