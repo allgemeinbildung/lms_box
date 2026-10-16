@@ -8,7 +8,7 @@
 //
 import { guardEditor } from '../../pasteGuard.js';
 import { showFieldMessage } from '../plainGuard.js';
-import { el, escapeHtml, countWords } from '../util.js';
+import { el, appendInline, escapeHtml, countWords } from '../util.js';
 
 export const MAX_CHARS = 20000;
 let counter = 0;   // nur für eindeutige Element-Ids; kein Zustand eines Blocks
@@ -57,7 +57,7 @@ export function create() {
             block = b;
             ctx = c;
             const wrap = el('div', 'hko-block hko-text');
-            if (typeof b.auftrag === 'string' && b.auftrag) wrap.appendChild(el('p', 'hko-auftrag', b.auftrag));
+            if (typeof b.auftrag === 'string' && b.auftrag) wrap.appendChild(appendInline(el('p', 'hko-auftrag'), b.auftrag));
 
             const hinweise = el('div', 'hko-vorgaben');
             if (typeof b.genre === 'string' && b.genre) hinweise.appendChild(el('p', 'hko-genre', `Textsorte: ${b.genre}`));

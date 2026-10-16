@@ -11,7 +11,7 @@
 //
 import { guardEditor } from '../../pasteGuard.js';
 import { showFieldMessage } from '../plainGuard.js';
-import { el, escapeHtml } from '../util.js';
+import { el, appendInline, escapeHtml, inlineHtml } from '../util.js';
 
 export const MAX_ANSWERS = 12;
 export const MAX_CHARS = 3000;
@@ -39,7 +39,7 @@ export function printHtml(value, block) {
     return fragen.map((f, i) => {
         const t = antworten.get(f.id) || '';
         const body = t.trim() ? `<div class="hko-print-text">${escapeHtml(t)}</div>` : '<p class="hko-leer">Nicht beantwortet.</p>';
-        return `<div class="hko-print-frage"><p class="hko-print-fragetext"><strong>${i + 1}.</strong> ${escapeHtml(f.text)}</p>${body}</div>`;
+        return `<div class="hko-print-frage"><p class="hko-print-fragetext"><strong>${i + 1}.</strong> ${inlineHtml(f.text)}</p>${body}</div>`;
     }).join('');
 }
 
@@ -56,7 +56,7 @@ export function create() {
             ctx = c;
             const base = ++counter;
             const wrap = el('div', 'hko-block hko-items');
-            if (typeof b.auftrag === 'string' && b.auftrag) wrap.appendChild(el('p', 'hko-auftrag', b.auftrag));
+            if (typeof b.auftrag === 'string' && b.auftrag) wrap.appendChild(appendInline(el('p', 'hko-auftrag'), b.auftrag));
 
             const fragen = fragenOf(b);
             if (!fragen.length) wrap.appendChild(el('p', 'hko-leer', 'Keine Fragen in diesem Auftrag.'));
@@ -66,7 +66,7 @@ export function create() {
                 label.id = `hko-items-${base}-q${i}`;
                 label.appendChild(el('span', 'hko-item-nr', `${i + 1}.`));
                 label.appendChild(document.createTextNode(' '));
-                label.appendChild(el('span', 'hko-item-text', f.text));
+                label.appendChild(appendInline(el('span', 'hko-item-text'), f.text));
                 item.appendChild(label);
                 const editorDiv = el('div', 'hko-editor hko-item-editor');
                 editorDiv.id = `hko-items-${base}-e${i}`;

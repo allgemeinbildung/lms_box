@@ -9,7 +9,7 @@
 //
 import { guardPlain } from '../plainGuard.js';
 import { renderBezug, bezugZeilen } from '../quelle.js';
-import { el, escapeHtml } from '../util.js';
+import { el, appendInline, escapeHtml } from '../util.js';
 
 export const MAX_ZEILEN = 8;
 export const MAX_SPALTEN = 6;
@@ -87,7 +87,7 @@ export function create() {
             const spalten = spaltenOf(b);
             const n = dim(b.zeilen);
             const wrap = el('div', 'hko-block hko-raster');
-            if (typeof b.auftrag === 'string' && b.auftrag) wrap.appendChild(el('p', 'hko-auftrag', b.auftrag));
+            if (typeof b.auftrag === 'string' && b.auftrag) wrap.appendChild(appendInline(el('p', 'hko-auftrag'), b.auftrag));
             const bezug = renderBezug(b, c.unit);
             if (bezug) wrap.appendChild(bezug);
 

@@ -7,7 +7,7 @@
 //  <textarea> mit automatischer Höhe und guardPlain() (feld = `begruendung` / `verbessere`).
 //
 import { guardPlain, showFieldMessage } from '../plainGuard.js';
-import { el, escapeHtml } from '../util.js';
+import { el, appendInline, escapeHtml } from '../util.js';
 
 export const MAX_CHARS = 1500;
 const STUFEN = [3, 2, 1, 0];
@@ -74,7 +74,7 @@ export function create() {
             const base = ++counter;
             ids = kritIds(b);
             const wrap = el('div', 'hko-block hko-selbst');
-            if (typeof b.auftrag === 'string' && b.auftrag) wrap.appendChild(el('p', 'hko-auftrag', b.auftrag));
+            if (typeof b.auftrag === 'string' && b.auftrag) wrap.appendChild(appendInline(el('p', 'hko-auftrag'), b.auftrag));
             const bezug = bezugTitel(b, unit);
             if (bezug) wrap.appendChild(el('p', 'hko-bezug-block', `Bezieht sich auf: ${bezug}`));
 

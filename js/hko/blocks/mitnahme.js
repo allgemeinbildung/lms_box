@@ -12,7 +12,7 @@
 //  Alles per textContent; Zeilenumbrüche per CSS (white-space: pre-wrap).
 //
 import { onAnswer, onWake } from '../channel.js';
-import { el } from '../util.js';
+import { el, appendInline } from '../util.js';
 import { readMarker } from '../save.js';
 
 export const LEER = 'Noch nichts geschrieben.';
@@ -154,7 +154,7 @@ export function create() {
         render(block, c) {
             ctx = c;
             const wrap = el('div', 'hko-block hko-mitnahme');
-            if (typeof block.auftrag === 'string' && block.auftrag) wrap.appendChild(el('p', 'hko-auftrag', block.auftrag));
+            if (typeof block.auftrag === 'string' && block.auftrag) wrap.appendChild(appendInline(el('p', 'hko-auftrag'), block.auftrag));
             const quellen = Array.isArray(block.quellen) ? block.quellen : [];
             zeilen = [];
             for (const q of quellen) {

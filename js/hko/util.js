@@ -16,6 +16,29 @@ export function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
 }
 
+// Fett und kursiv wie im Altsystem (js/renderer.js): **fett**, *kursiv*, _kursiv_.
+// Nur diese drei Marken; alles andere bleibt Text. `_` zählt nur an Wortgrenzen (nicht in a_b).
+const INLINE = /\*\*(?!\s)(.+?)(?<!\s)\*\*|\*(?![\s*])(.+?)(?<![\s*])\*|(?<![\p{L}\p{N}])_(?!\s)(.+?)(?<!\s)_(?![\p{L}\p{N}])/gu;
+
+// Hängt `text` an `parent` an: doppelte Sterne werden <strong>, einfache Sterne oder Unterstriche <em>.
+// Werte gehen nur als Textknoten ins DOM.
+export function appendInline(parent, text) {
+    const s = String(text ?? '');
+    let last = 0;
+    for (const m of s.matchAll(INLINE)) {
+        if (m.index > last) parent.appendChild(document.createTextNode(s.slice(last, m.index)));
+        parent.appendChild(el(m[1] !== undefined ? 'strong' : 'em', null, m[1] ?? m[2] ?? m[3]));
+        last = m.index + m[0].length;
+    }
+    if (last < s.length) parent.appendChild(document.createTextNode(s.slice(last)));
+    return parent;
+}
+
+/** Für HTML-Fragmente (Druck): escapeHtml, danach dieselben Marken als <strong>/<em>. */
+export function inlineHtml(text) {
+    return escapeHtml(text).replace(INLINE, (_m, b, i1, i2) => (b !== undefined ? `<strong>${b}</strong>` : `<em>${i1 ?? i2}</em>`));
+}
+
 /** Wörter in einem Text (Leerraum-getrennt). */
 export function countWords(text) {
     const t = String(text ?? '').trim();

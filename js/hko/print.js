@@ -14,7 +14,7 @@
 //  wird, was die Person sieht. Der Cache gehört der angemeldeten Person (js/auth.js).
 //  Bei Popup-Sperre ein Hinweis über notify(), nie alert().
 //
-import { escapeHtml } from './util.js';
+import { escapeHtml, inlineHtml } from './util.js';
 import { readMarker } from './save.js';
 
 const STILE = `
@@ -63,7 +63,7 @@ export function druckDokument({ unit, unitId, variante, studentName, antworten, 
             inhalt = '<p class="hko-leer">Diese Antwort konnte nicht dargestellt werden.</p>';
         }
         const auftrag = typeof block.auftrag === 'string' && block.auftrag
-            ? `<p class="hko-druck-auftrag">${escapeHtml(block.auftrag)}</p>` : '';
+            ? `<p class="hko-druck-auftrag">${inlineHtml(block.auftrag)}</p>` : '';
         return `<section class="hko-druck-block" data-block="${escapeHtml(id)}">`
             + `<h2>${escapeHtml(typeof block.titel === 'string' && block.titel ? block.titel : id)}</h2>`
             + `${auftrag}<div class="hko-druck-wert">${inhalt}</div></section>`;

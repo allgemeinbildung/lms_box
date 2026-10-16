@@ -2,7 +2,7 @@
 //  js/hko/blocks/platzhalter.js — neutraler Platzhalter für Typen, die die Box (noch) nicht kann:
 //  upload, link, roleplay, peer, audio und Unbekanntes (Vertrag §6). Speichert nichts.
 //
-import { el, escapeHtml } from '../util.js';
+import { el, appendInline, escapeHtml } from '../util.js';
 
 export const TEXT = 'Dieser Auftragstyp ist in der Box noch nicht verfügbar.';
 
@@ -15,7 +15,7 @@ export function create() {
         render(block, ctx) {
             const wrap = el('div', 'hko-block hko-platzhalter-block');
             wrap.dataset.type = String(block?.type ?? '');
-            if (typeof block?.auftrag === 'string' && block.auftrag) wrap.appendChild(el('p', 'hko-auftrag', block.auftrag));
+            if (typeof block?.auftrag === 'string' && block.auftrag) wrap.appendChild(appendInline(el('p', 'hko-auftrag'), block.auftrag));
             const p = el('p', 'hko-platzhalter', TEXT);
             p.id = 'hko-platzhalter';
             wrap.appendChild(p);
