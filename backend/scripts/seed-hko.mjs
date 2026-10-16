@@ -55,6 +55,11 @@ const students = [
     { uid: 'hko-seed-4j', username: 'test.4j', name: 'Test Lernende 4J', classId: 'test-4j-a' },
     { uid: 'hko-seed-2j', username: 'test.2j', name: 'Test Lernende 2J', classId: 'test-2j-a' },
     { uid: 'hko-seed-inaktiv', username: 'test.inaktiv', name: 'Test Lernende Inaktiv', classId: 'test-3j-inaktiv' },
+    // P1 (added 2026-10-16, plan 6.1/6.2 (f)): a second 3J account, a class without a
+    // classes/ document, and one person in two classes of different variants (the first counts).
+    { uid: 'hko-seed-3j-b', username: 'test.3jb', name: 'Test Lernende 3J B', classId: 'test-3j-a' },
+    { uid: 'hko-seed-unbekannt', username: 'test.unbekannt', name: 'Test Lernende Unbekannt', classId: 'test-unbekannt' },
+    { uid: 'hko-seed-zwei', username: 'test.zwei', name: 'Test Lernende Zwei Klassen', classId: 'test-3j-a', classIds: ['test-3j-a', 'test-4j-a'] },
 ];
 const teacher = { uid: 'hko-seed-teacher', email: 'test.lehrperson@lernende.bbw.ch', name: 'Test Lehrperson' };
 
@@ -81,7 +86,7 @@ for (const s of students) {
         username: s.username,
         bbwEmail,
         classId: s.classId,
-        classIds: [s.classId],
+        classIds: s.classIds || [s.classId],
         mustSetPassword: false,
         active: true,
     });

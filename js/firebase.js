@@ -49,3 +49,20 @@ if (useEmulators) {
 } else if (isLocal) {
     console.warn('[firebase] ?live=1 - this local page reads and writes PRODUCTION data.');
 }
+
+// HKO parallel system (backend/HKO.md, "Phase P1 - Vertrag" §7): further named databases,
+// Firestore Lite as well. An instance is created on the first call and cached per id, so a
+// page that never asks (every lms_box page) never opens one. Only js/hko/api.js calls this,
+// with the name from js/hko/config.js.
+const namedInstances = new Map();
+export function namedDb(databaseId) {
+    if (databaseId === 'lmsbox') return db;
+    if (databaseId === '(default)') return rosterDb;
+    let inst = namedInstances.get(databaseId);
+    if (!inst) {
+        inst = getFirestore(app, databaseId);
+        if (useEmulators) connectFirestoreEmulator(inst, host, EMULATOR_PORTS.firestore);
+        namedInstances.set(databaseId, inst);
+    }
+    return inst;
+}

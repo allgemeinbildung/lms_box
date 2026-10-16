@@ -1,0 +1,70 @@
+/* hko-box: eigenes Stylesheet zu hko.html. css/styles.css (lms_box) wird mitgeladen, nicht geändert.
+   Bedeutung nie nur über Farbe: jede Markierung trägt auch ein Wort. */
+
+body.hko #main-title { display: none; }
+
+/* KI-Regel über dem Block */
+.hko-ki-regel {
+    margin: 0 0 0.8em 0;
+    padding: 0.5em 0.8em;
+    border: 1px solid #ced4da;
+    border-left-width: 4px;
+    border-radius: 4px;
+    background: #f8f9fa;
+    font-size: 0.9em;
+    line-height: 1.4;
+}
+.hko-ki-regel[data-stufe="verboten"] { border-left-color: #b02a37; }
+.hko-ki-regel[data-stufe="eingeschraenkt"] { border-left-color: #a04d00; }
+.hko-ki-regel[data-stufe="erlaubt"] { border-left-color: #146c43; }
+.hko-ki-regel[data-stufe="gegenstand"] { border-left-color: #0d6efd; }
+.hko-ki-regel[data-stufe="fehlt"] { border-left-color: #6c757d; background: #fff8e1; }
+.hko-ki-stufe { margin-right: 0.3em; }
+
+/* Hinweise der Box (Variante, Klasse, KN, Fehler) */
+.hko-hinweis {
+    margin: 0 0 0.8em 0;
+    padding: 0.6em 0.9em;
+    border-left: 4px solid #f0ad4e;
+    border-radius: 4px;
+    background: #fff8e1;
+    font-size: 0.95em;
+}
+.hko-hinweis p { margin: 0 0 0.4em 0; }
+.hko-hinweis p:last-child { margin-bottom: 0; }
+.hko-hinweis-fehler { border-left-color: #dc3545; background: #fdf0f1; }
+.hko-link { color: #0d6efd; cursor: pointer; }
+
+/* Blöcke */
+.hko-block { margin-bottom: 0.8em; }
+.hko-auftrag { margin: 0 0 0.6em 0; white-space: pre-wrap; }
+.hko-vorgaben { margin: 0 0 0.6em 0; font-size: 0.9em; color: #495057; }
+.hko-vorgaben p { margin: 0 0 0.2em 0; }
+.hko-konventionen { margin: 0 0 0.2em 0; padding-left: 1.3em; }
+.hko-editor { min-height: 6em; }
+.hko-editor .ql-editor { min-height: 6em; }
+html.embedded .hko-editor.ql-container { background: #fff; }
+.hko-woerter { margin: 0.3em 0 0 0; font-size: 0.82em; color: #6c757d; }
+.hko-woerter[data-lage="unter"]::after { content: " · noch zu kurz"; }
+.hko-woerter[data-lage="ueber"]::after { content: " · zu lang"; }
+.hko-platzhalter { color: #6c757d; font-style: italic; }
+.hko-leer { color: #6c757d; font-style: italic; }
+
+/* Bezug (Quelle, Lehrmittel), benutzt von raster */
+.hko-bezug { margin: 0 0 0.6em 0; font-size: 0.88em; color: #495057; }
+.hko-bezug p { margin: 0 0 0.2em 0; }
+.hko-warnung { color: #b02a37; font-weight: 600; }
+
+/* Kurze Meldung über einem Feld (Paste-Hinweis) */
+.hko-feld-meldung {
+    position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(40, 40, 40, 0.88); color: #fff; padding: 12px 20px; border-radius: 8px;
+    z-index: 100; text-align: center; pointer-events: none; max-width: 90%;
+}
+
+/* Aktionen und Speicherstand */
+body.hko #action-container { margin-top: 10px; }
+#save-status.hko-status { font-size: 0.85em; color: #6c757d; }
+#save-status.hko-status-cloud { color: #198754; }
+#save-status.hko-status-error, #save-status.hko-status-too_large { color: #b02a37; }
+.hko-meldung { margin: 0.4em 0 0 0; font-size: 0.85em; color: #495057; }

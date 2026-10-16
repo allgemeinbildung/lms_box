@@ -9,6 +9,31 @@ import { signIn, signOut, onAuthChange, getStudent } from './api.js';
 import * as storage from './storage.js';
 import { flushPendingSave, hasUnsavedEdits, hasUnsyncedWork, suspendSaving, resumeSaving, closeSaving } from './renderer.js';
 
+// ---- further places that save (additive, backend/HKO.md "Phase P1 - Vertrag" §7) ---------
+//
+// renderer.js is the saver of index.html. Another page (hko.html, js/hko/save.js) registers
+// its own: { flush, hasUnsaved, hasUnsynced, suspend, resume, close } - the same six things
+// renderer.js offers. Every place below asks renderer.js AND the registered savers. Nothing
+// registered (every lms_box page): exactly the behaviour before.
+const savers = [];
+export function registerSaver(s) { if (s && !savers.includes(s)) savers.push(s); }
+function eachSaver(name) {
+    for (const s of savers) {
+        try { s[name]?.(); } catch (error) { console.error(`saver.${name}:`, error); }
+    }
+}
+const saversUnsaved = () => savers.some((s) => { try { return !!s.hasUnsaved?.(); } catch { return false; } });
+async function saversUnsynced() {
+    for (const s of savers) {
+        try { if (await s.hasUnsynced?.()) return true; } catch { /* unreadable: nothing to lose there */ }
+    }
+    return false;
+}
+const suspendAll = () => { suspendSaving(); eachSaver('suspend'); };
+const resumeAll = () => { resumeSaving(); eachSaver('resume'); };
+const closeAll = () => { closeSaving(); eachSaver('close'); };
+const unsavedHere = () => hasUnsavedEdits() || saversUnsaved();
+
 /** The first login (start password -> own password) is handled by the Lernportal, not here. */
 const LOGIN_HELP_URL = 'https://allgemeinbildung.web.app/login';
 const LAST_UID_KEY = 'lmsbox-last-uid';       // whose answers the IndexedDB cache holds (a uid, no name)
@@ -256,7 +281,13 @@ if (navigator.locks?.request) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Saves what this frame still holds; gives up waiting after FLUSH_TIMEOUT_MS. */
-const flushOwn = () => Promise.race([Promise.resolve().then(flushPendingSave).catch(() => {}), sleep(FLUSH_TIMEOUT_MS)]);
+const flushOwn = () => Promise.race([
+    Promise.all([
+        Promise.resolve().then(flushPendingSave).catch(() => {}),
+        ...savers.map((s) => Promise.resolve().then(() => s.flush?.()).catch(() => {})),
+    ]),
+    sleep(FLUSH_TIMEOUT_MS),
+]);
 
 let ownLogout = null;      // token of the logout this frame started
 let peerLogout = null;     // token of the logout another frame started
@@ -267,14 +298,14 @@ if (channel) {
         if (!data || typeof data !== 'object') return;
         if (data.type === 'prepare') {
             peerLogout = data.token;
-            suspendSaving();
+            suspendAll();
             await flushOwn();
-            channel.postMessage({ type: 'done', token: data.token, frame: FRAME_ID, unsynced: hasUnsavedEdits() });
+            channel.postMessage({ type: 'done', token: data.token, frame: FRAME_ID, unsynced: unsavedHere() });
         } else if (data.type === 'cancel' && data.token === peerLogout) {
             peerLogout = null;
-            if (!ownLogout) resumeSaving();
+            if (!ownLogout) resumeAll();
         } else if (data.type === 'commit') {
-            closeSaving();
+            closeAll();
         } else if (data.type === 'done') {
             onPeerDone?.(data);
         }
@@ -359,21 +390,22 @@ export async function logout() {
     const token = FRAME_ID + ':' + Date.now();
     ownLogout = token;
 
-    suspendSaving();
+    suspendAll();
     const [, peerUnsynced] = await Promise.all([flushOwn(), prepareOtherFrames(token)]);
-    let unsynced = peerUnsynced || hasUnsavedEdits();
+    let unsynced = peerUnsynced || unsavedHere();
     if (!unsynced) {
         try { unsynced = await hasUnsyncedWork(); } catch { /* cache unreadable: then there is no local copy to lose */ }
     }
+    if (!unsynced) unsynced = await saversUnsynced();
     if (unsynced && !(await confirmDiscard())) {
         channel?.postMessage({ type: 'cancel', token });
         ownLogout = null;
-        if (!peerLogout) resumeSaving();
+        if (!peerLogout) resumeAll();
         return;
     }
 
     channel?.postMessage({ type: 'commit', token });
-    closeSaving();
+    closeAll();
     try { await storage.clear(); } catch { /* nothing cached */ }
     try { localStorage.removeItem(LAST_UID_KEY); } catch { /* storage blocked */ }
     await signOut();
