@@ -16,6 +16,9 @@
 
 ## 0. Entscheide, die Pietro vor dem Bau treffen sollte
 
+> **Entschieden 16.10.2026 (Pietro): alle sechs Empfehlungen übernommen.** P1-E1 bis P1-E6 gelten so, wie sie in der Spalte «Empfehlung» stehen.
+> Zusätzlich gilt der Rahmen aus `hko-content/_plan/BOX-P1_PROMPT.md` §1a: hep-Prototyp, Regel für den späteren Umzug, Quellenverweis bei SRF.
+
 | # | Frage | Empfehlung |
 |---|---|---|
 | P1-E1 | Editor für `text` und `items` | **Quill 1.3.6 vom CDN, wie lms_box**, gespeichert wird reiner Text (§2.9) |
