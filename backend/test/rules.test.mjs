@@ -677,3 +677,59 @@ test('quizProgress: unit cannot change on update', async () => {
     await assertSucceeds(setDoc(ref, quiz('alice', { unit: 'Fest' })));
     await assertFails(setDoc(ref, quiz('alice', { unit: 'Anders' })));
 });
+
+// ---- mindmapDrafts: own branches on a mindmap of allgemeinbildung.github.io/mindmap ----
+
+const MAP = '4.3 Gesundheit und Sucht_2';      // spaces, dot, underscore
+const mapId = (uid, m = MAP) => `${uid}__${enc(m)}`;
+const mapDraft = (uid, extra = {}) => ({
+    uid, mapId: MAP,
+    nodes: JSON.stringify({ v: 1, add: [{ at: ['Gesundheit und Sucht'], nodes: [{ t: 'Schlaf & Ümläute', c: [] }] }] }),
+    updatedAt: serverTimestamp(),
+    ...extra,
+});
+
+test('mindmapDrafts: student creates, reads and updates the own document', async () => {
+    const ref = doc(alice, 'mindmapDrafts', mapId('alice'));
+    await assertSucceeds(getDoc(ref));        // missing own document: "does not exist", not "denied"
+    await assertSucceeds(setDoc(ref, mapDraft('alice')));
+    const snap = await assertSucceeds(getDoc(ref));
+    assert.equal(JSON.parse(snap.data().nodes).add[0].nodes[0].t, 'Schlaf & Ümläute');
+    await assertSucceeds(setDoc(ref, mapDraft('alice', { nodes: '{"v":1,"add":[]}' })));
+    await assertFails(deleteDoc(ref));
+});
+
+test('mindmapDrafts: no other student, no teacher, no list', async () => {
+    await admin.doc(`mindmapDrafts/${mapId('bob')}`).set({ ...mapDraft('bob'), updatedAt: new Date() });
+    await assertFails(getDoc(doc(alice, 'mindmapDrafts', mapId('bob'))));
+    await assertFails(setDoc(doc(alice, 'mindmapDrafts', mapId('bob')), mapDraft('alice')));
+    await assertFails(setDoc(doc(alice, 'mindmapDrafts', mapId('bob')), mapDraft('bob')));
+    await assertFails(getDoc(doc(teacher, 'mindmapDrafts', mapId('bob'))));
+    await assertFails(getDocs(query(collection(alice, 'mindmapDrafts'), where('uid', '==', 'alice'))));
+    await assertFails(getDocs(collection(teacher, 'mindmapDrafts')));
+});
+
+test('mindmapDrafts: anonymous, outsider and non-password accounts cannot write', async () => {
+    const google = client(tok('gina', { provider: 'google.com', email: 'gina.test@lernende.bbw.ch' }));
+    await assertFails(setDoc(doc(anon, 'mindmapDrafts', mapId('anon')), mapDraft('anon')));
+    await assertFails(setDoc(doc(anonSession, 'mindmapDrafts', mapId('anon1')), mapDraft('anon1')));
+    await assertFails(getDoc(doc(anonSession, 'mindmapDrafts', mapId('anon1'))));
+    await assertFails(setDoc(doc(outsider, 'mindmapDrafts', mapId('outsider')), mapDraft('outsider')));
+    await assertFails(setDoc(doc(google, 'mindmapDrafts', mapId('gina')), mapDraft('gina')));
+});
+
+test('mindmapDrafts: bad shapes and sizes are refused, mapId is fixed', async () => {
+    let n = 0;
+    const bad = (data) => { const m = `Bad ${++n}`; return setDoc(doc(alice, 'mindmapDrafts', mapId('alice', m)), { ...data, mapId: m }); };
+    await assertFails(bad(mapDraft('alice', { name: 'Alice Beispiel' })));
+    await assertFails(bad(mapDraft('alice', { nodes: { v: 1, add: [] } })));
+    await assertFails(bad(mapDraft('alice', { nodes: 'x'.repeat(20001) })));
+    await assertFails(bad(mapDraft('alice', { updatedAt: new Date() })));
+    const { updatedAt, ...noTime } = mapDraft('alice');
+    await assertFails(bad(noTime));
+    await assertFails(setDoc(doc(alice, 'mindmapDrafts', mapId('alice', 'm'.repeat(301))), mapDraft('alice', { mapId: 'm'.repeat(301) })));
+    const ref = doc(alice, 'mindmapDrafts', mapId('alice', 'Voll'));
+    await assertSucceeds(setDoc(ref, mapDraft('alice', { mapId: 'Voll', nodes: 'x'.repeat(20000) })));
+    await assertSucceeds(setDoc(ref, mapDraft('alice', { mapId: 'Voll', nodes: 'y'.repeat(20000) })));
+    await assertFails(setDoc(ref, mapDraft('alice', { mapId: 'Anders' })));
+});

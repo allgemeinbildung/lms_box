@@ -135,6 +135,24 @@ service cloud.firestore {
         && d.updatedAt == request.time;
     }
 
+    // ---- mindmapDrafts: validation ------------------------------------------
+    //
+    // The student's own branches on a mindmap (CONTRACT.md, «Mindmap editor»). `nodes`
+    // is JSON the rules cannot parse; only its length is checked, and the page treats
+    // what it reads as untrusted.
+    function mapOk(mapId) {
+      let d = request.resource.data;
+      return idIsOwn(mapId)
+        && mapId.size() <= 1500
+        && isSchoolAccount()
+        && d.keys().hasOnly(['uid', 'mapId', 'nodes', 'updatedAt'])
+        && d.keys().hasAll(['uid', 'mapId', 'nodes', 'updatedAt'])
+        && d.uid == request.auth.uid
+        && shortString(d.mapId, 300) && d.mapId.size() > 0
+        && shortString(d.nodes, 20000)
+        && d.updatedAt == request.time;
+    }
+
     // ---- collections --------------------------------------------------------
 
     // With solutions and rubrics: teachers only. Students and guests read the
@@ -196,6 +214,19 @@ service cloud.firestore {
         && request.resource.data.unit == resource.data.unit;
       allow delete: if notAnonymous() && idIsOwn(quizId)
         && resource.data.uid == request.auth.uid;
+    }
+
+    // Own mindmap branches: the student's own documents only, no list, no delete, no
+    // teacher access (CONTRACT.md). As with quizProgress, that the id is
+    // uid + "__" + enc(mapId) is not checked; a mismatch only touches the own document.
+    match /mindmapDrafts/{mapId} {
+      // get: a missing own document answers "does not exist", not "denied".
+      allow get: if notAnonymous() && idIsOwn(mapId)
+        && (resource == null || resource.data.uid == request.auth.uid);
+      allow create: if mapOk(mapId);
+      allow update: if mapOk(mapId)
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.mapId == resource.data.mapId;
     }
 
     // Hints that text was inserted rather than typed (CONTRACT.md). Create-only for

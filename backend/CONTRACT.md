@@ -25,6 +25,7 @@ draftDoc      = `${uid}__${enc(assignmentId)}__${enc(subId)}`
 pairDoc       = `${uid}__${enc(assignmentId)}`
 pasteDoc      = `${uid}__${enc(assignmentId)}__${enc(subId)}__${eventId}`   // eventId: [A-Za-z0-9]{8,40}, made by the page
 quizDoc       = `${uid}__${enc(unit)}`
+mapDoc        = `${uid}__${enc(mapId)}`
 ```
 
 `assignmentId` is the file name in `content/` without `.json`. `subId` is the key in `subAssignments`, typos included — the vault iframes refer to both verbatim.
@@ -44,6 +45,7 @@ Sub-assignment keys contain dots (`"A. Grundsätze …"`). Documents holding the
 | `feedbackReleased/{pairDoc}` | `uid, assignmentId, results[], date_str, releaseSettings` — already filtered | read own | read, write, delete |
 | `formativUsage/{pairDoc}` | `uid, assignmentId, slots` — `slots` is a map keyed `"<subId>::<questionId>"` (`formativ.slotKey`); an entry is `{state, at}` while pending, and when done also `textHash, rubrik_version, request_id, prompt_version, duration_ms, pseudonym, names_masked, gesendet, result{zustand, kriterien[]}`. Written by the function with a precondition `update()` that replaces `slots` whole | none | read |
 | `quizProgress/{quizDoc}` | `uid, unit, last{known, total, date}, hard[], updatedAt` — the self-test («Kurztest») at the end of a unit on lehrmittel.aburossi.ch: result of the last complete run (`date` an ISO string from the device clock) and the terms marked «Nochmals» in that run | get/create/update/delete own only | none |
+| `mindmapDrafts/{mapDoc}` | `uid, mapId, nodes, updatedAt` — the student's own branches on a mindmap of `allgemeinbildung.github.io/mindmap` (see «Mindmap editor») | get/create/update own only | none |
 | `pasteEvents/{pasteDoc}` | `uid, assignmentId, subId, questionId, kind, chars, excerpt, at` — `kind` one of `paste` (a paste got past the block), `drop` (text dragged in), `bulk` (one change inserted ≥ 40 characters), `fast` (≥ 60 characters in under 3 s, faster than typing); `chars` the number of characters inserted; `excerpt` the first 300 of them | create own only | read |
 
 Rules that must hold:
@@ -56,6 +58,7 @@ Rules that must hold:
 - `drafts` can be written only by a password sign-in with an address ending in `@lernende.bbw.ch`, and `updatedAt` must be the server time. Anonymous sessions read nothing. This raises the bar; it does not prove roster membership (rules cannot read the roster in `(default)`). That is why the dashboard looks drafts up by the uids on the class roster and never by the `classId` a draft carries, and why it renders every draft field as text or through `dashboard/modules/sanitize.js`.
 - `quizProgress`: the document id must start with `request.auth.uid + "__"` **and** `uid` must equal `request.auth.uid`; written only by a password sign-in with `@lernende.bbw.ch`, `updatedAt` is the server time, `unit` cannot change on update. A student may delete their own document. No `list`: the page reads exactly one document by id. No teacher access — the self-test serves the learner only; a teacher view would be another purpose and needs its own consent (`../docs/KURZTEST_FIREBASE_PLAN.md`).
 - `quizProgress` carries no name and no class, and the direction of the test (`mode`) is not stored: it stays in the browser.
+- `mindmapDrafts`: the document id must start with `request.auth.uid + "__"` **and** `uid` must equal `request.auth.uid`; written only by a password sign-in with `@lernende.bbw.ch`, `updatedAt` is the server time, `mapId` cannot change on update. No `list`, no delete (an empty map is saved as an empty `add` list). No teacher access for now: a teacher view is a decision of its own (like `quizProgress`).
 - `publicAssignments` is written only by `scripts/upload-assignments.mjs` (Admin SDK), in the same batch as `assignments`. Anyone may `get` a document; nobody may `list` the collection or write to it.
 - Everything not listed is denied.
 
@@ -88,6 +91,11 @@ Limits the rules enforce on `quizProgress`:
 - required and only: `uid, unit, last, hard, updatedAt`; `last` is exactly `{known, total, date}`.
 - `total` int 1…50, `known` int 0…`total`, `date` an ISO time string (`YYYY-MM-DDT…Z`), at most 40 characters.
 - `hard` a list of at most 20 strings of at most 120 characters each, and not longer than `total` (real units have at most 14 terms).
+
+Limits the rules enforce on `mindmapDrafts`:
+
+- required and only: `uid, mapId, nodes, updatedAt`; `mapId` 1–300 characters, `nodes` a string of at most 20 000 characters.
+- The rules cannot parse `nodes`; the page treats what it reads as untrusted (see «Mindmap editor»).
 
 `assignments` carries the solutions and rubrics: only a teacher reads it (until 16.10.2026 every non-anonymous sign-in could, self-registered accounts included). Students and guests read `publicAssignments`; the formativ function reads `assignments` with the Admin SDK.
 
@@ -134,6 +142,20 @@ Messages (`postMessage`, type prefix `kurztest-`):
 - The bridge accepts `?parent=` only from its list (`https://lehrmittel.aburossi.ch`; any `http://localhost:*` / `http://127.0.0.1:*` origin only while the bridge itself runs on a local host). It handles a message only if `event.source === window.parent` and `event.origin` is that parent, and it posts only to that origin, never to `"*"`.
 - publish.js handles a message only if `event.origin === "https://allgemeinbildung.github.io"` **and** `event.source` is its own bridge iframe: other repos on that origin (mindmap, podcasts …) share it.
 - Merge in publish.js: a run done while signed in carries `acct` in localStorage. Same account: the run with the later `last.date` wins as a whole (`last` and `hard` together, no union), a newer local run is uploaded. Another account or a guest run: the account's record replaces it; a guest run is never uploaded (like guest answers).
+
+## Mindmap editor (`js/mindmap.js`)
+
+The mindmaps embedded in the vault come from another repo on the same origin: `allgemeinbildung.github.io/mindmap/index.html?mindmap=<mapId>` (`github.com/allgemeinbildung/mindmap`). That page draws `maps/<mapId>.json` (the teacher's skeleton) and, behind a ✏️ button, lets a signed-in student add own branches with the keyboard. It imports `../lms_box/js/mindmap.js` (same origin, so it shares the LMS Box login on the same host page) and never the Firebase SDK directly.
+
+`js/mindmap.js` exports `onAccount(cb)` (`cb({ canSave, email })`, again after every sign-in or sign-out), `loadMap(mapId)` (the parsed `nodes` or null), `saveMap(mapId, data)`, `showLogin()` and `logout()`.
+
+`mapId` is the `mindmap` query parameter verbatim (a step file such as `4.3 Gesundheit und Sucht_2`). `nodes` is JSON:
+
+```
+{ v: 1, add: [ { at: [text of root, …, text of the teacher node], nodes: [ { t, c: [ … ] } ] } ] }
+```
+
+Only the student's branches are stored, each list hung under the teacher node whose path of texts is `at`. Teacher nodes cannot be edited or removed, and a student's nodes come after the teacher's children. A branch whose `at` no longer exists (the skeleton changed) is shown under the root. Client limits: at most 200 own nodes, 120 characters each, depth 6. What is read is checked again before it is drawn: anything that does not fit the shape is dropped, and the text goes into the diagram quoted, never as Mermaid syntax.
 
 On `localhost` / `127.0.0.1` it connects to the **emulators** by default. Live data from a local page needs the explicit query parameter `?live=1`. Reason: a local click-through must never write into production.
 
