@@ -6,6 +6,7 @@
 import { saveDraft, reportPaste } from './api.js';
 import { guardEditor } from './pasteGuard.js';
 import * as storage from './storage.js';
+import { watchProgress } from './progress.js';
 
 const ANSWER_PREFIX = 'modular-answer_';
 const QUESTIONS_PREFIX = 'modular-questions_';
@@ -355,6 +356,7 @@ function renderQuill(data, assignmentId, subId, initialAnswers, assignmentData) 
         });
     });
 
+    watchProgress(assignmentId, subId, page.editors);
 }
 
 /**

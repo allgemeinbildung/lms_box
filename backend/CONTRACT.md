@@ -143,6 +143,15 @@ Messages (`postMessage`, type prefix `kurztest-`):
 - publish.js handles a message only if `event.origin === "https://allgemeinbildung.github.io"` **and** `event.source` is its own bridge iframe: other repos on that origin (mindmap, podcasts …) share it.
 - Merge in publish.js: a run done while signed in carries `acct` in localStorage. Same account: the run with the later `last.date` wins as a whole (`last` and `hard` together, no union), a newer local run is uploaded. Another account or a guest run: the account's record replaces it; a guest run is never uploaded (like guest answers).
 
+## Progress message (`js/progress.js`)
+
+The student page tells its host page how much was written, so that publish.js («Lernansicht») can tick a section off. `{ type: 'lmsbox-progress', assignmentId, subId, lengths: number[], acct: string | null }`, sent once after the editors are built and again 600 ms after each change.
+
+- `lengths` has one entry per question: the length of the trimmed plain text. Never the text itself, no name, no uid. `acct` is the first 12 hex characters of SHA-256(uid) for a signed-in student, null for a guest (same tag as the self-test bridge), so publish.js drops ticks that belong to another account on a shared computer.
+- The page posts only to the host page's own origin (`location.ancestorOrigins[0]`, else the referrer's origin, else `?parent=`), and only if it is `https://lehrmittel.aburossi.ch` or a local `http://localhost:*` / `http://127.0.0.1:*` origin while the page itself runs locally. Never `"*"`. Without such a host page nothing is sent.
+- publish.js handles the message only if `event.origin` is `https://allgemeinbildung.github.io` **and** `event.source` is one of the section's own `lms_box` iframes. A section counts as written when every question has at least `MIN_CHARS` (15) characters.
+- The height message (`lmsbox-height`, `js/embedHeight.js`) is older and still posts to `"*"`; it carries a number only.
+
 ## Mindmap editor (`js/mindmap.js`)
 
 The mindmaps embedded in the vault come from another repo on the same origin: `allgemeinbildung.github.io/mindmap/index.html?mindmap=<mapId>` (`github.com/allgemeinbildung/mindmap`). That page draws `maps/<mapId>.json` (the teacher's skeleton) and, behind a ✏️ button, lets a signed-in student add own branches with the keyboard. It imports `../lms_box/js/mindmap.js` (same origin, so it shares the LMS Box login on the same host page) and never the Firebase SDK directly.

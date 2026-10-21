@@ -6,6 +6,7 @@ import { fetchAndRenderStudentFeedback } from './studentFeedback.js';
 import { initFormativ } from './formativ.js';
 import * as storage from './storage.js';
 import { initEmbedHeight } from './embedHeight.js';
+import { initProgress } from './progress.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     initEmbedHeight();
@@ -22,7 +23,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Resolves for a signed-in student, or at once as a guest (not signed in: answers stay
     // in this browser, no feedback). For accounts that cannot work here auth.js shows a message.
-    const { student, guest } = await authenticate();
+    const { uid, student, guest } = await authenticate();
+    initProgress(uid);
     if (guest) {
         storage.useDatabase(storage.GUEST_DB_NAME);   // before any other storage call
         setGuestMode();
