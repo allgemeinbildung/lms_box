@@ -149,13 +149,17 @@ The mindmaps embedded in the vault come from another repo on the same origin: `a
 
 `js/mindmap.js` exports `onAccount(cb)` (`cb({ canSave, email })`, again after every sign-in or sign-out), `loadMap(mapId)` (the parsed `nodes` or null), `saveMap(mapId, data)`, `showLogin()` and `logout()`.
 
-`mapId` is the `mindmap` query parameter verbatim (a step file such as `4.3 Gesundheit und Sucht_2`). `nodes` is JSON:
+`mapId` is the `mindmap` query parameter verbatim (a step file such as `4.3 Gesundheit und Sucht_2`), or, in unit mode, the `unit` parameter. `nodes` is JSON:
 
 ```
 { v: 1, add: [ { at: [text of root, …, text of the teacher node], nodes: [ { t, c: [ … ] } ] } ] }
 ```
 
 Only the student's branches are stored, each list hung under the teacher node whose path of texts is `at`. Teacher nodes cannot be edited or removed, and a student's nodes come after the teacher's children. A branch whose `at` no longer exists (the skeleton changed) is shown under the root. Client limits: at most 200 own nodes, 120 characters each, depth 6. What is read is checked again before it is drawn: anything that does not fit the shape is dropped, and the text goes into the diagram quoted, never as Mermaid syntax.
+
+Before ✏️ opens the editor, the page reads the document again. After each save it sends the map to the other frames of the same map (`BroadcastChannel('lmsbox-mindmap')`, browser-local), which take it over unless they hold unsaved changes themselves. A save writes the whole map, so this keeps an old copy from overwriting newer branches.
+
+**Unit mode** (`?unit=<id>&skel=<a|b|…>&mode=pad|preview|button&parent=<origin>`), set by publish.js on lehrmittel.aburossi.ch: one map per unit for the whole page. `unit` is the Publish page, defined as `unit` under «Ids» (the same id the self-test uses). The skeleton is the first map in `skel` that exists, cut to the root and its main branches. `pad` is the notepad in a side panel (editor always open), `preview` a read-only picture of the student's map in place of a step map, `button` only a button there (no account, no read). The page posts `{ type: 'mindmap-open' | 'mindmap-close', unit }` to its parent, only to `https://lehrmittel.aburossi.ch` (or a local origin while it runs locally), never to `"*"`; publish.js handles them only from the origin of the mindmap page and from its own frames. Saved maps of the step files stay where they are and are not merged into the unit map.
 
 On `localhost` / `127.0.0.1` it connects to the **emulators** by default. Live data from a local page needs the explicit query parameter `?live=1`. Reason: a local click-through must never write into production.
 
