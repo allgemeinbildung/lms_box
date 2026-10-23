@@ -43,7 +43,7 @@ Sub-assignment keys contain dots (`"A. Grundsätze …"`). Documents holding the
 | `drafts/{draftDoc}` | `uid, classId, assignmentId, subId, title, type, questions[], answers[{questionId, answer}], updatedAt` | read/create/update own only | read all |
 | `feedback/{pairDoc}` | `uid, assignmentId`, the evaluator result (`results[]`, `date_str`, …), `released`, `releaseSettings{kurzbericht, ausfuehrlich, punkte, loesung}`, `publishedAt` | none | read, write |
 | `feedbackReleased/{pairDoc}` | `uid, assignmentId, results[], date_str, releaseSettings` — already filtered | read own | read, write, delete |
-| `formativUsage/{pairDoc}` | `uid, assignmentId, slots` — `slots` is a map keyed `"<subId>::<questionId>"` (`formativ.slotKey`); an entry is `{state, at}` while pending, and when done also `textHash, rubrik_version, request_id, prompt_version, duration_ms, pseudonym, names_masked, gesendet, result{zustand, kriterien[]}`. Written by the function with a precondition `update()` that replaces `slots` whole | none | read |
+| `formativUsage/{pairDoc}` | `uid, assignmentId, slots` — `slots` is a map keyed `"<subId>::<questionId>"` (`formativ.slotKey`); an entry is `{state, at}` while the first request runs, and when done also `textHash, rubrik_version, request_id, prompt_version, duration_ms, pseudonym, names_masked, gesendet, result{zustand, kriterien[]}` — the **latest** attempt — plus `frueher[]` (earlier attempts, oldest first, same fields without `state`) and `pendingAt` while a further request runs (see «Formative feedback: attempts, trail, overview»). `ausfaelle[]` (`{at, request_id}`, at most 20) lists technically failed tries that reached the model, for the cost report; an entry with only those has `state: 'frei'`. Written by the function with a precondition `update()` that replaces `slots` whole | none | read |
 | `quizProgress/{quizDoc}` | `uid, unit, last{known, total, date}, hard[], updatedAt` — the self-test («Kurztest») at the end of a unit on lehrmittel.aburossi.ch: result of the last complete run (`date` an ISO string from the device clock) and the terms marked «Nochmals» in that run | get/create/update/delete own only | none |
 | `mindmapDrafts/{mapDoc}` | `uid, mapId, nodes, updatedAt` — the student's own branches on a mindmap of `allgemeinbildung.github.io/mindmap` (see «Mindmap editor») | get/create/update own only | none |
 | `pasteEvents/{pasteDoc}` | `uid, assignmentId, subId, questionId, kind, chars, excerpt, at` — `kind` one of `paste` (a paste got past the block), `drop` (text dragged in), `bulk` (one change inserted ≥ 40 characters), `fast` (≥ 60 characters in under 3 s, faster than typing); `chars` the number of characters inserted; `excerpt` the first 300 of them | create own only | read |
@@ -112,9 +112,75 @@ Release filter (moved from the old Cloud Function into the dashboard, which writ
 | Name | Input | Output |
 |---|---|---|
 | `boxFormativ` | `{ assignmentId, subId, questionId, text }` | `{ status: 'success', result }` as `formativ.requestFeedback` returns; errors as `HttpsError` with `details: { code, result? }` (code table: comment in `functions/index.js`) |
-| `boxFormativStatus` | `{ assignmentId }` | `{ slots }` as `formativ.status` returns today |
+| `boxFormativStatus` | `{ assignmentId }` | `{ slots, max }` as `formativ.status` returns (see below) |
 
 Both require a signed-in caller whose `students/{uid}` doc exists in `(default)` and is `active !== false`. The rubric and solution are loaded on the server from `assignments`; the client only names the field and sends the text. The model request carries no name and no uid — only the pseudonym.
+
+## Formative feedback: attempts, trail, overview
+
+Since 23.10.2026 (not deployed yet) a student may ask for feedback **twice per question** (`MAX_VERSUCHE = 2` in `functions/formativ.js`, one number for all questions). The page shows every feedback the question got, and a «trail» that shows whether the feedback was used. It is never a score.
+
+**Attempts (function).**
+
+- An attempt counts once its result is stored. A technical failure, a quota error or a timeout gives it back, as before.
+- A further attempt needs a **changed text**: the SHA-256 of the plain text (`textHash`) must differ from the latest attempt's. Otherwise code `unchanged`, nothing is sent and nothing counts.
+- While a request runs, the slot is blocked: the first one as `{state: 'pending', at}`, a further one as the stored entry plus `pendingAt`. Older than 2 minutes counts as crashed and is free again. A blocked slot answers `conflict` («wird gerade erstellt»).
+- No attempt left: `already_used`, `details.result` = the latest result.
+- Stored shape: the latest attempt stays flat in the entry (as before, so readers of `result`, `gesendet` … keep working), earlier ones move to `frueher[]`. An entry written before 23.10.2026 is attempt 1 and has a second one left. Nothing is migrated.
+
+Error codes added to the table in `functions/index.js`: `unchanged` → `failed-precondition`; `conflict` (now also for a running request) → `aborted`.
+
+**Status (`boxFormativStatus`).** `{ max, slots: { [slotKey]: slot } }`, slot one of:
+
+```
+{ state: 'pending', at }                                     // first request running
+{ state: 'done', at, result, versuche: [{ at, result }], pending?: true }
+```
+
+`at`/`result` are the latest attempt (what pages before 23.10.2026 read); `versuche` holds all of them, oldest first, at most `max`. Only `at` and the public `result` leave the function — no `gesendet`, no hash, no pseudonym.
+
+**Trail (`js/formativ-trail.js`, used by the box, the overview and nothing else).** Per criterion (`kriterien[].id`), comparing the first and the latest attempt that have criteria (an attempt with `zustand: 'nicht_verfuegbar'` is skipped). Order `fehlt < teilweise < erfuellt`; `nicht_beurteilbar` has no rank.
+
+| Mark | Rule | Shown as |
+|---|---|---|
+| `direkt` | first attempt `erfuellt` | ● green |
+| `verbessert` | latest `erfuellt`, first not | ● green with ↑ |
+| `besser` | latest ranks above first, not `erfuellt` | ◐ with ↑ |
+| `offen` | anything else | ○ |
+
+The marks are counted per question and per page, never added into one number, never weighted, never compared with other students, never sent anywhere (the progress message carries the counts to the host page only, see there). `verbessert` is shown as prominently as `direkt`: using the feedback is the point. A question with no feedback yet has no marks; the overview lists it as «noch keine Rückmeldung».
+
+**Box (`js/formativ.js`).** The latest feedback open, earlier ones folded below it («1. Rückmeldung»); in the latest, each criterion shows its change (`✗ fehlt → ◐ teilweise`). Button «Rückmeldung holen (1 von 2)» → «Zweite Rückmeldung holen» → disabled «Beide Rückmeldungen erhalten». After a new feedback the box posts `{ type: 'formativ-neu', assignmentId, subId, questionId }` on `BroadcastChannel('lmsbox-formativ')` (browser-local, same origin, ids only).
+
+**Overview (`rueckmeldungen.html`, `js/rueckmeldungen.js`).** All feedback of all LMS boxes on one host page, in page order. publish.js opens it in a side panel:
+
+```
+rueckmeldungen.html?parent=<host origin>&items=<JSON [[assignmentId, subId, sectionTitle?], …]>
+```
+
+- `items`: at most 40 entries; `assignmentId`/`subId` 1–500 characters, `sectionTitle` at most 200 (the `###` heading above the iframe, for grouping only). Anything else is dropped.
+- The page reads `publicAssignments` (question texts, which questions have formativ) and `boxFormativStatus` once per distinct `assignmentId`. Nothing is written. It shares the LMS Box login like the other frames of the host site; a guest sees a sign-in link, an account without roster doc «nur für Lernenden-Konten».
+- Shown: on top the counts of the trail for the whole page; per section and question the question text, the marks, the latest feedback and the earlier ones folded; questions with formativ but no feedback as «noch keine Rückmeldung». All text from Firestore goes into the DOM as text (`textContent`), never as HTML.
+- It listens on `BroadcastChannel('lmsbox-formativ')` and reloads the status of that assignment.
+- «Zur Frage» posts `{ type: 'lmsbox-rm-goto', index }` (`index` into `items`) to the parent, under the same origin rules as the progress message (`?parent=` from the list, never `"*"`). Without an allowed parent the page works on its own and shows no «Zur Frage».
+- publish.js handles `lmsbox-rm-goto` only from `https://allgemeinbildung.github.io` and only from its own overview iframe. It sends no feedback text into the host page: it passes ids in, an index comes back.
+
+## Cost report (`scripts/kosten-bericht.mjs`, teacher only, local)
+
+Since 23.10.2026 (not deployed): what the feedback costs, per student, per question and per model. Three sources, joined by formativ's `request_id`:
+
+| Source | What | Where |
+|---|---|---|
+| `formativUsage` | who asked which question when: `request_id` of every attempt (`frueher[]` and the latest) and of every failed try (`ausfaelle[]`) | `lmsbox`, read with the Admin SDK |
+| `formativ_verbrauch` | per `request_id`: model, provider, tokens, the amount OpenRouter charged (`usage.cost`) | formativ's database (repo `formativ`, `VERBRAUCH.md`), read with a read-only role |
+| `gemini-verbrauch.jsonl` | one line per Gemini call of the local evaluator: model version, tokens, assignment, class, student name | `.secrets/kosten/`, written by `evaluator/evaluator.py` |
+
+- Names come from `students/{uid}` at run time; they are never written to Firestore or to formativ. Gemini lines are matched to a student by the name the evaluator logged.
+- Gemini reports tokens only. The amount comes from `scripts/kosten-preise.json` (dated price periods, checked against Google's price page; the model version Gemini reports picks the row). formativ needs no price table.
+- An amount that is not known is counted as «ohne Betrag», never as 0. The average per request counts only requests with an amount.
+- Output: `kosten.html` and CSV files (semicolons, BOM, for Excel) in `.secrets/kosten/bericht-<date>/`. The script refuses an output folder or a key inside a repository. The report carries names: open locally only, never publish it (Router §4).
+- formativ rows that no LMS Box request points to (other callers of the same instance such as bbw-hko, or ids that were not kept) are shown as «keiner Person zugeordnet»; `--origin` limits them to the LMS Box.
+- Test: `npm run test:kosten`.
 
 ## Client (`js/firebase.js`)
 
@@ -122,7 +188,7 @@ One module initialises the app and exports `auth`, `db` (database `lmsbox`), `ro
 
 Additive for the HKO parallel system (contract: `HKO.md`, "Phase P1 — Vertrag" §7): `js/firebase.js` also exports `namedDb(databaseId)` (a further named database, Firestore Lite, created on first call and cached per id; only `js/hko/api.js` calls it, lms_box pages never do), and `js/auth.js` exports `registerSaver({ flush, hasUnsaved, hasUnsynced, suspend, resume, close })`, which the logout coordination asks in addition to `renderer.js`; with nothing registered the behaviour is unchanged.
 
-Additive for the self-test: `js/auth.js` also exports `showLoginDialog({ closable })` and `closeLoginDialog()`, used by `js/kurztest.js` only.
+Additive for the self-test: `js/auth.js` also exports `showLoginDialog({ closable })` and `closeLoginDialog()`, used by `js/kurztest.js` and `js/rueckmeldungen.js` only.
 
 ## Single sign-on from the Lernportal (`js/sso.js`, callable `boxSsoToken`)
 
@@ -165,6 +231,7 @@ The student page tells its host page how much was written, so that publish.js (�
 - `lengths` has one entry per question: the length of the trimmed plain text. Never the text itself, no name, no uid. `acct` is the first 12 hex characters of SHA-256(uid) for a signed-in student, null for a guest (same tag as the self-test bridge), so publish.js drops ticks that belong to another account on a shared computer.
 - The page posts only to the host page's own origin (`location.ancestorOrigins[0]`, else the referrer's origin, else `?parent=`), and only if it is `https://lehrmittel.aburossi.ch` or a local `http://localhost:*` / `http://127.0.0.1:*` origin while the page itself runs locally. Never `"*"`. Without such a host page nothing is sent.
 - publish.js handles the message only if `event.origin` is `https://allgemeinbildung.github.io` **and** `event.source` is one of the section's own `lms_box` iframes. A section counts as written when every question has at least `MIN_CHARS` (15) characters.
+- Optional `formativ: { direkt, verbessert, besser, offen, ohne }` (integers 0–50): the trail counts of this sub-assignment (see «Formative feedback»), `ohne` = questions with formativ but no feedback yet. Absent when the sub-assignment has no formativ or the status could not be read. Counts only, nothing else about the feedback. The Lernansicht shows them for the current step and keeps them with the «written» marks in localStorage, per account.
 - The height message (`lmsbox-height`, `js/embedHeight.js`) is older and still posts to `"*"`; it carries a number only.
 
 ## Mindmap editor (`js/mindmap.js`)

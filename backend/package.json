@@ -16,8 +16,11 @@
     "test:e2e:dashboard": "node scripts/emu.mjs emulators:exec --project interactive-media-2a1fc --only auth,firestore,functions \"node test/e2e-dashboard.mjs\"",
     "test:e2e:sso": "node scripts/emu.mjs emulators:exec --project interactive-media-2a1fc --only auth,firestore,functions \"node test/e2e-sso.mjs\"",
     "test:e2e:planer": "node scripts/emu.mjs emulators:exec --project interactive-media-2a1fc --only auth,firestore,functions \"node test/e2e-planer.mjs\"",
+    "test:e2e:rueckmeldungen": "node scripts/emu.mjs emulators:exec --project interactive-media-2a1fc --only auth,firestore,functions \"node test/e2e-rueckmeldungen.mjs\"",
+    "test:kosten": "node scripts/emu.mjs emulators:exec --project interactive-media-2a1fc --only firestore \"node --test test/kosten.test.mjs\"",
+    "kosten": "node scripts/kosten-bericht.mjs",
     "test:e2e:kurztest": "node scripts/emu.mjs emulators:exec --project interactive-media-2a1fc --only auth,firestore \"node test/e2e-kurztest.mjs\"",
-    "test:all": "npm run test:rules && npm run test:functions && npm run test:e2e:student && npm run test:e2e:kurztest && npm run test:e2e:sso && npm run test:e2e:dashboard",
+    "test:all": "npm run test:rules && npm run test:functions && npm run test:e2e:student && npm run test:e2e:kurztest && npm run test:e2e:sso && npm run test:e2e:dashboard && npm run test:e2e:rueckmeldungen && npm run test:kosten",
     "seed": "node scripts/seed-emulator.mjs",
     "test:sanitize": "node test/sanitize.test.mjs",
     "test:hko:rules": "node scripts/emu.mjs emulators:exec --config firebase.hko-test.json --project demo-hko --only firestore \"node --test test/hko-rules.test.mjs\"",
@@ -31,6 +34,7 @@
     "@firebase/rules-unit-testing": "5.0.2",
     "firebase": "12.19.0",
     "firebase-admin": "14.5.0",
+    "pg": "^8.13.1",
     "playwright-core": "1.64.0"
   }
 }

@@ -258,11 +258,101 @@ for (const S of STORES) {
             assert.equal(saved[SLOT].prompt_version, 'p-test');
         });
 
-        test('second request for the same field is refused and returns the stored result', async () => {
-            const { fake, req, deps } = setup(S, OK);
+        test('same text again is refused as unchanged, without a model call or a used attempt', async () => {
+            const { fake, store, req, deps, path } = setup(S, OK);
             await f.requestFeedback(req, deps);
-            await assert.rejects(f.requestFeedback(req, deps), (e) => e.code === 'already_used' && e.entry.result.kriterien.length === 1);
+            await assert.rejects(f.requestFeedback(req, deps), (e) => e.code === 'unchanged');
             assert.equal(fake.calls.length, 1);
+            assert.equal(f.attemptCount((await store.read(path)).data[SLOT]), 1);
+        });
+
+        test('a changed text gets a second feedback; the first moves to frueher[]', async () => {
+            let n = 0;
+            const second = { status: 200, data: { ...OK.data, kriterien: [{ ...OK.data.kriterien[0], status: 'erfuellt', hinweis: 'Gut.' }], meta: { request_id: 'r2', prompt_version: 'p-test' } } };
+            const { fake, store, req, deps, path, uid } = setup(S, () => (n++ === 0 ? OK : second));
+            const a = await f.requestFeedback(req, deps);
+            assert.deepEqual([a.versuch, a.max], [1, f.MAX_VERSUCHE]);
+            const b = await f.requestFeedback({ ...req, text: `${req.text}<p>Beide Parteien müssen zustimmen.</p>` }, deps);
+            assert.deepEqual([b.versuch, b.result.kriterien[0].status], [2, 'erfuellt']);
+            assert.equal(fake.calls.length, 2);
+            const saved = (await store.read(path)).data[SLOT];
+            assert.equal(saved.state, 'done');
+            assert.equal(saved.request_id, 'r2');
+            assert.equal(saved.pendingAt, undefined);
+            assert.equal(saved.frueher.length, 1);
+            assert.equal(saved.frueher[0].request_id, 'r1');
+            assert.equal(saved.frueher[0].state, undefined);
+            assert.notEqual(saved.frueher[0].textHash, saved.textHash);
+            // status: every attempt, oldest first, public part only
+            const s = (await f.status({ store, uid, assignmentId: AID }))[SLOT];
+            assert.deepEqual(s.versuche.map((v) => v.result.kriterien[0].status), ['teilweise', 'erfuellt']);
+            assert.deepEqual(Object.keys(s.versuche[0]).sort(), ['at', 'result']);
+            assert.equal(s.result.kriterien[0].status, 'erfuellt');
+            // teacher view: the earlier attempt with what was sent
+            const t = (await f.statusTeacher({ store, uid, assignmentId: AID }))[SLOT];
+            assert.equal(t.frueher.length, 1);
+            assert.ok(t.frueher[0].gesendet.includes('[Name]'));
+            // no attempt left
+            await assert.rejects(f.requestFeedback({ ...req, text: `${req.text}<p>Und noch etwas mehr Text.</p>` }, deps),
+                (e) => e.code === 'already_used' && e.entry.result.kriterien[0].status === 'erfuellt');
+            assert.equal(fake.calls.length, 2);
+        });
+
+        test('a technical failure on the second attempt keeps the first one as it was', async () => {
+            let n = 0;
+            const { store, req, deps, path } = setup(S, () => (n++ === 0 ? OK : DOWN));
+            await f.requestFeedback(req, deps);
+            const before = (await store.read(path)).data[SLOT];
+            await assert.rejects(f.requestFeedback({ ...req, text: `${req.text}<p>Neuer Satz.</p>` }, deps), (e) => e.code === 'unavailable');
+            assert.deepEqual((await store.read(path)).data[SLOT], before);
+        });
+
+        test('a failed try with a request_id is kept for the cost report; the student gets the attempt back', async () => {
+            const DOWN_ID = (id) => ({ status: 200, data: { ...DOWN.data, meta: { request_id: id } } });
+            let n = 0;
+            const replies = [DOWN_ID('rq-a'), OK, DOWN_ID('rq-b'), { ...OK, data: { ...OK.data, meta: { request_id: 'r2' } } }];
+            const { fake, store, req, deps, path, uid } = setup(S, () => replies[n++]);
+            await assert.rejects(f.requestFeedback(req, deps), (e) => e.code === 'unavailable');
+            let slot = (await store.read(path)).data[SLOT];
+            assert.deepEqual([slot.state, slot.ausfaelle.map((a) => a.request_id)], ['frei', ['rq-a']]);
+            assert.deepEqual(await f.status({ store, uid, assignmentId: AID }), {}, 'nothing for the student');
+            // the first real feedback keeps the failed try
+            await f.requestFeedback(req, deps);
+            slot = (await store.read(path)).data[SLOT];
+            assert.deepEqual([slot.state, f.attemptCount(slot), slot.ausfaelle.map((a) => a.request_id)], ['done', 1, ['rq-a']]);
+            // a failed second try: still one attempt, two failed tries noted
+            const changed = { ...req, text: `${req.text}<p>Mehr Text dazu.</p>` };
+            await assert.rejects(f.requestFeedback(changed, deps), (e) => e.code === 'unavailable');
+            slot = (await store.read(path)).data[SLOT];
+            assert.deepEqual([f.attemptCount(slot), slot.pendingAt, slot.ausfaelle.map((a) => a.request_id)], [1, undefined, ['rq-a', 'rq-b']]);
+            await f.requestFeedback(changed, deps);
+            slot = (await store.read(path)).data[SLOT];
+            assert.deepEqual([f.attemptCount(slot), slot.frueher[0].ausfaelle, slot.ausfaelle.length], [2, undefined, 2]);
+            assert.equal(fake.calls.length, 4);
+            assert.equal((await f.statusTeacher({ store, uid, assignmentId: AID }))[SLOT].ausfaelle, 2);
+            assert.ok(!('ausfaelle' in (await f.status({ store, uid, assignmentId: AID }))[SLOT]), 'the student sees no failed tries');
+        });
+
+        test('an entry written before attempts existed counts as attempt 1', async () => {
+            const { fake, store, req, deps, path, uid } = setup(S, OK);
+            const old = { state: 'done', at: '2026-10-01T08:00:00.000Z', textHash: 'abc', result: OK.data && { zustand: 'vollstaendig', kriterien: [] } };
+            await store.write(path, { [SLOT]: old }, 0);
+            assert.deepEqual((await f.status({ store, uid, assignmentId: AID }))[SLOT].versuche, [{ at: old.at, result: old.result }]);
+            await f.requestFeedback(req, deps);
+            assert.equal(fake.calls.length, 1);
+            const saved = (await store.read(path)).data[SLOT];
+            assert.equal(saved.frueher[0].at, old.at);
+        });
+
+        test('a running second request blocks the slot; status says pending', async () => {
+            const { fake, store, req, deps, path, uid } = setup(S, OK);
+            await f.requestFeedback(req, deps);
+            const { data, generation } = await store.read(path);
+            data[SLOT].pendingAt = new Date().toISOString();
+            await store.write(path, data, generation);
+            await assert.rejects(f.requestFeedback({ ...req, text: `${req.text}<p>Neu.</p>` }, deps), (e) => e.code === 'conflict');
+            assert.equal(fake.calls.length, 1);
+            assert.equal((await f.status({ store, uid, assignmentId: AID }))[SLOT].pending, true);
         });
 
         test('two parallel clicks: exactly one reaches formativ', async () => {
@@ -290,8 +380,8 @@ for (const S of STORES) {
                 assert.deepEqual(Object.keys(saved), [SLOT]);
                 assert.equal(saved[SLOT].state, 'done');
                 assert.deepEqual(saved[SLOT].result, won[0].value.result);
-                // and it stays closed afterwards
-                await assert.rejects(f.requestFeedback(req, deps), (e) => e.code === 'already_used');
+                // and the same text stays closed afterwards
+                await assert.rejects(f.requestFeedback(req, deps), (e) => e.code === 'unchanged');
                 assert.equal(fake.calls.length, 1);
             }
         });
@@ -364,7 +454,7 @@ for (const S of STORES) {
         test('a fresh pending reservation blocks a second call', async () => {
             const { fake, store, req, deps, path } = setup(S, OK);
             await store.write(path, { [SLOT]: { state: 'pending', at: new Date().toISOString() } }, 0);
-            await assert.rejects(f.requestFeedback(req, deps), (e) => e.code === 'already_used');
+            await assert.rejects(f.requestFeedback(req, deps), (e) => e.code === 'conflict');
             assert.equal(fake.calls.length, 0);
         });
 
@@ -537,7 +627,7 @@ test.describe('callables through the functions emulator', { skip: SKIP || (proce
 
     test.after(async () => { await model?.close(); });
 
-    test('student on the roster: feedback once, then refused with the stored result', async () => {
+    test('student on the roster: two feedbacks for changed text, then refused with the latest result', async () => {
         const anna = await signUp('anna');
         await adminDbs().roster.doc(`students/${anna.uid}`).set({ name: 'Anna Beispiel', username: 'anna.beispiel', classId: 'TestA', active: true });
         const data = { assignmentId: IAID, subId: SUB, questionId: 'q1', text: TEXT };
@@ -567,21 +657,36 @@ test.describe('callables through the functions emulator', { skip: SKIP || (proce
         assert.equal(slot.pseudonym, f.pseudonym(anna.uid, 'emulator-only-dummy'));
         assert.deepEqual(slot.result, first.result.result);
 
-        // second request
-        const second = await call('boxFormativ', { ...data, text: `${TEXT}<p>Noch ein Satz dazu.</p>` }, anna.token);
-        assert.equal(second.http, 409, JSON.stringify(second));
-        assert.equal(second.error.status, 'ALREADY_EXISTS');
-        assert.equal(second.error.details.code, 'already_used');
-        assert.deepEqual(second.error.details.result, first.result.result);
+        // same text again: unchanged, nothing sent
+        const same = await call('boxFormativ', data, anna.token);
+        assert.equal(same.error.status, 'FAILED_PRECONDITION', JSON.stringify(same));
+        assert.equal(same.error.details.code, 'unchanged');
         assert.equal(callsFor('q1').length, 1);
 
-        // status: public part only
+        // second request with a changed text
+        const second = await call('boxFormativ', { ...data, text: `${TEXT}<p>Noch ein Satz dazu.</p>` }, anna.token);
+        assert.equal(second.http, 200, JSON.stringify(second));
+        assert.equal(second.result.versuch, 2);
+        assert.equal(callsFor('q1').length, 2);
+
+        // third: no attempt left
+        const third = await call('boxFormativ', { ...data, text: `${TEXT}<p>Und ein dritter Satz.</p>` }, anna.token);
+        assert.equal(third.http, 409, JSON.stringify(third));
+        assert.equal(third.error.status, 'ALREADY_EXISTS');
+        assert.equal(third.error.details.code, 'already_used');
+        assert.deepEqual(third.error.details.result, second.result.result);
+        assert.equal(callsFor('q1').length, 2);
+
+        // status: public part only, both attempts
         const status = await call('boxFormativStatus', { assignmentId: IAID }, anna.token);
         assert.equal(status.http, 200, JSON.stringify(status));
-        assert.deepEqual(Object.keys(status.result), ['slots']);
+        assert.deepEqual(Object.keys(status.result).sort(), ['max', 'slots']);
+        assert.equal(status.result.max, f.MAX_VERSUCHE);
         const st = status.result.slots[f.slotKey(SUB, 'q1')];
-        assert.deepEqual(Object.keys(st).sort(), ['at', 'result', 'state']);
-        assert.deepEqual(st.result, first.result.result);
+        assert.deepEqual(Object.keys(st).sort(), ['at', 'result', 'state', 'versuche']);
+        assert.deepEqual(st.result, second.result.result);
+        assert.deepEqual(st.versuche.map((v) => v.result), [first.result.result, second.result.result]);
+        assert.ok(!JSON.stringify(status.result).includes('gesendet') && !JSON.stringify(status.result).includes('textHash'));
 
         // errors keep their code
         const short = await call('boxFormativ', { ...data, questionId: 'q2', text: 'zu kurz' }, anna.token);
@@ -600,7 +705,7 @@ test.describe('callables through the functions emulator', { skip: SKIP || (proce
         const results = await Promise.all(Array.from({ length: 8 }, () => call('boxFormativ', data, ben.token)));
         assert.equal(results.filter((r) => r.http === 200).length, 1, JSON.stringify(results.map((r) => r.http)));
         for (const r of results.filter((x) => x.http !== 200)) {
-            assert.ok(['already_used', 'conflict'].includes(r.error.details?.code), JSON.stringify(r));
+            assert.ok(['already_used', 'conflict', 'unchanged'].includes(r.error.details?.code), JSON.stringify(r));
         }
         assert.equal(callsFor('q2').length - before, 1);
         const doc = (await adminDbs().box.doc(`formativUsage/${ben.uid}__${encodeURIComponent(IAID)}`).get()).data();

@@ -1,0 +1,26 @@
+{
+  "_hinweis": "Preise für den Gemini-Evaluator (der Gemini-Dienst meldet nur Token, keinen Betrag). formativ braucht diese Tabelle nicht: OpenRouter meldet den belasteten Betrag selbst. Schlüssel = Anfang der model_version, die Gemini zurückgibt; der längste passende gewinnt. Preise in USD pro 1 Million Token, Ausgabe einschliesslich Denk-Token. Vor jedem Bericht prüfen, ob die Preise noch stimmen.",
+  "stand": "2026-10-23",
+  "quelle": "https://ai.google.dev/gemini-api/docs/pricing (Paid Tier, Standard, Text)",
+  "modelle": {
+    "gemini-4-argon": [
+      { "bis": "2026-11-30", "eingabe": 2.0, "ausgabe": 10.0 },
+      { "ab": "2026-12-01", "eingabe": 4.0, "ausgabe": 20.0 }
+    ],
+    "gemini-3.8-flash": [
+      { "bis": "2026-12-31", "eingabe": 0.75, "ausgabe": 3.75 },
+      { "ab": "2027-01-01", "eingabe": 1.5, "ausgabe": 7.5 }
+    ],
+    "gemini-3.6-flash": [
+      { "bis": "2026-12-31", "eingabe": 0.75, "ausgabe": 3.75 },
+      { "ab": "2027-01-01", "eingabe": 1.5, "ausgabe": 7.5 }
+    ],
+    "gemini-3.5-flash-lite": [{ "eingabe": 0.3, "ausgabe": 2.5 }],
+    "gemini-3.1-flash-lite": [{ "eingabe": 0.25, "ausgabe": 1.5 }],
+    "gemini-3.1-pro": [{ "eingabe": 2.0, "ausgabe": 12.0, "_hinweis": "bis 200k Token Eingabe" }],
+    "gemini-3-flash": [{ "eingabe": 0.5, "ausgabe": 3.0 }],
+    "gemini-2.5-pro": [{ "eingabe": 1.25, "ausgabe": 10.0, "_hinweis": "bis 200k Token Eingabe" }],
+    "gemini-2.5-flash-lite": [{ "eingabe": 0.1, "ausgabe": 0.4 }],
+    "gemini-2.5-flash": [{ "eingabe": 0.3, "ausgabe": 2.5 }]
+  }
+}

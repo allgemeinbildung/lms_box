@@ -2,8 +2,9 @@
 //
 // Rules this module enforces (Router §4, formativ KONZEPT §6/§9):
 //   - only logged-in students (the caller has already checked the roster doc of the uid);
-//   - one feedback per Quill field and student; a technical failure gives the
-//     attempt back, because an outage must not lock anyone out;
+//   - at most MAX_VERSUCHE feedbacks per Quill field and student, a further one
+//     only for a changed text; a technical failure gives the attempt back,
+//     because an outage must not lock anyone out (CONTRACT.md, «Formative feedback»);
 //   - the rubric comes from the assignment on the server, never from the client;
 //   - no name, key or class goes to formativ. The student's own name is also
 //     masked inside the text — that lowers the risk, it does not anonymise.
@@ -16,6 +17,8 @@ const MAX_CHARS = 16000;
 const NAME_MASK = '[Name]';
 // A reservation older than this belongs to a crashed call and is free again.
 const PENDING_TTL_MS = 2 * 60 * 1000;
+// Feedbacks per field and student (CONTRACT.md, «Formative feedback: attempts, trail, overview»).
+const MAX_VERSUCHE = 2;
 
 // Codes in formativ SCHEMA §3 that describe the service, not the text.
 const TECHNICAL_REASONS = new Set(['modell_ausfall', 'zeit_ueberschritten', 'antwort_unbrauchbar', 'antwort_abgeschnitten']);
@@ -215,17 +218,58 @@ function usagePath(uid, assignmentId) {
     return `${USAGE_COLLECTION}/${uid}__${encodeURIComponent(assignmentId)}`;
 }
 
-async function reserve(store, path, key) {
+/** Attempts stored in a done entry: the latest (flat) plus `frueher[]`. */
+function attemptCount(entry) {
+    if (!entry || entry.state !== 'done') return 0;
+    return 1 + (Array.isArray(entry.frueher) ? entry.frueher.length : 0);
+}
+
+/** One attempt as it is kept in `frueher[]`: the entry without its bookkeeping. */
+function attemptOf(entry) {
+    const { state, frueher, pendingAt, ausfaelle, ...attempt } = entry;
+    return attempt;
+}
+
+// Technically failed tries that reached the model (the student gets the attempt back, the
+// model call still costs): kept with formativ's request_id for the cost report, nothing else.
+// CONTRACT.md, «Formative feedback» and «Cost report». Capped so a long outage stays small.
+const MAX_AUSFAELLE = 20;
+const ausfaelleOf = (entry) => (Array.isArray(entry?.ausfaelle) ? entry.ausfaelle : []);
+
+const isFresh = (iso) => Boolean(iso) && Date.now() - Date.parse(iso) <= PENDING_TTL_MS;
+
+/**
+ * Blocks the slot for one request. Returns { reserved: true, previous } — `previous`
+ * is the done entry before this attempt, or null for the first — or
+ * { reserved: false, reason, entry } with reason 'conflict' (a request is running),
+ * 'already_used' (no attempt left) or 'unchanged' (same text as the latest attempt).
+ */
+async function reserve(store, path, key, { textHash = null, max = MAX_VERSUCHE } = {}) {
     for (let attempt = 0; attempt < 3; attempt += 1) {
         const { data, generation } = await store.read(path);
         const usage = data || {};
         const existing = usage[key];
-        const stale = existing?.state === 'pending' && Date.now() - Date.parse(existing.at) > PENDING_TTL_MS;
-        if (existing && !stale) return { reserved: false, entry: existing };
-        usage[key] = { state: 'pending', at: new Date().toISOString() };
+        const now = new Date().toISOString();
+        let next;
+        if (existing?.state === 'pending' && isFresh(existing.at)) {
+            return { reserved: false, reason: 'conflict', entry: existing };
+        }
+        if (existing?.state === 'done') {
+            if (isFresh(existing.pendingAt)) return { reserved: false, reason: 'conflict', entry: existing };
+            if (attemptCount(existing) >= max) return { reserved: false, reason: 'already_used', entry: existing };
+            if (textHash && existing.textHash === textHash) return { reserved: false, reason: 'unchanged', entry: existing };
+            next = { ...existing, pendingAt: now };
+        } else {
+            // nothing yet, a stale reservation of a crashed call, or only failed tries ('frei')
+            next = { state: 'pending', at: now };
+            if (ausfaelleOf(existing).length) next.ausfaelle = ausfaelleOf(existing);
+        }
+        usage[key] = next;
         try {
             await store.write(path, usage, generation);
-            return { reserved: true };
+            if (existing?.state !== 'done') return { reserved: true, previous: null, ausfaelle: ausfaelleOf(existing) };
+            const { pendingAt, ...previous } = existing;
+            return { reserved: true, previous, ausfaelle: ausfaelleOf(existing) };
         } catch (e) {
             if (e.code !== 'precondition') throw e;
         }
@@ -248,13 +292,23 @@ async function settle(store, path, key, entry) {
     }
 }
 
-/** Status for all fields of one assignment, so the page can render used buttons. */
+/**
+ * Status for all fields of one assignment, so the page can show every feedback the
+ * field got and whether an attempt is left. Only `at` and the public result leave.
+ */
 async function status({ store, uid, assignmentId }) {
     const { data } = await store.read(usagePath(uid, assignmentId));
     const out = {};
     for (const [key, entry] of Object.entries(data || {})) {
-        if (entry.state === 'done') out[key] = { state: 'done', at: entry.at, result: entry.result };
-        else if (entry.state === 'pending') out[key] = { state: 'pending', at: entry.at };
+        if (entry.state === 'done') {
+            const versuche = [...(Array.isArray(entry.frueher) ? entry.frueher : []), entry]
+                .map((a) => ({ at: a.at, result: a.result }));
+            out[key] = { state: 'done', at: entry.at, result: entry.result, versuche };
+            if (isFresh(entry.pendingAt)) out[key].pending = true;
+        } else if (entry.state === 'pending') {
+            out[key] = { state: 'pending', at: entry.at };
+        }
+        // state 'frei' (only failed tries): nothing for the student
     }
     return out;
 }
@@ -269,11 +323,12 @@ async function statusTeacher({ store, uid, assignmentId }) {
     const out = {};
     for (const [key, e] of Object.entries(data || {})) {
         if (e.state !== 'done') continue;
-        out[key] = {
-            at: e.at, result: e.result, gesendet: e.gesendet ?? null,
-            prompt_version: e.prompt_version ?? null, rubrik_version: e.rubrik_version ?? null,
-            names_masked: e.names_masked ?? 0,
-        };
+        const view = (a) => ({
+            at: a.at, result: a.result, gesendet: a.gesendet ?? null,
+            prompt_version: a.prompt_version ?? null, rubrik_version: a.rubrik_version ?? null,
+            names_masked: a.names_masked ?? 0,
+        });
+        out[key] = { ...view(e), frueher: (Array.isArray(e.frueher) ? e.frueher : []).map(view), ausfaelle: ausfaelleOf(e).length };
     }
     return out;
 }
@@ -304,12 +359,20 @@ async function requestFeedback({ uid, studentInfo, assignmentId, subId, question
 
     const path = usagePath(uid, assignmentId);
     const key = slotKey(subId, questionId);
-    const reservation = await reserve(deps.store, path, key);
+    const max = deps.maxVersuche ?? MAX_VERSUCHE;
+    const textHash = crypto.createHash('sha256').update(plain).digest('hex').slice(0, 16);
+    const reservation = await reserve(deps.store, path, key, { textHash, max });
     if (!reservation.reserved) {
-        const e = new FormativError('Für diese Frage hast du die Rückmeldung bereits erhalten.', 'already_used', 409);
-        e.entry = reservation.entry;
+        const MESSAGES = {
+            already_used: 'Für diese Frage hast du alle Rückmeldungen erhalten.',
+            unchanged: 'Überarbeite zuerst deine Antwort: Sie ist gleich wie bei der letzten Rückmeldung.',
+            conflict: 'Eine Rückmeldung wird gerade erstellt. Warte einen Moment und lade die Seite neu.',
+        };
+        const e = new FormativError(MESSAGES[reservation.reason], reservation.reason, 409);
+        if (reservation.reason === 'already_used') e.entry = reservation.entry;
         throw e;
     }
+    const previous = reservation.previous;
 
     const started = Date.now();
     const { status: httpStatus, data, error } = await callFormativ(body, deps.formativ);
@@ -317,7 +380,17 @@ async function requestFeedback({ uid, studentInfo, assignmentId, subId, question
 
     // No verdict or a purely technical one: give the attempt back.
     if (httpStatus !== 200 || !data || isTechnicalFailure(data)) {
-        await settle(deps.store, path, key, null);
+        // Back to before the click (null deletes). A try that reached the model and has
+        // formativ's request_id is noted in `ausfaelle`, so the cost report can count it.
+        const rid = typeof data?.meta?.request_id === 'string' ? data.meta.request_id.slice(0, 100) : null;
+        let restored = previous;
+        if (rid) {
+            restored = previous ? { ...previous } : { state: 'frei' };
+            restored.ausfaelle = [...reservation.ausfaelle, { at: new Date().toISOString(), request_id: rid }].slice(-MAX_AUSFAELLE);
+        } else if (!previous && reservation.ausfaelle.length) {
+            restored = { state: 'frei', ausfaelle: reservation.ausfaelle };
+        }
+        await settle(deps.store, path, key, restored);
         const quota = httpStatus === 429;
         throw new FormativError(
             quota ? 'Das Tageskontingent ist erreicht. Versuche es später wieder.'
@@ -327,10 +400,11 @@ async function requestFeedback({ uid, studentInfo, assignmentId, subId, question
     }
 
     const result = publicResult(data);
+    const frueher = previous ? [...(Array.isArray(previous.frueher) ? previous.frueher : []), attemptOf(previous)] : [];
     await settle(deps.store, path, key, {
         state: 'done',
         at: new Date().toISOString(),
-        textHash: crypto.createHash('sha256').update(plain).digest('hex').slice(0, 16),
+        textHash,
         rubrik_version: body.rubrik_version,
         request_id: data.meta?.request_id ?? null,
         // Which system prompt produced this feedback (formativ PROMPT-VERLAUF.md).
@@ -341,8 +415,10 @@ async function requestFeedback({ uid, studentInfo, assignmentId, subId, question
         // Exactly what went to the model (own name masked), for the teacher.
         gesendet: body.antwort,
         result,
+        ...(frueher.length ? { frueher } : {}),
+        ...(reservation.ausfaelle.length ? { ausfaelle: reservation.ausfaelle } : {}),
     });
-    return { status: 'success', result };
+    return { status: 'success', result, versuch: frueher.length + 1, max };
 }
 
 /** GCS-backed store with generation preconditions. */
@@ -420,5 +496,5 @@ module.exports = {
     FormativError, htmlToText, stripMarkdown, maskOwnName, pseudonym, slotKey, findQuestion,
     autoRubrik, formativConfig, AUTO_RUBRIK_VERSION, statusTeacher,
     buildRequest, isTechnicalFailure, publicResult, callFormativ, requestFeedback, status, gcsStore, firestoreStore, usagePath,
-    MIN_WORDS,
+    MIN_WORDS, MAX_VERSUCHE, attemptCount,
 };

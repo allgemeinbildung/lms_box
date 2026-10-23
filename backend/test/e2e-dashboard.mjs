@@ -398,52 +398,71 @@ try {
         assert.deepEqual(Object.keys(d).sort(), ['answers', 'assignmentId', 'classId', 'questions', 'subId', 'title', 'type', 'uid', 'updatedAt']);
     });
 
-    await step('(c) formativ through the real callable: shown to Anna, second request refused, teacher sees entry and sent text', async () => {
-        await ap.locator('.formativ-button').first().click();
+    await step('(c) formativ through the real callable: two feedbacks for Anna, unchanged and third refused, teacher sees both', async () => {
+        const button = ap.locator('.formativ-button').first();
+        assert.equal(await button.innerText(), 'Rückmeldung holen (1 von 2)');
+        await button.click();
         await ap.locator('.formativ-panel', { hasText: 'Simulierter Hinweis' }).first().waitFor();
-        assert.equal(await ap.locator('.formativ-button').first().isDisabled(), true);
-        assert.equal(await ap.locator('.formativ-button').first().innerText(), 'Rückmeldung erhalten');
+        assert.equal(await button.isDisabled(), false, 'a second attempt is left');
+        assert.equal(await button.innerText(), 'Zweite Rückmeldung holen (2 von 2)');
         assert.equal(await ap.locator('.formativ-button').count(), 1, 'only q1 has formativ switched on');
+        assert.equal(await ap.locator('.formativ-panel .formativ-marks').count(), 1, 'the trail is shown');
 
         assert.equal(model.calls.length, 1);
         const sent = model.calls[0].body;
         assert.equal(sent.antwort, TEXT_1 + TEXT_2);
         assert.doesNotMatch(JSON.stringify(sent), /Anna|Beispiel|seed-anna|TestA/, 'the model request carries no name, uid or class');
 
-        // a second request for the same field, straight at the callable: refused, the model is not asked again
-        const second = await ap.evaluate(async ([a, s]) => {
-            const api = await import('/js/api.js');
-            try { await api.requestFormativ(a, s, 'q1', '<p>Ein zweiter Versuch mit genug vielen Wörtern, damit die Mindestzahl von fünfzehn Wörtern sicher erreicht ist.</p>'); return { accepted: true }; }
-            catch (e) { return { code: e.code, status: e.status, hasResult: Boolean(e.result?.kriterien?.length) }; }
-        }, [A, SUB]);
-        assert.deepEqual(second, { code: 'already_used', status: 'functions/already-exists', hasResult: true });
+        // the same text again from the page: refused as unchanged, nothing sent, the button stays usable
+        await button.click();
+        await ap.locator('.formativ-live', { hasText: 'Überarbeite zuerst' }).first().waitFor();
         assert.equal(model.calls.length, 1);
+        assert.equal(await button.isDisabled(), false);
 
-        // after a reload the page knows it from boxFormativStatus
+        // a changed text, straight at the callable (the draft stays as it is for the steps below)
+        const call = (text) => ap.evaluate(async ([a, s, t]) => {
+            const api = await import('/js/api.js');
+            try { await api.requestFormativ(a, s, 'q1', t); return { accepted: true }; }
+            catch (e) { return { code: e.code, status: e.status, hasResult: Boolean(e.result?.kriterien?.length) }; }
+        }, [A, SUB, text]);
+        assert.deepEqual(await call('<p>Ein zweiter Versuch mit genug vielen Wörtern, damit die Mindestzahl von fünfzehn Wörtern sicher erreicht ist.</p>'), { accepted: true });
+        assert.equal(model.calls.length, 2);
+        // a third: no attempt left, the model is not asked again
+        assert.deepEqual(await call('<p>Ein dritter Versuch mit genug vielen Wörtern, damit die Mindestzahl von fünfzehn Wörtern sicher erreicht ist.</p>'),
+            { code: 'already_used', status: 'functions/already-exists', hasResult: true });
+        assert.equal(model.calls.length, 2);
+
+        // after a reload the page shows both from boxFormativStatus: the latest open, the first folded
         const text = await reloadStudent(ap, TEXT_1);
         assert.match(text, /Simulierter Hinweis/);
-        assert.equal(await ap.locator('.formativ-button').first().isDisabled(), true);
+        assert.equal(await button.isDisabled(), true);
+        assert.equal(await button.innerText(), 'Beide Rückmeldungen erhalten');
+        assert.match(await ap.locator('.formativ-panel .formativ-head').first().innerText(), /^2\. Rückmeldung/);
+        assert.equal(await ap.locator('.formativ-panel details.formativ-earlier').count(), 1);
+        assert.match(await ap.locator('.formativ-panel details.formativ-earlier summary').innerText(), /^1\. Rückmeldung/);
 
         const usage = await docData(`formativUsage/${pairId(ANNA)}`);
         assert.equal(usage.uid, ANNA);
         assert.equal(usage.assignmentId, A);
         assert.deepEqual(Object.keys(usage.slots), [`${SUB}::q1`]);
         assert.equal(usage.slots[`${SUB}::q1`].state, 'done');
+        assert.equal(usage.slots[`${SUB}::q1`].frueher.length, 1);
         assert.doesNotMatch(JSON.stringify(usage), /Anna|Beispiel/, 'no name in formativUsage');
 
-        // the teacher: entry under Anna's answer, with the text that went to the model
+        // the teacher: both entries under Anna's answer, each with the text that went to the model
         await tp.locator('#refresh-btn').click();
         const entry = card(tp, 'Anna Beispiel').locator('.formativ-teacher');
-        await entry.waitFor({ state: 'attached' });
-        assert.equal(await entry.count(), 1);
-        const entryText = await entry.evaluate((e) => e.textContent);
-        assert.match(entryText, /formativ-Rückmeldung an die lernende Person/);
+        await entry.first().waitFor({ state: 'attached' });
+        assert.equal(await entry.count(), 2);
+        const entryText = await entry.first().evaluate((e) => e.textContent);
+        assert.match(entryText, /1\. formativ-Rückmeldung an die lernende Person/);
         assert.match(entryText, /◐ teilweise/);
         assert.match(entryText, /Simulierter Hinweis/);
         assert.match(entryText, /An das Modell gesendeter Text/);
-        assert.ok(entryText.includes(TEXT_1 + TEXT_2), 'the sent text is shown');
+        assert.ok(entryText.includes(TEXT_1 + TEXT_2), 'the sent text of the first attempt is shown');
         assert.match(entryText, /Prompt: fake-v1/);
-        assert.equal(await card(tp, 'Anna Beispiel').locator('.formativ-count-badge').innerText(), '💬 1');
+        assert.match(await entry.nth(1).evaluate((e) => e.textContent), /2\. formativ-Rückmeldung.*Ein zweiter Versuch/s);
+        assert.equal(await card(tp, 'Anna Beispiel').locator('.formativ-count-badge').innerText(), '💬 2');
         assert.equal(await card(tp, 'Ben Muster').locator('.formativ-teacher').count(), 0);
 
         // paste hints: an entry under Anna's answer, the excerpt as text only, nothing for Ben
@@ -889,7 +908,7 @@ try {
         assert.equal(await tp.locator('.student-card').count(), 0);
     });
 
-    assert.equal(model.calls.length, 1, 'the model was asked exactly once');
+    assert.equal(model.calls.length, 2, 'the model was asked exactly twice: first and second feedback for Anna');
     assert.deepEqual(blocked, [], 'a page requested a host other than the emulators, the fakes and the two CDNs');
 } catch (e) {
     failed = true;

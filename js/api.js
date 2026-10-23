@@ -212,10 +212,13 @@ async function call(name, payload) {
     }
 }
 
-/** Which questions of this assignment already used their formativ feedback. */
+/**
+ * The formativ feedback of this assignment per field, and how many attempts a field
+ * allows (`max`; 1 from a function older than 23.10.2026, which did not send it).
+ */
 export async function getFormativStatus(assignmentId) {
     const data = await call('boxFormativStatus', { assignmentId });
-    return { slots: data?.slots || {} };
+    return { slots: data?.slots || {}, max: Number.isInteger(data?.max) ? data.max : 1 };
 }
 
 /**

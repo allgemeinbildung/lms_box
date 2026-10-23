@@ -2,96 +2,40 @@
 //  js/formativ.js — "Rückmeldung holen" under each Quill editor.
 //
 //  Shown only for questions that carry a rubric (question.formativ) and only
-//  to logged-in students. One feedback per field: the server enforces it, the
-//  page only mirrors it. The result is feedback, never a score.
+//  to logged-in students. Up to `max` feedbacks per field (2), a further one
+//  only after the text changed: the server enforces it, the page only mirrors
+//  it. All feedback of the field stays visible, the latest open. The result is
+//  feedback, never a score. Contract: backend/CONTRACT.md, «Formative feedback».
 //
 import { getFormativStatus, requestFormativ } from './api.js';
-
-const STATUS = {
-    erfuellt:          { icon: '✓', text: 'erfüllt',           cls: 'ok' },
-    teilweise:         { icon: '◐', text: 'teilweise',         cls: 'part' },
-    fehlt:             { icon: '✗', text: 'fehlt',             cls: 'miss' },
-    nicht_beurteilbar: { icon: '–', text: 'nicht beurteilbar', cls: 'na' },
-};
+import { attemptsOf, renderAttempts, addQuestion, emptyCounts, announce, el } from './formativ-trail.js';
+import { setFormativCounts } from './progress.js';
 
 const sanitize = (s) => String(s).replace(/[^a-zA-Z0-9-_]/g, '-');
 const slotKey = (subId, questionId) => `${subId}::${questionId}`;
 
-function el(tag, cls, text) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text !== undefined) e.textContent = text; // never innerHTML: feedback is text (KONZEPT §7.5)
-    return e;
-}
-
-function formatTime(iso) {
-    try {
-        return new Date(iso).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    } catch { return ''; }
-}
-
-/** The service returns a word-for-word quote from the answer as evidence. It helps
- *  when it points at one part of a longer answer; when it is (nearly) the whole
- *  answer it only repeats what stands right above. Unknown answer: show it. */
-const QUOTE_MAX_SHARE = 0.6;
 /** Same minimum as MIN_WORDS in backend/functions/formativ.js, which enforces it. */
 const MIN_WORDS = 15;
-function quoteIsPartOfAnswer(quote, answerText) {
-    const norm = (t) => String(t || '').replace(/\s+/g, ' ').trim();
-    const answer = norm(answerText);
-    if (!answer) return true;
-    return norm(quote).length < answer.length * QUOTE_MAX_SHARE;
-}
-
-function renderResult(panel, result, at, answerText) {
-    panel.replaceChildren();
-    const head = el('div', 'formativ-head', 'Rückmeldung zu deiner Antwort');
-    if (at) head.appendChild(el('span', 'formativ-time', ` · ${formatTime(at)}`));
-    panel.appendChild(head);
-
-    if (result.zustand === 'nicht_verfuegbar') {
-        panel.appendChild(el('p', 'formativ-note', 'Zu dieser Antwort konnte keine Rückmeldung erstellt werden.'));
-        return;
-    }
-
-    const list = el('ul', 'formativ-list');
-    for (const k of result.kriterien || []) {
-        const st = STATUS[k.status] || STATUS.nicht_beurteilbar;
-        const li = el('li', `formativ-item formativ-${st.cls}`);
-        // Status and hint on one line; the criterion label is not shown (it
-        // only repeated the question right above).
-        const line = el('div', 'formativ-line');
-        line.appendChild(el('span', 'formativ-badge', `${st.icon} ${st.text}`));
-        if (k.hinweis) line.appendChild(el('span', 'formativ-hint', k.hinweis));
-        li.appendChild(line);
-        if (k.beleg && quoteIsPartOfAnswer(k.beleg, answerText)) {
-            li.appendChild(el('div', 'formativ-quote', `«${k.beleg}»`));
-        }
-        list.appendChild(li);
-    }
-    panel.appendChild(list);
-    panel.appendChild(el('p', 'formativ-foot', 'Die Rückmeldung ist ein Hinweis zum Weiterarbeiten, keine Note. Sie bezieht sich auf deinen Text zum Zeitpunkt der Anfrage.'));
-}
 
 /** Scrolls the page's own container so the panel is visible. Deliberately not
  *  scrollIntoView(): inside an iframe that can also scroll the host page. */
-function revealInContainer(el) {
+function revealInContainer(node) {
     const box = document.getElementById('assignment-container');
     if (!box) return;
-    const bottom = el.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom;
+    const bottom = node.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom;
     if (bottom > 0) box.scrollTop += bottom + 12;
 }
 
-function attach({ question, subId, assignmentId, slot }) {
+function attach({ question, subId, assignmentId, slot, max, onChange }) {
     const editorDiv = document.getElementById(`quill-editor-${sanitize(subId)}-${sanitize(question.id)}`);
     const block = editorDiv?.closest('.question-block');
     const quill = editorDiv && window.Quill ? window.Quill.find(editorDiv) : null;
-    if (!block || !quill) return;
+    if (!block || !quill) return null;
 
     const wrap = el('div', 'formativ');
     const button = el('button', 'formativ-button', 'Rückmeldung holen');
     button.type = 'button';
-    const info = el('span', 'formativ-info', 'Nur einmal pro Frage möglich.');
+    const info = el('span', 'formativ-info');
     const live = el('div', 'formativ-live');
     live.setAttribute('role', 'status');
     live.setAttribute('aria-live', 'polite');
@@ -101,22 +45,36 @@ function attach({ question, subId, assignmentId, slot }) {
     wrap.append(bar, live, panel);
     block.appendChild(wrap);
 
-    const markUsed = () => {
-        button.disabled = true;
-        button.textContent = 'Rückmeldung erhalten';
-        info.textContent = '';
-    };
+    const field = { attempts: attemptsOf(slot), exhausted: false };
 
-    if (slot?.state === 'done') {
-        markUsed();
-        renderResult(panel, slot.result, slot.at, quill.getText());
-        return;
+    /** Button and info line from the number of attempts. */
+    function renderButton() {
+        const n = field.exhausted ? max : field.attempts.length;
+        button.disabled = n >= max;
+        if (n === 0) {
+            button.textContent = max > 1 ? `Rückmeldung holen (1 von ${max})` : 'Rückmeldung holen';
+            info.textContent = max > 1 ? `Bis zu ${max} Rückmeldungen pro Frage, die nächste nach dem Überarbeiten.` : 'Nur einmal pro Frage möglich.';
+        } else if (n < max) {
+            button.textContent = `${n === 1 ? 'Zweite' : `${n + 1}.`} Rückmeldung holen (${n + 1} von ${max})`;
+            info.textContent = 'Überarbeite deine Antwort mit der Rückmeldung, dann hol die nächste.';
+        } else {
+            button.textContent = max === 2 ? 'Beide Rückmeldungen erhalten' : 'Alle Rückmeldungen erhalten';
+            info.textContent = '';
+        }
     }
-    if (slot?.state === 'pending') {
+
+    function renderPanel() {
+        renderAttempts(panel, field.attempts, { max, answerText: quill.getText() });
+    }
+
+    renderPanel();
+    if (slot?.state === 'pending' || slot?.pending) {
         button.disabled = true;
+        button.textContent = 'Wird erstellt …';
         info.textContent = 'Rückmeldung wird gerade erstellt. Lade die Seite in einer Minute neu.';
-        return;
+        return field;
     }
+    renderButton();
 
     button.addEventListener('click', async () => {
         const text = quill.root.innerHTML;
@@ -134,27 +92,29 @@ function attach({ question, subId, assignmentId, slot }) {
 
         try {
             const res = await requestFormativ(assignmentId, subId, question.id, text);
-            markUsed();
-            live.textContent = 'Rückmeldung erhalten.';
-            renderResult(panel, res.result, new Date().toISOString(), quill.getText());
+            field.attempts.push({ at: new Date().toISOString(), result: res.result });
+            live.textContent = field.attempts.length > 1 ? 'Neue Rückmeldung erhalten.' : 'Rückmeldung erhalten.';
+            renderPanel();
+            renderButton();
             revealInContainer(panel);
+            announce({ assignmentId, subId, questionId: question.id });
+            onChange();
         } catch (e) {
             if (e.code === 'already_used') {
-                markUsed();
-                live.textContent = e.message;
-            } else if (e.code === 'too_short') {
-                button.disabled = false;
-                button.textContent = 'Rückmeldung holen';
+                // Another tab or frame used the last attempt: show what the server has.
+                if (e.result && !field.attempts.length) { field.attempts.push({ at: null, result: e.result }); renderPanel(); }
+                field.exhausted = true;
+                renderButton();
                 live.textContent = e.message;
             } else {
-                button.disabled = false;
-                button.textContent = 'Rückmeldung holen';
+                renderButton();
                 live.textContent = e.message || 'Die Rückmeldung ist gerade nicht verfügbar. Dein Versuch zählt nicht.';
             }
         } finally {
             quill.enable(true);
         }
     });
+    return field;
 }
 
 export async function initFormativ(assignmentData, assignmentId, subId) {
@@ -165,13 +125,25 @@ export async function initFormativ(assignmentData, assignmentId, subId) {
     const questions = (sub?.questions || []).filter(enabled);
     if (questions.length === 0) return;
 
-    let slots = {};
+    let status;
     try {
-        slots = (await getFormativStatus(assignmentId)).slots || {};
+        status = await getFormativStatus(assignmentId);
     } catch {
         return; // backend without formativ: page stays exactly as before
     }
+    const slots = status.slots || {};
+    const max = Number.isInteger(status.max) && status.max > 0 ? status.max : 1;
+
+    const fields = [];
+    // Trail counts for the host page (progress message): numbers only.
+    const report = () => {
+        const counts = emptyCounts();
+        for (const f of fields) addQuestion(counts, f.attempts);
+        setFormativCounts(counts);
+    };
     for (const question of questions) {
-        attach({ question, subId, assignmentId, slot: slots[slotKey(subId, question.id)] });
+        const field = attach({ question, subId, assignmentId, slot: slots[slotKey(subId, question.id)], max, onChange: report });
+        if (field) fields.push(field);
     }
+    report();
 }

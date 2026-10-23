@@ -41,6 +41,18 @@ export function initProgress(uid) {
     acctPromise = uid && window.crypto?.subtle ? accountTag(uid).catch(() => null) : Promise.resolve(null);
 }
 
+// Trail counts of this sub-assignment, set by js/formativ.js (CONTRACT.md, «Progress
+// message», optional `formativ`). Numbers only; null while there is no formativ here.
+const COUNT_KEYS = ['direkt', 'verbessert', 'besser', 'offen', 'ohne'];
+let formativCounts = null;
+let reschedule = null;
+
+/** Called by js/formativ.js after the status loaded and after each new feedback. */
+export function setFormativCounts(counts) {
+    formativCounts = Object.fromEntries(COUNT_KEYS.map((k) => [k, Math.max(0, Math.min(50, Number(counts?.[k]) | 0))]));
+    if (reschedule) reschedule();
+}
+
 /**
  * Starts reporting for the editors of this page: once now (what was loaded) and after
  * every change, a little later. `editors` is the list in renderer.js.
@@ -54,9 +66,12 @@ export function watchProgress(assignmentId, subId, editors) {
         timer = null;
         const lengths = editors.map(({ quill }) => quill.getText().trim().length);
         const acct = await acctPromise;
-        window.parent.postMessage({ type: MESSAGE_TYPE, assignmentId, subId, lengths, acct }, target);
+        const message = { type: MESSAGE_TYPE, assignmentId, subId, lengths, acct };
+        if (formativCounts) message.formativ = { ...formativCounts };
+        window.parent.postMessage(message, target);
     }
     const schedule = () => { if (timer === null) timer = setTimeout(report, DELAY_MS); };
+    reschedule = schedule;
 
     for (const { quill } of editors) quill.on('text-change', schedule);
     schedule();

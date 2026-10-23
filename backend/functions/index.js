@@ -38,8 +38,9 @@ const boxDb = getFirestore(app, 'lmsbox');     // assignments, formativUsage
  *   not_found        404        not-found
  *   not_configured   404        not-found            (question has no formativ config)
  *   not_configured   503        unavailable          (FORMATIV_URL empty; raised here)
- *   already_used     409        already-exists       (details.result = stored public result, if done)
- *   conflict         409        aborted
+ *   already_used     409        already-exists       (no attempt left; details.result = latest public result)
+ *   unchanged        409        failed-precondition  (further attempt with the same text as the latest)
+ *   conflict         409        aborted              (a request for this field is running)
  *   quota            503        resource-exhausted
  *   unavailable      503        unavailable
  *
@@ -52,6 +53,7 @@ const STATUS = {
     not_found: 'not-found',
     not_configured: 'not-found',
     already_used: 'already-exists',
+    unchanged: 'failed-precondition',
     conflict: 'aborted',
     quota: 'resource-exhausted',
     unavailable: 'unavailable',
@@ -160,6 +162,6 @@ exports.boxFormativStatus = onCall(
         if (!assignmentId || typeof assignmentId !== 'string') throw badRequest("'boxFormativStatus' braucht 'assignmentId'.");
         checkIds({ assignmentId });
         const slots = await formativ.status({ store: formativ.firestoreStore(boxDb), uid, assignmentId });
-        return { slots };
+        return { slots, max: formativ.MAX_VERSUCHE };
     },
 );

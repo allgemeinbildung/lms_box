@@ -371,11 +371,13 @@ export const getFormativSlots = async (targetStudentKey, assignmentId) => {
     const out = {};
     for (const [key, e] of Object.entries((snap.exists() && snap.get('slots')) || {})) {
         if (e?.state !== 'done') continue;
-        out[key] = {
-            at: e.at, result: e.result, gesendet: e.gesendet ?? null,
-            prompt_version: e.prompt_version ?? null, rubrik_version: e.rubrik_version ?? null,
-            names_masked: e.names_masked ?? 0,
-        };
+        const view = (a) => ({
+            at: a.at, result: a.result, gesendet: a.gesendet ?? null,
+            prompt_version: a.prompt_version ?? null, rubrik_version: a.rubrik_version ?? null,
+            names_masked: a.names_masked ?? 0,
+        });
+        // The latest attempt is flat in the entry, earlier ones in frueher[] (CONTRACT.md, «Formative feedback»).
+        out[key] = { ...view(e), frueher: (Array.isArray(e.frueher) ? e.frueher : []).map(view) };
     }
     return out;
 };

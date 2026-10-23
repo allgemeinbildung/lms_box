@@ -164,3 +164,28 @@ html.embedded .ql-container { background: #fff; }
 .formativ-hint { font-size: 0.9em; color: #343a40; }
 .formativ-quote { font-size: 0.82em; color: #6c757d; font-style: italic; margin-top: 2px; }
 .formativ-foot, .formativ-note { font-size: 0.78em; color: #6c757d; margin: 4px 0 0; }
+/* Several attempts and the trail (CONTRACT.md, «Formative feedback»). Never a score:
+   marks side by side, «verbessert» as prominent as «direkt». Shape and arrow carry the
+   meaning, colour only repeats it. */
+.formativ-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 4px; }
+.formativ-head .formativ-marks { margin-left: auto; }
+.formativ-change { display: inline-flex; align-items: baseline; gap: 4px; flex: none; }
+.formativ-arrow { color: #495057; font-weight: 600; }
+.formativ-was { opacity: 0.7; text-decoration: line-through; text-decoration-thickness: 1px; }
+.formativ-item .formativ-badge.formativ-was-ok { color: #146c43; }
+.formativ-item .formativ-badge.formativ-was-part { color: #a04d00; }
+.formativ-item .formativ-badge.formativ-was-miss { color: #b02a37; }
+.formativ-item .formativ-badge.formativ-was-na { color: #6c757d; }
+.formativ-earlier { margin-top: 6px; border-top: 1px dashed #dee2e6; padding-top: 4px; font-size: 0.92em; }
+.formativ-earlier > summary { cursor: pointer; color: #495057; font-weight: 600; font-size: 0.9em; }
+.formativ-earlier .formativ-list { opacity: 0.85; }
+.formativ-marks { display: inline-flex; gap: 3px; align-items: center; }
+.formativ-mark { display: inline-flex; align-items: baseline; font-size: 1.05em; line-height: 1; }
+.formativ-mark.is-small { font-size: 0.95em; }
+.formativ-mark-up { font-size: 0.75em; font-weight: 700; margin-left: 1px; }
+.formativ-mark-direkt, .formativ-mark-verbessert { color: #198754; }
+.formativ-mark-besser { color: #a04d00; }
+.formativ-mark-offen { color: #868e96; }
+.formativ-counts { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.88em; color: #343a40; }
+.formativ-count { display: inline-flex; align-items: baseline; gap: 5px; }
+.formativ-count-ohne { color: #6c757d; }
