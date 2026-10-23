@@ -370,6 +370,24 @@ test('look-alike addresses and other providers do not pass as school accounts', 
     }
 });
 
+test('single sign-on session (custom token with the claim lmsboxSso) counts as a school account', async () => {
+    const sso = (sub, claims = {}) => client(tok(sub, { provider: 'custom', email: null, ...claims }));
+    const ok = sso('sso1', { lmsboxSso: true });
+    const ref = doc(ok, 'drafts', draftId('sso1', ASSIGNMENT, 'sso'));
+    await assertSucceeds(setDoc(ref, draft('sso1', { subId: 'sso' })));
+    await assertSucceeds(setDoc(ref, draft('sso1', { subId: 'sso', title: 'neu' })));
+    await assertSucceeds(getDoc(ref));
+    // Not the claim, or a claim that is not literally true: no.
+    for (const [name, c] of Object.entries({ 'no claim': {}, 'claim false': { lmsboxSso: false }, 'claim as text': { lmsboxSso: 'true' } })) {
+        const t = tok('sso2', { provider: 'custom', email: null, ...c });
+        await assertFails(setDoc(doc(client(t), 'drafts', draftId('sso2')), draft('sso2')), name);
+    }
+    // The claim only counts on a custom token: a password account's own claim does not widen anything,
+    // and it never reaches another student's documents.
+    await assertFails(setDoc(doc(ok, 'drafts', draftId('bob', ASSIGNMENT, 'sso')), draft('bob', { subId: 'sso' })));
+    await assertFails(setDoc(doc(client(tok('sso3', { provider: 'google.com', email: null, lmsboxSso: true })), 'drafts', draftId('sso3')), draft('sso3')));
+});
+
 test('school-address password account can create, update and read a draft', async () => {
     const ref = doc(alice, 'drafts', draftId('alice', ASSIGNMENT, 'schule'));
     await assertSucceeds(setDoc(ref, draft('alice', { subId: 'schule' })));

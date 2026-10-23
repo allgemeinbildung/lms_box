@@ -29,10 +29,14 @@ service cloud.firestore {
     // self-sign-up, so a password sign-in with a school address is the bar. It does
     // not prove roster membership (rules cannot read `(default)`).
     // The school domain stands HERE and nowhere else in this file (HKO.md P1 section 1).
+    // Single sign-on from the Lernportal (lmsbox CONTRACT.md): a `custom` session with the
+    // claim `lmsboxSso`, minted only by the function `boxSsoToken`, counts as well.
     function isSchoolAccount() {
       return signedIn()
-        && request.auth.token.firebase.sign_in_provider == 'password'
-        && request.auth.token.email.matches('.*@lernende[.]bbw[.]ch$');
+        && ((request.auth.token.firebase.sign_in_provider == 'password'
+             && request.auth.token.email.matches('.*@lernende[.]bbw[.]ch$'))
+            || (request.auth.token.firebase.sign_in_provider == 'custom'
+                && request.auth.token.get('lmsboxSso', false) == true));
     }
     // Document ids of per-person documents start with `${uid}__`.
     function idIsOwn(docId) {

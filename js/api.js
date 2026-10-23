@@ -8,7 +8,7 @@
 //
 import {
     auth, db, rosterDb, functions,
-    signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged,
+    signInWithEmailAndPassword, signInWithCustomToken, signOut as fbSignOut, onAuthStateChanged,
     doc, getDoc, setDoc, collection, query, where, getDocs, serverTimestamp,
     httpsCallable,
 } from './firebase.js';
@@ -55,6 +55,16 @@ function resolveToEmail(input) {
 export async function signIn(username, password) {
     try {
         const cred = await signInWithEmailAndPassword(auth, resolveToEmail(username), password);
+        return { uid: cred.user.uid };
+    } catch (e) {
+        throw new ApiError(e?.message || 'Anmeldung fehlgeschlagen.', { code: e?.code || null });
+    }
+}
+
+/** Signs in with a custom token from the function `boxSsoToken` (js/sso.js). */
+export async function signInWithPortalToken(token) {
+    try {
+        const cred = await signInWithCustomToken(auth, token);
         return { uid: cred.user.uid };
     } catch (e) {
         throw new ApiError(e?.message || 'Anmeldung fehlgeschlagen.', { code: e?.code || null });

@@ -22,10 +22,16 @@ service cloud.firestore {
     function notAnonymous() {
       return signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
+    //
+    // Single sign-on (CONTRACT.md): a session made from the Lernportal login has the
+    // provider `custom`. Only the function `boxSsoToken` mints such a token, and only for
+    // a password sign-in with this address domain; it sets the claim `lmsboxSso`.
     function isSchoolAccount() {
       return signedIn()
-        && request.auth.token.firebase.sign_in_provider == 'password'
-        && request.auth.token.email.matches('.*@lernende[.]bbw[.]ch$');
+        && ((request.auth.token.firebase.sign_in_provider == 'password'
+             && request.auth.token.email.matches('.*@lernende[.]bbw[.]ch$'))
+            || (request.auth.token.firebase.sign_in_provider == 'custom'
+                && request.auth.token.get('lmsboxSso', false) == true));
     }
     // Document ids of per-student documents start with `${uid}__`.
     function idIsOwn(docId) {

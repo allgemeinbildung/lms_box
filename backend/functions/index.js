@@ -6,6 +6,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineString, defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 const formativ = require('./formativ');
 
 // Set at deploy time, never in code (the repo is public).
@@ -121,6 +122,33 @@ exports.boxFormativ = onCall(
             if (e instanceof formativ.FormativError) throw toHttpsError(e);
             throw e;
         }
+    },
+);
+
+/*
+ * Single sign-on from the Lernportal (CONTRACT.md, «Single sign-on»). A student who is
+ * signed in at the Lernportal asks, from a popup on the Lernportal's own origin, for a
+ * custom token; LMS Box signs in with it (`signInWithCustomToken`) and the student has
+ * the same uid as at the Lernportal, without typing the password again.
+ *
+ * The caller must be what the rules call a school account (password sign-in, address
+ * @lernende.bbw.ch) and be on the roster. The token carries the claim `lmsboxSso`; that
+ * claim is what `isSchoolAccount()` accepts in place of the password provider, so only
+ * this function can create such a session (it alone holds the signing right).
+ */
+const SCHOOL_DOMAIN = '@lernende.bbw.ch';
+
+exports.boxSsoToken = onCall(
+    { region: REGION, maxInstances: 10, timeoutSeconds: 30, memory: '256MiB' },
+    async (request) => {
+        const { uid } = await caller(request);
+        const t = request.auth.token || {};
+        const email = String(t.email || '').toLowerCase();
+        if (t.firebase?.sign_in_provider !== 'password' || !email.endsWith(SCHOOL_DOMAIN)) {
+            throw new HttpsError('permission-denied', 'Nur für Lernenden-Konten.', { code: 'forbidden' });
+        }
+        const token = await getAuth(app).createCustomToken(uid, { lmsboxSso: true });
+        return { token };
     },
 );
 

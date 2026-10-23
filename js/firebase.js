@@ -18,7 +18,7 @@ import { getFunctions, connectFunctionsEmulator } from 'https://www.gstatic.com/
 
 // The SDK functions the other modules need, passed through so that this file stays the
 // only one that names the SDK URLs (and the only place to change the pinned version).
-export { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+export { signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 export { doc, getDoc, setDoc, collection, query, where, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-lite.js';
 export { httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { firebaseConfig } from './config.js';

@@ -10,6 +10,7 @@
 //  signs in, the others are told through the auth state and close their dialog.
 //
 import { signIn, signOut, onAuthChange, getStudent } from './api.js';
+import { startPortalLogin, portalLoginMessage } from './sso.js';
 import * as storage from './storage.js';
 import { flushPendingSave, hasUnsavedEdits, hasUnsyncedWork, suspendSaving, resumeSaving, closeSaving } from './renderer.js';
 
@@ -85,7 +86,7 @@ export function closeLoginDialog() {
  * `closable`: a guest may close the dialog and go on without an account.
  * Exported (with closeLoginDialog) for the self-test bridge, js/kurztest.js (CONTRACT.md).
  */
-export function showLoginDialog({ closable = false } = {}) {
+export function showLoginDialog({ closable = false, notice = '' } = {}) {
     if (document.getElementById('auth-dialog')) return;
 
     const dialog = document.createElement('div');
@@ -105,13 +106,17 @@ export function showLoginDialog({ closable = false } = {}) {
             <h3 style="margin: 0; text-align: center; color: #333; font-size: 1.15em;">Anmeldung</h3>
             <p style="margin: 0.2em 0 0.8em 0; text-align: center; color: #555; font-size: 0.9em;">Mit deinem Lernportal-Konto</p>
 
+            <button type="button" id="auth-sso-btn" style="width: 100%; padding: 9px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1em;">Mit dem Lernportal anmelden</button>
+            <p style="margin: 0.3em 0 0.2em 0; text-align: center; color: #555; font-size: 0.8em;">Ein Fenster öffnet sich und schliesst sich wieder. Du bist im Lernportal schon angemeldet? Dann geht es ohne Passwort.</p>
+            <p style="margin: 0.5em 0; text-align: center; color: #888; font-size: 0.8em;">oder direkt hier</p>
+
             <label for="auth-username" style="${labelStyle}">Benutzername</label>
             <input type="text" id="auth-username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="vorname.nachname" style="${inputStyle}">
 
             <label for="auth-password" style="${labelStyle}">Passwort</label>
             <input type="password" id="auth-password" autocomplete="current-password" style="${inputStyle}">
 
-            <button type="submit" id="auth-login-btn" style="width: 100%; padding: 9px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1em; transition: background 0.2s;">Anmelden</button>
+            <button type="submit" id="auth-login-btn" style="width: 100%; padding: 9px; background-color: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1em; transition: background 0.2s;">Anmelden</button>
             <p id="auth-status" role="alert" style="color: #d9534f; min-height: 1.2em; margin: 0.4em 0; text-align: center; font-size: 0.85em;"></p>
 
             <p id="auth-links" style="margin: 0; text-align: center; font-size: 0.8em; color: #555;">
@@ -132,6 +137,21 @@ export function showLoginDialog({ closable = false } = {}) {
     const statusEl = dialog.querySelector('#auth-status');
     const forgotLink = dialog.querySelector('#auth-forgot');
     const forgotHelp = dialog.querySelector('#auth-forgot-help');
+    const ssoBtn = dialog.querySelector('#auth-sso-btn');
+    statusEl.textContent = notice;
+
+    // Opened from a click, as the browser requires. On success the auth state changes and
+    // authenticate() closes this dialog and reloads the page.
+    ssoBtn.addEventListener('click', async () => {
+        statusEl.textContent = '';
+        ssoBtn.disabled = true;
+        ssoBtn.textContent = 'Fenster offen …';
+        const result = await startPortalLogin();
+        if (result.ok) return;
+        statusEl.textContent = portalLoginMessage(result);
+        ssoBtn.disabled = false;
+        ssoBtn.textContent = 'Mit dem Lernportal anmelden';
+    });
 
     // No self-service reset: Firebase's reset mails do not reach @lernende.bbw.ch (tested
     // 15.10.2026). The teacher sends a reset link (Lernportal, "Reset-Link") or a start password.
@@ -251,12 +271,22 @@ function showGuest() {
     if (document.getElementById('guest-banner')) return;
     const box = el('p', 'margin: 0 0 0.6em 0; padding: 0.4em 0.7em; background: #f8f9fa; border-left: 4px solid #6c757d; border-radius: 4px; font-size: 0.85em; color: #333;');
     box.id = 'guest-banner';
-    const login = el('a', 'color: #007bff; cursor: pointer; font-weight: bold;', 'Anmelden');
+    const login = el('a', 'color: #007bff; cursor: pointer; font-weight: bold;', 'mit Passwort');
     login.href = '#';
     login.id = 'guest-login';
     login.addEventListener('click', (e) => { e.preventDefault(); showLoginDialog({ closable: true }); });
+    const sso = el('a', 'color: #007bff; cursor: pointer; font-weight: bold;', 'Mit dem Lernportal anmelden');
+    sso.href = '#';
+    sso.id = 'guest-sso';
+    sso.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const result = await startPortalLogin();
+        const message = portalLoginMessage(result);
+        // Only a failure that needs saying opens the dialog; a closed window does not.
+        if (!result.ok && message) showLoginDialog({ closable: true, notice: message });
+    });
     box.append('Nicht angemeldet: Deine Antworten bleiben nur in diesem Browser, und es gibt keine KI-Rückmeldung. ',
-        login, ' – dann ist alles auf jedem Gerät da.');
+        sso, ' oder ', login, ' anmelden – dann ist alles auf jedem Gerät da.');
     const renderer = document.getElementById('content-renderer');
     renderer.parentNode.insertBefore(box, renderer);
 }

@@ -7,7 +7,7 @@ If the code needs something this file does not allow, change this file first, no
 
 | | |
 |---|---|
-| Firebase project | `interactive-media-2a1fc` (shared with the Lernportal `allgemeinbildung.web.app`; that app lives in another repo and is **not** changed from here) |
+| Firebase project | `interactive-media-2a1fc` (shared with the Lernportal `allgemeinbildung.web.app`; that app lives in another repo and is **not** changed from here — one exception: the bridge page `/lmsbox-sso` for «Single sign-on» below) |
 | Auth | Firebase Auth, email/password. Username `vorname.nachname` → `{username}@lernende.bbw.ch`; input containing `@` is used as is. «Passwort vergessen?» only explains the way: the teacher sends a reset link (Lernportal, «Reset-Link», `generatePasswordResetLink`, no mail) or a start password. Firebase's own reset mails do not reach @lernende.bbw.ch (tested 15.10.2026). The first login (start password → own password) stays in the Lernportal |
 | Database for this app | named Firestore database **`lmsbox`**, location `europe-west6` (Zurich) |
 | Roster (read only) | `(default)` database, `students/{uid}`: `name, username, bbwEmail, classId, classIds[], mustSetPassword, active` — a student may read their own doc, a teacher all |
@@ -55,7 +55,7 @@ Rules that must hold:
 - `drafts` documents carry no name. Name and class for the dashboard come from the roster join on `uid`.
 - `formativUsage` is written only by the function (Admin SDK).
 - `pasteEvents`: students create, never read, update or delete — not even their own, so a student cannot erase an entry. Same id and `uid` checks and the same school-account and server-time (`at`) conditions as `drafts`. An entry is a hint for the teacher, not proof: the page decides what it reports, and a student who blocks the request reports nothing.
-- `drafts` can be written only by a password sign-in with an address ending in `@lernende.bbw.ch`, and `updatedAt` must be the server time. Anonymous sessions read nothing. This raises the bar; it does not prove roster membership (rules cannot read the roster in `(default)`). That is why the dashboard looks drafts up by the uids on the class roster and never by the `classId` a draft carries, and why it renders every draft field as text or through `dashboard/modules/sanitize.js`.
+- `drafts` can be written only by a password sign-in with an address ending in `@lernende.bbw.ch` (or a single-sign-on session made by `boxSsoToken`, see «Single sign-on»), and `updatedAt` must be the server time. Anonymous sessions read nothing. This raises the bar; it does not prove roster membership (rules cannot read the roster in `(default)`). That is why the dashboard looks drafts up by the uids on the class roster and never by the `classId` a draft carries, and why it renders every draft field as text or through `dashboard/modules/sanitize.js`.
 - `quizProgress`: the document id must start with `request.auth.uid + "__"` **and** `uid` must equal `request.auth.uid`; written only by a password sign-in with `@lernende.bbw.ch`, `updatedAt` is the server time, `unit` cannot change on update. A student may delete their own document. No `list`: the page reads exactly one document by id. No teacher access — the self-test serves the learner only; a teacher view would be another purpose and needs its own consent (`../docs/KURZTEST_FIREBASE_PLAN.md`).
 - `quizProgress` carries no name and no class, and the direction of the test (`mode`) is not stored: it stays in the browser.
 - `mindmapDrafts`: the document id must start with `request.auth.uid + "__"` **and** `uid` must equal `request.auth.uid`; written only by a password sign-in with `@lernende.bbw.ch`, `updatedAt` is the server time, `mapId` cannot change on update. No `list`, no delete (an empty map is saved as an empty `add` list). No teacher access for now: a teacher view is a decision of its own (like `quizProgress`).
@@ -123,6 +123,21 @@ One module initialises the app and exports `auth`, `db` (database `lmsbox`), `ro
 Additive for the HKO parallel system (contract: `HKO.md`, "Phase P1 — Vertrag" §7): `js/firebase.js` also exports `namedDb(databaseId)` (a further named database, Firestore Lite, created on first call and cached per id; only `js/hko/api.js` calls it, lms_box pages never do), and `js/auth.js` exports `registerSaver({ flush, hasUnsaved, hasUnsynced, suspend, resume, close })`, which the logout coordination asks in addition to `renderer.js`; with nothing registered the behaviour is unchanged.
 
 Additive for the self-test: `js/auth.js` also exports `showLoginDialog({ closable })` and `closeLoginDialog()`, used by `js/kurztest.js` only.
+
+## Single sign-on from the Lernportal (`js/sso.js`, callable `boxSsoToken`)
+
+A browser keeps a Firebase session per origin (and, in an iframe, per host page), so a student who is signed in at `bbw.aburossi.ch` is a guest here. Since 23.10.2026 «Mit dem Lernportal anmelden» (banner and login dialog) takes the Lernportal login over, without typing the password again:
+
+1. `js/sso.js` opens a window (`window.open`, from the click) on `https://bbw.aburossi.ch/lmsbox-sso?origin=<own origin>&state=<32 hex>`.
+2. That page (**in the Lernportal repo**: `CoSch-sandbox/apps/lms-firebase/src/pages/lmsbox-sso.astro`) checks the Lernportal login; without one it shows a username/password form. Then it calls `boxSsoToken` and posts `{ type: 'lmsbox-sso', state, token }` (or `{ …, state, error: 'forbidden' | 'unavailable' }`) to `window.opener`, only to `origin`, and closes itself.
+3. `js/sso.js` accepts the message only if `event.origin` is the Lernportal's origin, `event.source` is the window it opened, and `state` matches; then `signInWithCustomToken`. The auth state changes, `authenticate()` reloads the page as for any sign-in.
+
+- `origin` is checked by the Lernportal page against `https://allgemeinbildung.github.io` (plus `http://localhost:*` / `http://127.0.0.1:*` while the page itself runs locally); the token goes nowhere else. `?portal=` on a local `js/sso.js` names a local stand-in for tests; on the real host it is ignored.
+- `boxSsoToken` (no input, output `{ token }`): the caller must be on the roster (`caller()`), signed in with the password provider and an address ending `@lernende.bbw.ch`; teachers and everybody else get `permission-denied`. It returns `createCustomToken(uid, { lmsboxSso: true })` — the same uid as at the Lernportal, so drafts, feedback and the roster join are unchanged. No name, no address leaves it.
+- The session's provider is `custom`. `isSchoolAccount()` (both rules files) therefore accepts **either** the password sign-in with the school address **or** `sign_in_provider == 'custom'` with `token.lmsboxSso == true`. Only this function can sign such a token. The client reads `user.email` as before; Auth fills it from the account.
+- The function needs the right to sign tokens: its runtime service account must hold `roles/iam.serviceAccountTokenCreator` on itself (once, `gcloud iam service-accounts add-iam-policy-binding`). A new callable also needs `allUsers` as invoker (see CLAUDE.md, «Stolperstellen»). Without either, the window reports `unavailable` and the dialog points to the password form, which stays.
+- A popup needs a click: it cannot run silently on page load. A blocked window is reported (`blocked`); a window the student closes says nothing.
+- Test: `npm run test:e2e:sso` (stand-in portal on a second origin, real function and rules in the emulators); the real Lernportal page is not run there.
 
 ## Self-test bridge (`kurztest.html`, `js/kurztest.js`)
 

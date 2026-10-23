@@ -162,6 +162,14 @@ test('1 school account and teacher read units, items, classes (get and list)', a
     }
 });
 
+test('1 single sign-on session (custom token with the claim lmsboxSso) counts as a school account; without the claim it does not', async () => {
+    const sso = client(tok('sso1', { provider: 'custom', email: null, lmsboxSso: true }));
+    await assertSucceeds(getDoc(doc(sso, 'units', U)));
+    for (const c of [{}, { lmsboxSso: false }, { lmsboxSso: 'true' }]) {
+        await assertFails(getDoc(doc(client(tok('sso2', { provider: 'custom', email: null, ...c })), 'units', U)));
+    }
+});
+
 test('1 a missing unit reads as "does not exist" for a school account, not denied', async () => {
     const snap = await assertSucceeds(getDoc(doc(student, 'units', 'gibt-es-nicht')));
     assert.equal(snap.exists(), false);
