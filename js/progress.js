@@ -8,7 +8,8 @@
 // goes to the host page's own origin only, never to "*", and only if that origin is on
 // the list. Without an allowed host page (a page opened on its own, an old embed) nothing happens.
 
-const ALLOWED_PARENTS = ['https://lehrmittel.aburossi.ch'];
+// The Publish sites with a Lernansicht: the old textbook and abu-hko-zürich (since 25.10.2026).
+const ALLOWED_PARENTS = ['https://lehrmittel.aburossi.ch', 'https://zh.abu-hko.ch'];
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1)$/;
 const LOCAL_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/;
 const MESSAGE_TYPE = 'lmsbox-progress';
