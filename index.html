@@ -9,6 +9,19 @@
     <link rel="stylesheet" href="css/styles.css">
     <!-- In an iframe (Obsidian callout): no card of its own, see css/styles.css. Set before the first paint. -->
     <script>if (window.parent !== window) document.documentElement.classList.add('embedded');</script>
+    <!-- Heft look (abu-hko-zürich): only when embedded on zh.abu-hko.ch, or with ?look=heft for
+         local tests. Other host sites (lehrmittel.aburossi.ch) keep the look below unchanged.
+         The parent's origin: location.ancestorOrigins (Chrome, Safari), else the referrer (Firefox). -->
+    <script>(function () {
+        if (window.parent === window) return;
+        var parent = '';
+        try {
+            if (location.ancestorOrigins && location.ancestorOrigins.length) parent = location.ancestorOrigins[0];
+            else if (document.referrer) parent = new URL(document.referrer).origin;
+        } catch (e) { /* no parent origin */ }
+        var forced = /[?&]look=heft(&|$)/.test(location.search);
+        if (parent === 'https://zh.abu-hko.ch' || forced) document.documentElement.classList.add('heft');
+    })();</script>
 </head>
 
 <body>

@@ -219,6 +219,8 @@ Additive for the HKO parallel system (contract: `HKO.md`, "Phase P1 — Vertrag"
 
 Additive for the self-test: `js/auth.js` also exports `showLoginDialog({ closable })` and `closeLoginDialog()`, used by `js/kurztest.js` and `js/rueckmeldungen.js` only.
 
+**Look per host site (25.10.2026).** `index.html` sets `html.embedded` in any iframe and, additionally, `html.heft` when the parent's origin (`location.ancestorOrigins[0]`, else the referrer's origin) is `https://zh.abu-hko.ch`, or when the address carries `look=heft` (local tests). `html.heft` is appearance only (`css/styles.css`, block «Heft look»): Heft type and petrol accent, no `#sub-title` (the callout above names the task), a one-line `#guest-banner`, a small secondary PDF button, no scrollbars of `#assignment-container` (the host sizes the frame from `lmsbox-height`). Behaviour, data and messages are the same with and without it; on `lehrmittel.aburossi.ch` nothing changes.
+
 ## Single sign-on from the Lernportal (`js/sso.js`, callable `boxSsoToken`)
 
 A browser keeps a Firebase session per origin (and, in an iframe, per host page), so a student who is signed in at `bbw.aburossi.ch` is a guest here. Since 23.10.2026 «Mit dem Lernportal anmelden» (banner and login dialog) takes the Lernportal login over, without typing the password again:
