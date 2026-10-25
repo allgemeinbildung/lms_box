@@ -156,6 +156,8 @@ try {
         await page.goto(URL_PAGE);
         await page.locator('#vb-gate:not([hidden])').waitFor();
         assert.match(await text(page, '#vb-gate'), /Nur mit Lehrpersonen-Konto/);
+        assert.equal(await text(page, '#vb-gate-konto'), 'Ein Konto mit Lehrpersonen-Rolle: bei der Autorin / beim Autor anfragen.');
+        assert.ok(await page.locator('#vb-gate-konto').isVisible(), 'Konto-Hinweis sichtbar');
         assert.ok(await page.locator('#vb-login').isVisible(), 'login form');
         assert.ok(await page.locator('#vb-app').isHidden(), 'app hidden');
         await sleep(1500);
@@ -173,6 +175,7 @@ try {
         await page.locator('#vb-gate-who:not([hidden])').waitFor();
         assert.match(await text(page, '#vb-gate-who'), /keine Lehrpersonen-Rolle/);
         assert.match(await text(page, '#vb-gate'), /Nur mit Lehrpersonen-Konto/);
+        assert.ok(await page.locator('#vb-gate-konto').isVisible(), 'Konto-Hinweis sichtbar (Konto ohne Rolle)');
         assert.ok(await page.locator('#vb-app').isHidden(), 'app hidden');
         await sleep(1500);
         await ctx.close();
