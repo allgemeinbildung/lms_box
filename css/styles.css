@@ -44,6 +44,8 @@ body {
     font-family: inherit;
 }
 .ql-container { font-size: 1em; }
+/* Visible focus on the answer field (WCAG 2.4.7, K5 / B19). */
+.ql-container.ql-snow:focus-within { outline: 2px solid #0d6efd; outline-offset: -2px; }
 
 /* The page is embedded as an iframe with a fixed height and scrolling="no"
    (Obsidian Publish). Content taller than the frame, e.g. after feedback, was

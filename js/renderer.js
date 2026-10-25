@@ -323,7 +323,17 @@ function renderQuill(data, assignmentId, subId, initialAnswers, assignmentData) 
             theme: 'snow',
             placeholder: 'Deine Antwort...',
             modules: {
-                toolbar: false
+                toolbar: false,
+                // No keyboard trap (WCAG 2.1.2, K5 / B19): Tab and Shift+Tab leave the editor
+                // like in any form field - the browser moves the focus, no tab character.
+                // Esc takes the focus out of the editor.
+                keyboard: {
+                    bindings: {
+                        tab: { key: 9, handler: () => true },
+                        'remove tab': { key: 9, shiftKey: true, handler: () => true },
+                        'leave editor': { key: 27, handler: function () { this.quill.blur(); return false; } }
+                    }
+                }
             },
             formats: []
         });
