@@ -189,3 +189,91 @@ html.embedded .ql-container { background: #fff; }
 .formativ-counts { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.88em; color: #343a40; }
 .formativ-count { display: inline-flex; align-items: baseline; gap: 5px; }
 .formativ-count-ohne { color: #6c757d; }
+
+/* =====================================================================
+   Heft look (abu-hko-zürich, 25.10.2026): only with html.heft, which index.html sets when
+   the page is embedded on https://zh.abu-hko.ch (or with ?look=heft for local tests).
+   Same type and colours as the Heft «Mich im Staat orientieren» and its site: petrol accent,
+   no own title (the callout above names the task), quiet login line, small secondary buttons.
+   The page stays transparent, so the box takes the colour of its callout; the answer fields
+   stay white. Nothing here applies on lehrmittel.aburossi.ch.
+   ===================================================================== */
+html.heft body {
+    font-family: "Segoe UI Variable Text", "Segoe UI", "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    color: #1c1e21;
+}
+html.heft #sub-title { display: none; }
+/* The frame gets its height from the box (embedHeight.js): no scrollbars of its own. */
+html.heft #assignment-container {
+    padding: 2px 1px 6px;
+    overflow-x: hidden;
+    scrollbar-width: none;
+}
+html.heft #assignment-container::-webkit-scrollbar { display: none; }
+
+/* Login line: one quiet line instead of a grey box (inline styles in js/auth.js) */
+html.heft #guest-banner {
+    margin: 0 0 .7em !important;
+    padding: .05em 0 .05em .7em !important;
+    background: transparent !important;
+    border-left: 2px solid rgba(13, 107, 103, .35) !important;
+    border-radius: 0 !important;
+    font-size: .8em !important;
+    line-height: 1.45;
+    color: #55595f !important;
+}
+html.heft #guest-banner a { color: #0d6b67 !important; font-weight: 600 !important; }
+
+/* Questions */
+html.heft .question-block { margin-bottom: 1em; }
+html.heft .question-block p { color: #1c1e21; }
+html.heft .question-block p > strong:first-child { color: #0d6b67; }
+html.heft .question-block a { color: #0d6b67; }
+/* Key terms in the question data carry an inline blue (style="color: #007bff"): petrol, like the Heft */
+html.heft .question-block [style*="color"] { color: #0d6b67 !important; }
+
+/* Answer field: white, soft border, petrol when typing */
+html.heft .ql-container.ql-snow {
+    border: 1px solid #c9ccd0;
+    border-radius: 8px;
+    background: #fff;
+    transition: border-color .15s, box-shadow .15s;
+}
+html.heft .ql-container.ql-snow:focus-within {
+    border-color: #0d6b67;
+    box-shadow: 0 0 0 3px rgba(13, 107, 103, .15);
+}
+html.heft .ql-toolbar.ql-snow { border-color: #c9ccd0; border-radius: 8px 8px 0 0; background: #fff; }
+html.heft .ql-toolbar.ql-snow + .ql-container.ql-snow { border-radius: 0 0 8px 8px; }
+html.heft .ql-editor { min-height: 4.2em; }
+html.heft .ql-editor.ql-blank::before { color: #8b8f94; font-style: normal; }
+
+/* PDF and status: small and secondary */
+html.heft #action-container { display: flex; align-items: center; gap: .8em; margin-top: 2px !important; }
+html.heft #action-container button {
+    margin: 0;
+    padding: .3em .9em;
+    font-size: .82em;
+    border: 1px solid #c9ccd0;
+    border-radius: 99px;
+    background: transparent;
+    color: #0d6b67;
+}
+html.heft #action-container button:hover { background: #e9f3f2; border-color: #0d6b67; }
+html.heft #action-container button:focus-visible { outline: 2px solid #0d6b67; outline-offset: 2px; }
+html.heft #save-status { color: #55595f; font-size: .8em !important; }
+
+/* formativ: button and feedback in the same language */
+html.heft .formativ-button {
+    padding: .3em .9em;
+    border: 1px solid #0d6b67;
+    border-radius: 99px;
+    background: #fff;
+    color: #0d6b67;
+    font-weight: 600;
+}
+html.heft .formativ-button:hover:not(:disabled) { background: #e9f3f2; }
+html.heft .formativ-button:focus-visible { outline: 2px solid #0d6b67; }
+html.heft .formativ-panel { background: #fff; border-color: #d5d8db; border-radius: 8px; }
