@@ -271,6 +271,18 @@ function showGuest() {
     if (document.getElementById('guest-banner')) return;
     const box = el('p', 'margin: 0 0 0.6em 0; padding: 0.4em 0.7em; background: #f8f9fa; border-left: 4px solid #6c757d; border-radius: 4px; font-size: 0.85em; color: #333;');
     box.id = 'guest-banner';
+    const renderer = document.getElementById('content-renderer');
+    // ?hinweis=kurz: the host page explains guest mode once; here only the way to sign in (CONTRACT.md).
+    if (new URLSearchParams(location.search).get('hinweis') === 'kurz') {
+        const short = el('a', 'color: #007bff; cursor: pointer; font-weight: bold;', 'Mit Schulkonto anmelden');
+        short.href = '#';
+        short.id = 'guest-login';
+        short.addEventListener('click', (e) => { e.preventDefault(); showLoginDialog({ closable: true }); });
+        box.dataset.hinweis = 'kurz';
+        box.append(short);
+        renderer.parentNode.insertBefore(box, renderer);
+        return;
+    }
     const login = el('a', 'color: #007bff; cursor: pointer; font-weight: bold;', 'mit Passwort');
     login.href = '#';
     login.id = 'guest-login';
@@ -287,7 +299,6 @@ function showGuest() {
     });
     box.append('Nicht angemeldet: Deine Antworten bleiben nur in diesem Browser, und es gibt keine KI-Rückmeldung. ',
         sso, ' oder ', login, ' anmelden – dann ist alles auf jedem Gerät da.');
-    const renderer = document.getElementById('content-renderer');
     renderer.parentNode.insertBefore(box, renderer);
 }
 

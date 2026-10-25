@@ -79,6 +79,7 @@ Without sign-in the page runs as a **guest**:
 - Answers are kept in this browser only, in a separate IndexedDB database `LMS_GuestDB` (never in `LMS_AssignmentsDB`, which belongs to the signed-in account and is emptied on logout or account change). A login neither reads nor clears it. Guest answers are never written to Firestore and never sent anywhere.
 - No formativ, no released feedback, no paste hints — guests make no request but the assignment `get`.
 - After a sign-in the page reloads and shows that account's drafts; guest text is not taken over into the account.
+- `?hinweis=kurz` (since 25.10.2026, for host pages that explain guest mode once per page): the guest banner is one link «Mit Schulkonto anmelden» that opens the login dialog (Lernportal and password). Without it, or with another value, the full banner as before; signed-in pages are not affected.
 
 Limits the rules enforce on `drafts` (security rules have no loops and a 1000-expression budget, so these are fixed small numbers):
 
