@@ -46,7 +46,7 @@ Sub-assignment keys contain dots (`"A. Grundsätze …"`). Documents holding the
 | `formativUsage/{pairDoc}` | `uid, assignmentId, slots` — `slots` is a map keyed `"<subId>::<questionId>"` (`formativ.slotKey`); an entry is `{state, at}` while the first request runs, and when done also `textHash, rubrik_version, request_id, prompt_version, duration_ms, pseudonym, names_masked, gesendet, result{zustand, kriterien[]}` — the **latest** attempt — plus `frueher[]` (earlier attempts, oldest first, same fields without `state`) and `pendingAt` while a further request runs (see «Formative feedback: attempts, trail, overview»). `ausfaelle[]` (`{at, request_id}`, at most 20) lists technically failed tries that reached the model, for the cost report; an entry with only those has `state: 'frei'`. Written by the function with a precondition `update()` that replaces `slots` whole | none | read |
 | `quizProgress/{quizDoc}` | `uid, unit, last{known, total, date}, hard[], updatedAt` — the self-test («Kurztest») at the end of a unit on lehrmittel.aburossi.ch: result of the last complete run (`date` an ISO string from the device clock) and the terms marked «Nochmals» in that run | get/create/update/delete own only | none |
 | `mindmapDrafts/{mapDoc}` | `uid, mapId, nodes, updatedAt` — the student's own branches on a mindmap of `allgemeinbildung.github.io/mindmap` (see «Mindmap editor») | get/create/update own only | none |
-| `teacherMaterials/{enc(einheitId)}` | the teacher material of one E-B unit for the preparation page (see «Teacher materials»): `einheitId, assignmentId, generiertAm, lehrpersonKarten, hpTeacher, uploadedAt` — with model answers, rubrics and teacher notes | none | read |
+| `teacherMaterials/{enc(einheitId)}` | the teacher material of one E-B unit for the preparation page (see «Teacher materials»): `einheitId, assignmentId, generiertAm, lehrpersonKarten, hpTeacher, vollfassung, uploadedAt` — with model answers, rubrics and teacher notes | none | read |
 | `pasteEvents/{pasteDoc}` | `uid, assignmentId, subId, questionId, kind, chars, excerpt, at` — `kind` one of `paste` (a paste got past the block), `drop` (text dragged in), `bulk` (one change inserted ≥ 40 characters), `fast` (≥ 60 characters in under 3 s, faster than typing); `chars` the number of characters inserted; `excerpt` the first 300 of them | create own only | read |
 
 Rules that must hold:
@@ -121,6 +121,9 @@ teacherMaterials/{enc(einheitId)}       // einheitId e.g. "EB-5.1.1"
   generiertAm,                           // = hpTeacher.json "generiert_am" (YYYY-MM-DD)
   lehrpersonKarten,                      // varianten/E-B/obsidian/<k>/lehrperson-karten.json, unchanged
   hpTeacher,                             // varianten/E-B/obsidian/<k>/hpTeacher.json, unchanged
+  vollfassung,                           // [{id, webcode, titel, text}] — the building blocks this unit uses that are
+                                         // not in the core booklet (tools/eb_daten.py heft_ort: «Vollfassung für Lehrpersonen»),
+                                         // text = register field `text` unchanged; [] if none
   uploadedAt }                           // server time of the upload
 ```
 
@@ -128,7 +131,9 @@ teacherMaterials/{enc(einheitId)}       // einheitId e.g. "EB-5.1.1"
 - Written only by `scripts/upload-teacher-materials.mjs` with the Admin SDK: dry run by default, `--live --key <path> --yes` writes, a key path inside the repo is refused (as `upload-assignments.mjs`). One document per unit, replaced whole with `set()`. The script refuses a document over 900 000 bytes.
 - The preparation page saves nothing. It computes the plan in the browser; the teacher prints it or copies the link.
 - Nothing from this collection goes to a page a student can open, and nothing from it goes to a language model.
-- The time ranges shown to teachers are computed on the page from `lehrpersonKarten.zeitmodell` (decision c), not stored.
+- The time ranges shown to teachers come from `hpTeacher.wege` (computed by the renderer, decision c); the page does not invent its own.
+- `vollfassung` holds publisher text (the full booklet version for teachers, decision 25.10.2026). Like the rest of this document it is never shown to students or guests.
+- Preparation page `vorbereitung.html`: a teacher picks unit, class (3J/4J), date and number of lessons; the page shows a plan, the class links (`#hp=S|M|L` preselection and the short link `abu-hko.ch/<code>` from `weiterentwicklung-paket/kurzlinks/SCHEMA.md`), a printable handout and the `vollfassung`. A non-teacher sees only a sign-in hint and makes no read on `teacherMaterials`.
 
 ## Callable functions (`europe-west6`)
 
