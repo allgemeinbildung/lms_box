@@ -792,6 +792,36 @@ try {
         await c.close();
     });
 
+    await step('(p) ?hinweis=kurz: a guest sees one short sign-in link, reachable by keyboard; without it the full sentence', async () => {
+        const c = await newContext(browser);
+        const p = await c.newPage();
+        await p.goto(pageUrl(A1, A1_SUB, '&hinweis=kurz'));
+        const banner = p.locator('#guest-banner');
+        await banner.waitFor();
+        await editor(p).waitFor();
+        assert.equal((await banner.innerText()).trim(), 'Mit Schulkonto anmelden');
+        assert.equal(await p.locator('#guest-sso').count(), 0);
+        await p.locator('#guest-login').focus();
+        await p.keyboard.press('Enter');
+        await p.locator('#auth-sso-btn').waitFor();
+        await p.locator('#auth-username').waitFor();
+        await p.locator('#auth-close').click();
+
+        for (const extra of ['', '&hinweis=lang']) {
+            await p.goto(pageUrl(A1, A1_SUB, extra));
+            await banner.waitFor();
+            assert.match(await banner.innerText(), /^Nicht angemeldet: Deine Antworten bleiben nur in diesem Browser.*mit Passwort anmelden – dann ist alles auf jedem Gerät da\.$/s);
+            assert.equal(await p.locator('#guest-sso').count(), 1);
+        }
+
+        // signed in with the parameter: no banner, as without it
+        await p.goto(pageUrl(A1, A1_SUB, '&hinweis=kurz'));
+        await login(p, 'anna.beispiel');
+        await p.locator('#auth-user').waitFor();
+        assert.equal(await banner.count(), 0);
+        await c.close();
+    });
+
     assert.deepEqual(blocked, [], 'the page requested hosts other than the emulators and its two CDNs');
 } catch (e) {
     failed = true;
