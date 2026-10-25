@@ -175,6 +175,13 @@ service cloud.firestore {
       allow list: if isTeacher();
     }
 
+    // Teacher material of one unit for the preparation page (CONTRACT.md, «Teacher
+    // materials»): model answers, rubrics, notes. Teachers read; nobody writes here -
+    // only scripts/upload-teacher-materials.mjs (Admin SDK). Students, guests: nothing.
+    match /teacherMaterials/{einheitDoc} {
+      allow get, list: if isTeacher();
+    }
+
     match /drafts/{draftId} {
       // get: a missing own document answers "does not exist", not "denied".
       allow get: if isTeacher()

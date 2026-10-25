@@ -751,3 +751,81 @@ test('mindmapDrafts: bad shapes and sizes are refused, mapId is fixed', async ()
     await assertSucceeds(setDoc(ref, mapDraft('alice', { mapId: 'Voll', nodes: 'y'.repeat(20000) })));
     await assertFails(setDoc(ref, mapDraft('alice', { mapId: 'Anders' })));
 });
+
+// ---- teacherMaterials: teachers read, nobody writes through the rules ---------------
+// Fixture: a fictional unit, written past the rules (Admin SDK) - the same effect as
+// withSecurityRulesDisabled, which reaches only `(default)`, not the named database.
+
+const EINHEIT = 'EB-9.9.9';
+const tmRef = (db, id = enc(EINHEIT)) => doc(db, 'teacherMaterials', id);
+const tmCol = (db) => collection(db, 'teacherMaterials');
+const tmData = (extra = {}) => ({
+    einheitId: EINHEIT, assignmentId: 'HP 9.9.9 Testeinheit', generiertAm: '2026-10-25',
+    lehrpersonKarten: { einheit: EINHEIT, karten: [] }, hpTeacher: { einheit: EINHEIT, loesung: 'geheim' }, ...extra,
+});
+async function tmFixture() {
+    await admin.doc(`teacherMaterials/${enc(EINHEIT)}`).set({ ...tmData(), uploadedAt: new Date() });
+}
+
+test('teacherMaterials: teacher gets a document and lists the collection', async () => {
+    await tmFixture();
+    const snap = await assertSucceeds(getDoc(tmRef(teacher)));
+    assert.equal(snap.data().einheitId, EINHEIT);
+    const all = await assertSucceeds(getDocs(tmCol(teacher)));
+    assert.ok(all.size >= 1);
+    // a missing document answers "does not exist", not "denied"
+    assert.equal((await assertSucceeds(getDoc(tmRef(teacher, 'gibt-es-nicht')))).exists(), false);
+});
+
+test('teacherMaterials: teacher cannot create, update or delete', async () => {
+    await tmFixture();
+    await assertFails(setDoc(tmRef(teacher, 'EB-neu'), tmData({ einheitId: 'EB-neu' })));
+    await assertFails(setDoc(tmRef(teacher), tmData({ generiertAm: '2026-10-26' })));
+    await assertFails(updateDoc(tmRef(teacher), { generiertAm: '2026-10-26' }));
+    await assertFails(deleteDoc(tmRef(teacher)));
+});
+
+test('teacherMaterials: student with a school password account reads and writes nothing', async () => {
+    await tmFixture();
+    await assertFails(getDoc(tmRef(alice)));
+    await assertFails(getDocs(tmCol(alice)));
+    await assertFails(getDocs(query(tmCol(alice), where('einheitId', '==', EINHEIT))));
+    await assertFails(setDoc(tmRef(alice, 'EB-neu'), tmData({ einheitId: 'EB-neu' })));
+    await assertFails(updateDoc(tmRef(alice), { generiertAm: '2026-10-26' }));
+    await assertFails(deleteDoc(tmRef(alice)));
+});
+
+test('teacherMaterials: student by single sign-on (lmsboxSso) reads nothing', async () => {
+    await tmFixture();
+    const sso = client(tok('sso-tm', { provider: 'custom', email: null, lmsboxSso: true }));
+    await assertFails(getDoc(tmRef(sso)));
+    await assertFails(getDocs(tmCol(sso)));
+    await assertFails(setDoc(tmRef(sso, 'EB-neu'), tmData({ einheitId: 'EB-neu' })));
+});
+
+test('teacherMaterials: anonymous session reads nothing', async () => {
+    await tmFixture();
+    await assertFails(getDoc(tmRef(anonSession)));
+    await assertFails(getDocs(tmCol(anonSession)));
+});
+
+test('teacherMaterials: visitor without sign-in (guest) reads nothing', async () => {
+    await tmFixture();
+    await assertFails(getDoc(tmRef(anon)));
+    await assertFails(getDocs(tmCol(anon)));
+    await assertFails(getDoc(tmRef(anon, 'gibt-es-nicht')));
+});
+
+test('teacherMaterials: a role that is not exactly "teacher" (or none) reads nothing', async () => {
+    await tmFixture();
+    for (const [name, extra] of Object.entries({
+        'role student': { role: 'student' }, 'no role': {}, 'role Teacher': { role: 'Teacher' },
+        'role as list': { role: ['teacher'] }, 'other teacher claims': { teacher: true, admin: true },
+    })) {
+        const db = client(tok('teacher1', { email: 'teacher1@bbw.ch', ...extra }));   // as the teacher, minus the claim
+        await assertFails(getDoc(tmRef(db)), name);
+        await assertFails(getDocs(tmCol(db)), name);
+    }
+    await assertFails(getDoc(tmRef(outsider)));
+    await assertFails(getDocs(tmCol(outsider)));
+});
