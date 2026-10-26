@@ -15,6 +15,9 @@ import { auth, db, onAuthStateChanged, collection, getDocs } from './firebase.js
 import { signIn, signOut } from './api.js';
 
 const PFADE = ['S', 'M', 'L'];            // von schmal nach breit (Ids, nie angezeigt)
+// Wahl-Buttons (26.10.2026): zwei von drei zur Wahl, Vorwahl-Link «#hp=S,M» (publish.js der Site)
+const PAARE = ['S,M', 'M,L', 'S,L'];
+const wegeVon = (v) => (v === 'frei' ? PFADE : String(v).split(','));
 const LEKTION_MIN = 45;
 // Wie tools/render_eb_page.py: SITE und Adresse der Vorwahl-Links (Leerzeichen als +, «#hp=…»)
 const SITE = 'https://zh.abu-hko.ch';
@@ -64,6 +67,12 @@ function name(m, p) {
     return str(m.hpTeacher?.wege?.anzeige_lehrperson?.[p]) || `Variante ${p}`;
 }
 
+/** Anzeige einer Auswahl: eine Variante oder «Wahl zwischen … und …». */
+function auswahlName(m, v) {
+    const w = wegeVon(v);
+    return w.length === 2 ? `Wahl zwischen ${name(m, w[0])} und ${name(m, w[1])}` : name(m, w[0]);
+}
+
 /** [unten, oben] in Minuten aus hpTeacher.wege.zeit_spanne_min, oder null. */
 function spanne(m, p) {
     const s = m.hpTeacher?.wege?.zeit_spanne_min?.[p];
@@ -107,15 +116,18 @@ function kurzlink(m) {
  * abwärts), sonst keine.
  */
 function passung(m, variante, minuten) {
-    const sp = variante === 'frei'
+    const wege = wegeVon(variante);
+    const sp = wege.length > 1
         ? (() => {
-            const alle = PFADE.map((p) => spanne(m, p)).filter(Boolean);
+            const alle = wege.map((p) => spanne(m, p)).filter(Boolean);
             return alle.length ? [Math.min(...alle.map((s) => s[0])), Math.max(...alle.map((s) => s[1]))] : null;
         })()
         : spanne(m, variante);
     if (!sp) return { sp: null, passt: null, vorschlag: null };
     if (sp[1] <= minuten) return { sp, passt: true, vorschlag: null };
-    const kandidaten = variante === 'frei' ? [...PFADE].reverse() : PFADE.slice(0, PFADE.indexOf(variante)).reverse();
+    // bei mehreren Wegen: von der breitesten der Auswahl abwärts (die breiteste selbst passt nicht)
+    const breiteste = wege[wege.length - 1];
+    const kandidaten = variante === 'frei' ? [...PFADE].reverse() : PFADE.slice(0, PFADE.indexOf(breiteste)).reverse();
     const vorschlag = kandidaten.find((p) => { const s = spanne(m, p); return s && s[1] <= minuten; }) || null;
     return { sp, passt: false, vorschlag };
 }
@@ -159,22 +171,25 @@ function variantenOptionen(m) {
             const s = spanne(m, p);
             return el('option', { value: p, text: `${name(m, p)}${s ? ` – ca. ${s[0]}–${s[1]} min` : ''}` });
         }),
+        ...PAARE.map((v) => el('option', { value: v, text: `${auswahlName(m, v)} – die Lernenden wählen zwischen diesen zwei` })),
         el('option', { value: 'frei', text: 'frei – jede Person wählt ihren Weg' }),
     );
-    sel.value = [...PFADE, 'frei'].includes(vorher) ? vorher : 'frei';
+    sel.value = [...PFADE, ...PAARE, 'frei'].includes(vorher) ? vorher : 'frei';
 }
 
 // ---- Ausgabe ------------------------------------------------------------------------------------
 
 function kopfzeile(a) {
-    const v = a.variante === 'frei' ? 'frei (jede Person wählt)' : name(a.m, a.variante);
+    const v = a.variante === 'frei' ? 'frei (jede Person wählt)' : auswahlName(a.m, a.variante);
     return `Klasse ${a.klasse} · ${datumText(a.datum)} · ${a.lektionen} ${a.lektionen === 1 ? 'Lektion' : 'Lektionen'} à 45 min (${a.minuten} min) · ${v}`;
 }
 
 function passungsBlock(a) {
     const { m, variante, minuten, lektionen } = a;
     const r = passung(m, variante, minuten);
-    const wer = variante === 'frei' ? 'alle drei Varianten (frei)' : `die ${name(m, variante)}`;
+    const wege = wegeVon(variante);
+    const wer = variante === 'frei' ? 'alle drei Varianten (frei)'
+        : wege.length === 2 ? `die ${name(m, wege[0])} und die ${name(m, wege[1])} (zur Wahl)` : `die ${name(m, variante)}`;
     if (!r.sp) return el('p', { class: 'vb-fit vb-fit-no', 'data-fit': 'unbekannt', text: 'Für diese Einheit ist keine Zeitspanne hinterlegt.' });
     if (r.passt) {
         return el('p', { class: 'vb-fit vb-fit-ok', 'data-fit': 'passt',
@@ -192,7 +207,7 @@ function passungsBlock(a) {
         const noetig = Math.ceil(r.sp[1] / LEKTION_MIN);
         box.append(el('p', { text: variante === 'frei' || variante === 'S'
             ? `Keine schmalere Variante passt in ${minuten} min. Nach der Schätzung brauchst du ${noetig} Lektionen.`
-            : `Keine schmalere Variante passt in ${minuten} min. Für die ${name(m, variante)} brauchst du nach der Schätzung ${noetig} Lektionen.` }));
+            : `Keine schmalere Variante passt in ${minuten} min. Für ${wer} brauchst du nach der Schätzung ${noetig} Lektionen.` }));
     }
     return box;
 }
@@ -204,7 +219,7 @@ function spannenTabelle(a) {
     const tb = el('tbody');
     for (const p of PFADE) {
         const s = spanne(m, p);
-        tb.append(el('tr', { class: variante === p ? 'vb-gewaehlt' : null },
+        tb.append(el('tr', { class: variante !== 'frei' && wegeVon(variante).includes(p) ? 'vb-gewaehlt' : null },
             el('td', { text: name(m, p) }), el('td', { text: s ? `ca. ${s[0]}–${s[1]} min` : '–' })));
     }
     t.append(tb);
@@ -236,7 +251,7 @@ function karte(m, p) {
 
 function kartenBlock(a, mitTitel = true) {
     const { m, variante } = a;
-    const wege = variante === 'frei' ? PFADE : [variante];
+    const wege = wegeVon(variante);
     const wrap = el('div');
     for (const p of wege) {
         const k = karte(m, p);
@@ -296,14 +311,22 @@ function zeichneLinks(a) {
     const sec = $('vb-links');
     sec.replaceChildren(el('h2', { text: 'Links für die Klasse' }));
     if (basis) {
-        const vorwahl = `${basis}#hp=${variante === 'frei' ? 'frei' : variante}`;
+        const vorwahl = `${basis}#hp=${variante}`;
+        const zwei = wegeVon(variante).length === 2;
         sec.append(linkZeile(
-            variante === 'frei' ? 'Vorwahl-Link: frei wählen' : `Vorwahl-Link: ${name(m, variante)}`,
+            variante === 'frei' ? 'Vorwahl-Link: frei wählen' : `Vorwahl-Link: ${auswahlName(m, variante)}`,
             vorwahl,
             variante === 'frei'
                 ? 'Hebt eine frühere Vorwahl auf; die Lernenden wählen ihren Weg selbst.'
-                : 'Die Einheit zeigt dann nur diesen Weg, «Ich wähle» ist gesperrt. Die Vorwahl gilt im Browser der Lernenden, bis sie den Link «frei wählen» öffnen.',
+                : zwei
+                    ? 'Die Lernenden sehen nur die Knöpfe dieser zwei Wege und wählen zwischen ihnen. Die Vorwahl gilt im Browser der Lernenden, bis sie den Link «frei wählen» öffnen.'
+                    : 'Die Einheit zeigt dann nur diesen Weg; die Lernenden können ihn nicht ändern. Die Vorwahl gilt im Browser der Lernenden, bis sie den Link «frei wählen» öffnen.',
             'vb-link-vorwahl'));
+        if (variante !== 'frei') {
+            sec.append(linkZeile('Vorwahl-Link: frei wählen', `${basis}#hp=frei`,
+                'Hebt die Vorwahl wieder auf. Auf der Einheit selbst stehen die Vorwahl-Links nicht, solange eine Vorwahl gilt.',
+                'vb-link-frei'));
+        }
     } else {
         sec.append(el('p', { class: 'vb-muted', text: 'Für diese Einheit fehlt die Adresse der Einheit.' }));
     }

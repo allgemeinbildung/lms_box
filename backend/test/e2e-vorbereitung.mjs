@@ -240,6 +240,20 @@ try {
         assert.equal(await page.evaluate(() => navigator.clipboard.readText()), `${ziel.ziel}#hp=S`);
         await choose(page, { variante: 'frei' });
         assert.equal(await page.locator('#vb-link-vorwahl').inputValue(), `${ziel.ziel}#hp=frei`);
+        assert.equal(await page.locator('#vb-link-frei').count(), 0, 'no second «frei» link when frei is chosen');
+        // Wahl-Buttons (26.10.2026): two of three, «#hp=S,M»; with any preselection a separate «frei» link
+        const t = readJson(k, 'hpTeacher.json');
+        for (const [v, a, b] of [['S,M', 'S', 'M'], ['M,L', 'M', 'L'], ['S,L', 'S', 'L']]) {
+            await choose(page, { variante: v });
+            assert.equal(await page.locator('#vb-link-vorwahl').inputValue(), `${ziel.ziel}#hp=${v}`, v);
+            assert.equal(await page.locator('#vb-link-frei').inputValue(), `${ziel.ziel}#hp=frei`, v);
+            const l = await text(page, '#vb-links');
+            assert.ok(l.includes(`Wahl zwischen ${t.wege.anzeige_lehrperson[a]} und ${t.wege.anzeige_lehrperson[b]}`), v);
+            assert.match(l, /wählen zwischen ihnen/);
+            assert.match(await text(page, '#vb-plan'), /Wahl zwischen/);
+        }
+        await choose(page, { variante: 'S,M' });
+        await shot(page, 'vorbereitung-lehrperson-zwei-von-drei.png');
         // every unit: base address equals the target of its short link
         for (const u of UNITS) {
             await choose(page, { unit: u, variante: 'M' });
