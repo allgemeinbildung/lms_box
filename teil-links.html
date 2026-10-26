@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Teil-Links Lehrmittel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap">
+<style>
+/* Layout: zwei Spalten (Einheit + Abschnitte | Links), schmal untereinander. Farben und Schrift wie das Lehrmittel (Petrol, IBM Plex). */
+:root {
+  --bg: #f6f8f8; --panel: #ffffff; --ink: #1b2526; --ink2: #56686a; --rule: #d5e0e0;
+  --acc: #1f8a8a; --acc-ink: #ffffff; --acc-soft: #e1f2f2; --sel: #c9ecec;
+  --f-display: "IBM Plex Serif", Georgia, serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121a1b; --panel: #192324; --ink: #e3eced; --ink2: #9bb0b2; --rule: #2c3b3d;
+  --acc: #4fc1c1; --acc-ink: #0d1516; --acc-soft: #1d3436; --sel: #22484a; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121a1b; --panel: #192324; --ink: #e3eced; --ink2: #9bb0b2; --rule: #2c3b3d;
+  --acc: #4fc1c1; --acc-ink: #0d1516; --acc-soft: #1d3436; --sel: #22484a; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 22px; }
+header h1 { font: 600 1.75rem/1.2 var(--f-display); margin: 0 0 6px; text-wrap: balance; }
+header p { margin: 0; color: var(--ink2); max-width: 68ch; }
+code, .mono { font-family: var(--f-mono); font-size: .88em; }
+.grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+@media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.label { font: 600 .72rem/1 var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink2); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+select, input[type="number"], input[type="search"] { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--rule); border-radius: 7px; padding: 8px 10px; min-width: 0; }
+select { width: 100%; }
+input[type="number"] { width: 4.5em; font-variant-numeric: tabular-nums; }
+button, a.btn { font: 500 .9rem/1 var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 7px; padding: 8px 12px; cursor: pointer; text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
+button:hover, a.btn:hover { border-color: var(--acc); }
+button.primary { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); }
+button:disabled { opacity: .45; cursor: default; }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+
+.secs { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.secs label { display: grid; grid-template-columns: auto 2.2em minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 7px 9px; border-radius: 7px; cursor: pointer; border: 1px solid transparent; }
+.secs label:hover { border-color: var(--rule); }
+.secs input { accent-color: var(--acc); margin: 0; transform: translateY(2px); }
+.secs .n { font: 600 .9rem var(--f-mono); color: var(--acc); font-variant-numeric: tabular-nums; }
+.secs .gruppe { font: 600 .7rem var(--f-mono); color: var(--ink2); margin-left: 6px; }
+.secs li.on label { background: var(--acc-soft); }
+
+.link { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--rule); border-radius: 8px; background: var(--bg); min-width: 0; }
+.link .kopf { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; justify-content: space-between; }
+.link .was { font-weight: 600; }
+.link .titel { color: var(--ink2); font-size: .88rem; }
+.link .url { font: .82rem/1.45 var(--f-mono); overflow-wrap: anywhere; color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 7px 9px; user-select: all; }
+.link .url b { color: var(--acc); font-weight: 600; }
+.hint { color: var(--ink2); font-size: .85rem; margin: 0; }
+.leer { color: var(--ink2); font-style: italic; margin: 0; }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: .9rem; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.toast.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+details { color: var(--ink2); font-size: .9rem; }
+details summary { cursor: pointer; color: var(--ink); font-weight: 500; }
+details ul { margin: 8px 0 0; padding-left: 1.2em; display: grid; gap: 4px; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Teil-Links für das Lehrmittel</h1>
+    <p>Einheit wählen, Abschnitte ankreuzen oder die Einheit aufteilen. Wer den Link öffnet, sieht nur diese Abschnitte, mit den alten Nummern. Die Lernansicht zeigt dann nur diese Schritte.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="l-einheit">
+      <div class="label" id="l-einheit">Einheit</div>
+      <input type="search" id="suche" placeholder="Suchen, z. B. Steuern oder 6.4" aria-label="Einheit suchen">
+      <select id="einheit" aria-label="Einheit"></select>
+      <div class="row" style="justify-content: space-between">
+        <div class="label" id="l-abschnitte">Abschnitte</div>
+        <div class="row">
+          <button type="button" id="alle">Alle</button>
+          <button type="button" id="keine">Keine</button>
+        </div>
+      </div>
+      <ul class="secs" id="secs" aria-labelledby="l-abschnitte"></ul>
+    </section>
+
+    <div style="display: grid; gap: 22px; min-width: 0">
+      <section class="panel" aria-labelledby="l-auswahl">
+        <div class="label" id="l-auswahl">Link für die Auswahl</div>
+        <div id="auswahl"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="l-teilen">
+        <div class="row" style="justify-content: space-between">
+          <div class="label" id="l-teilen">Einheit aufteilen</div>
+          <div class="row">
+            <label for="gruppen">in</label>
+            <input type="number" id="gruppen" min="2" max="12" value="3">
+            <span>Gruppen</span>
+          </div>
+        </div>
+        <div id="teilen" style="display: grid; gap: 10px"></div>
+        <button type="button" class="primary" id="alleKopieren">Alle Gruppen-Links kopieren</button>
+      </section>
+    </div>
+  </div>
+
+  <details>
+    <summary>So funktioniert der Link</summary>
+    <ul>
+      <li><code>#teil=1-4</code> zeigt die Abschnitte 1 bis 4. <code>#teil=3,5,7</code> oder <code>#teil=3-5-7</code> zeigt 3, 5 und 7.</li>
+      <li>Gezählt wird wie in der Liste «Inhalte» auf der Seite. Der Anfang der Seite (Titel, Lehrmittel, Lernziele) bleibt immer sichtbar.</li>
+      <li>Gilt nur für die Seite, die mit dem Link geöffnet wurde. Wer zu einer anderen Einheit wechselt, sieht dort wieder alles.</li>
+      <li>Wieder alles zeigen: die Seite ohne <code>#teil=</code> öffnen oder <code>#teil=alle</code> anhängen.</li>
+      <li>Die Antworten der Lernenden bleiben gespeichert, auch in Abschnitten, die gerade ausgeblendet sind.</li>
+    </ul>
+  </details>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const EINHEITEN = [{"kapitel": "Neue Lebensphase", "kn": 1, "nr": "1.1", "titel": "Schule und Betrieb", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/01+Neue+Lebensphase/1.1+Schule+und+Betrieb", "abschnitte": ["Organisation der dualen Berufsbildung", "Das Schweizer Bildungssystem und seine Durchlässigkeit", "Rolle und Entwicklung der Allgemeinbildung (ABU)", "Gesetzliche Grundlagen und Akteure der Berufsbildung", "Abschluss"]}, {"kapitel": "Neue Lebensphase", "kn": 1, "nr": "1.2", "titel": "Grundlagen der BWL", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/01+Neue+Lebensphase/1.2+Grundlagen+der+BWL", "abschnitte": ["Grundlagen der BWL und Anspruchsgruppen", "Unternehmensziele und Zielbeziehungen", "Das Unternehmenskonzept", "Grundlagen der Aufbauorganisation", "Organisationsformen und Kontrollspanne", "Abschluss"]}, {"kapitel": "Neue Lebensphase", "kn": 1, "nr": "1.3", "titel": "Rechtsgrundlagen", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/01+Neue+Lebensphase/1.3+Rechtsgrundlagen", "abschnitte": ["Notwendigkeit und Aufgaben des Rechts", "Aufbau der Rechtsordnung", "Gliederung: Öffentliches und Privates Recht", "Wichtige Rechtsgrundsätze", "Personenrecht: Rechtsfähigkeit und Handlungsfähigkeit", "Rechte und Pflichten im Jugendalter und das Lösen von Rechtsfällen", "Abschluss"]}, {"kapitel": "Neue Lebensphase", "kn": 1, "nr": "1.4", "titel": "Der Lehrvertrag", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/01+Neue+Lebensphase/1.4+Der+Lehrvertrag", "abschnitte": ["Grundlagen und Abschluss des Lehrvertrags", "Probezeit und Beendigung des Lehrverhältnisses", "Pflichten der Lernenden", "Rechte der Lernenden", "Pflichten der Berufsbildenden", "Konfliktmanagement im Lehrbetrieb", "Abschluss"]}, {"kapitel": "Neue Lebensphase", "kn": 1, "nr": "1.5", "titel": "Ökologie im Umfeld", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/01+Neue+Lebensphase/1.5+%C3%96kologie+im+Umfeld", "abschnitte": ["Ökologisches und Ethisches Einkaufen", "Fairtrade", "Abfallproblematik in der Schweiz", "Recycling und dessen Herausforderungen", "Abfallverbrennung", "Littering", "Gesetzliche Grundlagen und Lösungsansätze (Abfall)", "Abschluss"]}, {"kapitel": "Konsum und Geld", "kn": 2, "nr": "2.1", "titel": "Lohnbestandteile", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/02+Konsum+und+Geld/2.1+Lohnbestandteile", "abschnitte": ["Bruttolohn, Nettolohn und Lohnzusätze", "Obligatorische Sozialversicherungsbeiträge", "Unfallversicherung (NBU und BU)", "Spezifische Regelungen für Lohnabzüge bei Lernenden", "Weitere Lohnabzüge und finale Lohnzusammensetzung", "Die Lohnabrechnung: Aufbau und Interpretation", "Der Kontoauszug", "Abschluss"]}, {"kapitel": "Konsum und Geld", "kn": 2, "nr": "2.2", "titel": "Budget", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/02+Konsum+und+Geld/2.2+Budget", "abschnitte": ["Grundlagen der Budgeterstellung", "Fixe Kosten", "Variable Kosten", "Einnahmen, Rückstellungen und Saldo", "Umgang mit Schulden und Hilfsangebote", "Abschluss"]}, {"kapitel": "Konsum und Geld", "kn": 2, "nr": "2.3", "titel": "Zahlungsarten", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/02+Konsum+und+Geld/2.3+Zahlungsarten", "abschnitte": ["Barzahlung", "Bankbasierte Zahlungen (Banküberweisung, Dauerauftrag, LSV)", "Digitale Bankdienstleistungen (E-Banking, QR-Rechnung, eBill)", "Debitkarten", "Kreditkarten (inkl. Kontaktloses Zahlen)", "Online-Zahlungssysteme (z.B. PayPal)", "Mobile Zahlungssysteme (Twint, Apple/Samsung/Google Pay)", "Abschluss"]}, {"kapitel": "Konsum und Geld", "kn": 2, "nr": "2.4", "titel": "Kaufvertragsarten Teil 1", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/02+Konsum+und+Geld/2.4+Kaufvertragsarten+Teil+1", "abschnitte": ["Grundlagen des Vertragsabschlusses", "Vertragsformen und Formvorschriften", "Grenzen der Vertragsfreiheit: Nichtige Verträge", "Grenzen der Vertragsfreiheit: Anfechtbare Verträge", "Verjährung von Forderungen", "Der Kaufvertrag: Ablauf und Schlüsselbegriffe", "Störungen bei der Vertragserfüllung (Käuferperspektive): Lieferverzug und Mangelhafte Lieferung", "Störungen bei der Vertragserfüllung (Verkäuferperspektive): Annahmeverzug und Zahlungsverzug", "Gewährleistung und Garantie", "Quittung und Internetkauf", "Einfache Kaufvertragsarten: Barkauf und Gewöhnlicher Kreditkauf", "Abschluss"]}, {"kapitel": "Konsum und Geld", "kn": 2, "nr": "2.5", "titel": "Vertragsarten", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/02+Konsum+und+Geld/2.5+Vertragsarten", "abschnitte": ["Werkvertrag", "Einfacher Auftrag", "Abschluss"]}, {"kapitel": "Konsum und Geld", "kn": 2, "nr": "2.6", "titel": "Geldanlagemöglichkeiten", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/02+Konsum+und+Geld/2.6+Geldanlagem%C3%B6glichkeiten", "abschnitte": ["Grundlagen der Geldanlage: Zins, Rendite, Risiko und Liquidität", "Das Magische Dreieck der Geldanlage", "Konten als Geldanlage", "Wertschriften: Obligationen", "Wertschriften: Aktien", "Wertschriften: Fonds", "Kryptowährungen als Geldanlage", "Abschluss"]}, {"kapitel": "Konsum und Geld", "kn": 2, "nr": "2.7", "titel": "Preisbildung", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/02+Konsum+und+Geld/2.7+Preisbildung", "abschnitte": ["Bedürfnisse und Nachfrage", "Güterarten und Angebot", "Markt und Preisbildung", "Wirtschaftskreisläufe", "Produktionsfaktoren", "Wirtschaftssektoren", "Abschluss"]}, {"kapitel": "Politik und Umfeld", "kn": 3, "nr": "3.1", "titel": "Entwicklung der modernen Schweiz", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/03+Politik+und+Umfeld/3.1+Entwicklung+der+modernen+Schweiz", "abschnitte": ["Gründung und Etablierung des Bundesstaates (1848-1891)", "Krisen und Konsolidierung im 20. Jahrhundert (Weltkriege, Generalstreik, Proporzwahl)", "Nachkriegszeit und gesellschaftlicher Wandel (AHV, Zauberformel, Frauenstimmrecht, Jura, UNO)", "Die Schweizerische Bundesverfassung als Grundgesetz", "Steckbrief der Schweiz: Fakten und Zahlen", "Gewaltenteilung in der Schweiz", "Die Gemeinden und das Milizsystem", "Abschluss"]}, {"kapitel": "Politik und Umfeld", "kn": 3, "nr": "3.2", "titel": "Mitwirkungsrechte und -pflichten", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/03+Politik+und+Umfeld/3.2+Mitwirkungsrechte+und+-pflichten", "abschnitte": ["Grundlagen der Rechte und Pflichten: Menschenrechte, Grundrechte, Staatsbürgerliche Rechte und Pflichten", "Politische Rechte: Stimm- und Wahlrecht", "Mehrheitsentscheidungen: Regeln bei Abstimmungen und Wahlen", "Wahlverfahren: Majorz- und Proporzwahl", "Listenveränderungen und Stimmenarten bei der Proporzwahl", "Abschluss"]}, {"kapitel": "Politik und Umfeld", "kn": 3, "nr": "3.3", "titel": "Strafrecht und Jugendstrafrecht", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/03+Politik+und+Umfeld/3.3+Strafrecht+und+Jugendstrafrecht", "abschnitte": ["Grundlagen des Strafrechts: Zweck, Prinzipien und Deliktarten", "Strafen im Erwachsenenstrafrecht", "Massnahmen im Erwachsenenstrafrecht", "Grundlagen und Verfahren im Jugendstrafrecht", "Sanktionen im Jugendstrafrecht: Schutzmassnahmen und Strafen", "Abschluss"]}, {"kapitel": "Politik und Umfeld", "kn": 3, "nr": "3.4", "titel": "Migration, Integration und Rassismus", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/03+Politik+und+Umfeld/3.4+Migration,+Integration+und+Rassismus", "abschnitte": ["Migrationsgründe: Push- und Pull-Faktoren", "Globale Migrationsströme und Ausländeranteil", "Schweiz: Auswanderungs- und Einwanderungsland", "Integration: Konzepte und Politik", "Asyl und Einbürgerung", "Diskriminierung und Rassismus: Grundlagen", "Anti-Rassismus-Strafnorm und Alltagsrassismus", "Abschluss"]}, {"kapitel": "Sicherheit und Gesundheit", "kn": 4, "nr": "4.1", "titel": "Versicherungswesen allgemein", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/04+Sicherheit+und+Gesundheit/4.1+Versicherungswesen+allgemein", "abschnitte": ["Grundlagen des Risikomanagements", "Das Solidaritätsprinzip der Versicherungen", "Überblick der Versicherungsarten", "Persönliche Risiken und Prävention", "Abschluss"]}, {"kapitel": "Sicherheit und Gesundheit", "kn": 4, "nr": "4.2", "titel": "Kranken- und Unfallversicherung", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/04+Sicherheit+und+Gesundheit/4.2+Kranken-+und+Unfallversicherung", "abschnitte": ["Grundlagen der Krankenversicherung", "Kostenbeteiligung: Franchise und Selbstbehalt", "Leistungen und Sparmöglichkeiten in der Krankenversicherung", "Krankentaggeldversicherung und Vergleichsdienste", "Grundlagen der Unfallversicherung", "Details zur Unfallversicherung: Weiterführende Leistungen und Abredeversicherung", "Abschluss"]}, {"kapitel": "Sicherheit und Gesundheit", "kn": 4, "nr": "4.3", "titel": "Gesundheit und Sucht", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/04+Sicherheit+und+Gesundheit/4.3+Gesundheit+und+Sucht", "abschnitte": ["Grundlagen der Gesundheit", "Körperliches Wohlergehen und Risikofaktoren", "Geistiges und Soziales Wohlergehen", "Gesundheitsförderung und Stressbewältigung", "Konzentration und Leistungsfähigkeit", "Sexuelle Gesundheit und Verhütung", "Sucht: Definition, Ursachen und Kriterien", "Suchtmittel: Alkohol, Tabak, Anabolika", "Suchtmittel: Cannabis und rechtliche Aspekte", "Prävention und Hilfsangebote bei Sucht", "Abschluss"]}, {"kapitel": "Sicherheit und Solidarität", "kn": 5, "nr": "5.1", "titel": "Sachversicherungen", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/05+Sicherheit+und+Solidarit%C3%A4t/5.1+Sachversicherungen", "abschnitte": ["Kaskoversicherungen beim Auto (Teil- und Vollkasko)", "Rechtsschutzversicherung (im Kontext Auto)", "Gebäudeversicherung", "Hausratversicherung", "Unterversicherung (bei der Hausratversicherung)", "Abschluss"]}, {"kapitel": "Sicherheit und Solidarität", "kn": 5, "nr": "5.2", "titel": "Haftpflichtversicherungen", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/05+Sicherheit+und+Solidarit%C3%A4t/5.2+Haftpflichtversicherungen", "abschnitte": ["Grundlagen der Haftpflichtversicherung", "Motorfahrzeughaftpflichtversicherung", "Privathaftpflichtversicherung", "Abschluss"]}, {"kapitel": "Sicherheit und Solidarität", "kn": 5, "nr": "5.3", "titel": "Verantwortung", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/05+Sicherheit+und+Solidarit%C3%A4t/5.3+Verantwortung", "abschnitte": ["Allgemeine Unfallstatistik und Trends im Schweizer Strassenverkehr", "Jugendliche als Risikogruppe im Strassenverkehr", "Jugendspezifische Risikofaktoren", "Besondere Gefahrenquellen für Jugendliche: Motorradfahren und Mitfahren im Auto", "Präventionsmassnahmen und verantwortungsvolles Handeln", "Abschluss"]}, {"kapitel": "Politik Schweiz", "kn": 6, "nr": "6.1", "titel": "Die wichtigsten Aufgaben eines Staates", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/06+Politik+Schweiz/6.1+Die+wichtigsten+Aufgaben+eines+Staates", "abschnitte": ["Verfassungsrechtliche Verankerung der Staatsaufgaben", "Politische Umsetzung der Staatsaufgaben", "Bürgerpartizipation als Element des Staates", "Abschluss"]}, {"kapitel": "Politik Schweiz", "kn": 6, "nr": "6.2", "titel": "Bundesstaat Schweiz", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/06+Politik+Schweiz/6.2+Bundesstaat+Schweiz", "abschnitte": ["Staatsformen und Föderalismus", "Demokratie als Regierungsform", "Konkordanzdemokratie vs. Konkurrenzdemokratie", "Abgrenzung Demokratie zur Diktatur", "Abschluss"]}, {"kapitel": "Politik Schweiz", "kn": 6, "nr": "6.3", "titel": "Gewaltenteilung", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/06+Politik+Schweiz/6.3+Gewaltenteilung", "abschnitte": ["Das Parlament (Legislative)", "Der Bundesrat (Exekutive)", "Das Bundesgericht (Judikative)", "Abschluss"]}, {"kapitel": "Politik Schweiz", "kn": 6, "nr": "6.4", "titel": "Referendum und Initiative", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/06+Politik+Schweiz/6.4+Referendum+und+Initiative", "abschnitte": ["Das Referendum", "Die Initiative", "Das Petitionsrecht", "Abschluss"]}, {"kapitel": "Politik Schweiz", "kn": 6, "nr": "6.5", "titel": "Entstehung eines Gesetzes", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/06+Politik+Schweiz/6.5+Entstehung+eines+Gesetzes", "abschnitte": ["Anstoss", "Vorentwurf", "Vernehmlassung", "Definitiver Entwurf mit Botschaft", "Behandlung in National- und Ständerat", "Differenzbereinigungsverfahren", "Veröffentlichung mit Referendumsfrist", "Volksabstimmung und Inkrafttreten", "Abschluss"]}, {"kapitel": "Politik Schweiz", "kn": 6, "nr": "6.6", "titel": "Interessengruppen", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/06+Politik+Schweiz/6.6+Interessengruppen", "abschnitte": ["Politische Parteien und Grundhaltungen", "Die Schweizer Parteienlandschaft und ihre Darstellung", "Verbände und ihre Rolle in der Politik", "Nichtregierungsorganisationen (NGOs) und Global Governance", "Abschluss"]}, {"kapitel": "Politik Schweiz", "kn": 6, "nr": "6.7", "titel": "Übersicht Kanton Zürich", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/06+Politik+Schweiz/6.7+%C3%9Cbersicht+Kanton+Z%C3%BCrich", "abschnitte": ["Parteienspektrum Kanton Zürich (Kantonsrat)", "Der Zürcher Regierungsrat", "National- und Ständeräte des Kantons Zürich", "Abschluss"]}, {"kapitel": "Medien und Information", "kn": 7, "nr": "7.1", "titel": "Medien", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/07+Medien+und+Information/7.1+Medien", "abschnitte": ["Rolle und Aufgaben der Medien", "Meinungs-, Informations- und Medienfreiheit", "Service Public im Medienbereich", "Eigenschaften und Arten von Massenmedien", "Medienethik und Informationsselektion", "Formen der Medienmanipulation (Sprache, Bilder)", "Zensur (direkt und indirekt)", "Schutzmassnahmen gegen Medienmanipulation", "Abschluss"]}, {"kapitel": "Konsum und Wirtschaft", "kn": 8, "nr": "8.1", "titel": "Kaufvertragsarten Teil 2", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/08+Konsum+und+Wirtschaft/8.1+Kaufvertragsarten+Teil+2", "abschnitte": ["Leasing", "Miet-Kauf-Vertrag", "Kauf mit Konsumkreditvertrag", "Kauf von Waren mit einem Kleindarlehen (Barkredit)", "Abschluss"]}, {"kapitel": "Konsum und Wirtschaft", "kn": 8, "nr": "8.2", "titel": "Schulden und Betreibung", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/08+Konsum+und+Wirtschaft/8.2+Schulden+und+Betreibung", "abschnitte": ["Verschuldung: Ursachen, Prävention und erste Schritte", "Grundlagen des Betreibungsverfahrens", "Die drei Betreibungsarten", "Ablauf eines Betreibungsverfahrens (am Beispiel der Pfändung)", "Abschluss"]}, {"kapitel": "Konsum und Wirtschaft", "kn": 8, "nr": "8.3", "titel": "Konjunktur", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/08+Konsum+und+Wirtschaft/8.3+Konjunktur", "abschnitte": ["Wohlstand, Wohlfahrt und BIP", "Einkommens- und Vermögensverteilung", "Wirtschaftsformen und Rolle des Staates", "Wirtschaftspolitik und Konjunkturzyklus", "Phasen des Konjunkturzyklus und Konjunkturpolitik", "Arbeitslosigkeit und Armut", "Abschluss"]}, {"kapitel": "Konsum und Wirtschaft", "kn": 8, "nr": "8.4", "titel": "Stabile Preise, Inflation und Deflation", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/08+Konsum+und+Wirtschaft/8.4+Stabile+Preise,+Inflation+und+Deflation", "abschnitte": ["Inflation", "Deflation", "Messung der Preisentwicklung – Der LIK", "Rolle der Schweizerischen Nationalbank (SNB)", "Nachhaltige Staatsfinanzierung und die Schuldenbremse", "Abschluss"]}, {"kapitel": "Umwelt und Nachhaltigkeit", "kn": 9, "nr": "9.1", "titel": "Klima", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/09+Umwelt+und+Nachhaltigkeit/9.1+Klima", "abschnitte": ["Natürlicher und anthropogener Treibhauseffekt", "Ozon und Ozonloch", "Folgen des Klimawandels", "Klimawandel im Alpenraum: Gletscherschmelze und Permafrost", "Abschluss"]}, {"kapitel": "Umwelt und Nachhaltigkeit", "kn": 9, "nr": "9.2", "titel": "Energie", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/09+Umwelt+und+Nachhaltigkeit/9.2+Energie", "abschnitte": ["Energiequellen: Erneuerbar vs. Nicht Erneuerbar", "Energieverbrauch: Global und in der Schweiz", "Ressourcenverbrauch am Beispiel Wasser", "Graue Energie und Ökobilanz", "Abschluss"]}, {"kapitel": "Umwelt und Nachhaltigkeit", "kn": 9, "nr": "9.3", "titel": "Nachhaltigkeit", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/09+Umwelt+und+Nachhaltigkeit/9.3+Nachhaltigkeit", "abschnitte": ["Grundlagen und Dimensionen der Nachhaltigkeit", "Internationale Klimapolitik und Abkommen", "Politische Instrumente der Umweltpolitik", "Energiestrategie 2050 der Schweiz", "2000-Watt-Gesellschaft und persönlicher Beitrag", "Abschluss"]}, {"kapitel": "Umwelt und Nachhaltigkeit", "kn": 9, "nr": "9.4", "titel": "Mobilität", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/09+Umwelt+und+Nachhaltigkeit/9.4+Mobilit%C3%A4t", "abschnitte": ["Verkehrswachstum und städtische Herausforderungen", "Auswirkungen der Mobilität", "Finanzierung und Steuerung der zukünftigen Mobilität", "E-Mobilität als Schlüsseltrend", "Innovative Mobilitätskonzepte", "Abschluss"]}, {"kapitel": "Steuern", "kn": 10, "nr": "10.1", "titel": "Steuern", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/10+Steuern/10.1+Steuern", "abschnitte": ["Steuerpflicht", "Einnahmen und Ausgaben des Staates", "Steuerzwecke", "Steuerhoheit und die verschiedenen Steuern", "Direkte und indirekte Steuern", "Quellensteuer", "Verrechnungssteuer (VStG)", "Mehrwertsteuer (MWST)", "Steuererklärung ausfüllen", "Steuerprogression vs. Flat Rate Tax", "Abschluss"]}, {"kapitel": "Politik und Wirtschaft global", "kn": 11, "nr": "11.1", "titel": "Schweiz ‒ EU", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/11+Politik+und+Wirtschaft+global/11.1+Schweiz+%E2%80%92+EU", "abschnitte": ["Die Entstehung und Entwicklung der EU", "Die EU heute Erweiterung Grundfreiheiten und Währung", "Aufbau und Funktionsweise der EU-Organe", "Aktuelle Herausforderungen der EU", "Die Beziehungen Schweiz – EU Ein historischer Überblick und der Weg zu den Bilateralen", "Die Bilateralen Verträge I und II im Detail", "Internationale Organisationen UNO WTO NATO im Überblick", "Abschluss"]}, {"kapitel": "Politik und Wirtschaft global", "kn": 11, "nr": "11.2", "titel": "Globalisierung", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/11+Politik+und+Wirtschaft+global/11.2+Globalisierung", "abschnitte": ["Was ist Globalisierung? Ursachen und historische Entwicklung", "Globalisierung der Wirtschaft", "Schweiz in der globalisierten Wirtschaft", "Globalisierung in der Politik", "Globalisierung der Kultur", "Globalisierung der Umwelt", "Globalisierung der Kommunikation", "Globalisierung der Sprache", "Abschluss"]}, {"kapitel": "Politik und Wirtschaft global", "kn": 11, "nr": "11.3", "titel": "Entwicklungsländer", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/11+Politik+und+Wirtschaft+global/11.3+Entwicklungsl%C3%A4nder", "abschnitte": ["Grundbegriffe und globale Verteilung von Wohlstand", "Ursachen der Unterentwicklung und Verantwortung der Industrieländer", "Entwicklungspolitik und Entwicklungszusammenarbeit (EZA) der Schweiz", "Abschluss"]}, {"kapitel": "Lebensformen und Werte", "kn": 12, "nr": "12.1", "titel": "Werte", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/12+Lebensformen+und+Werte/12.1+Werte", "abschnitte": ["Partnerschaft und Rollenerwartungen", "Gleichstellung zwischen Mann und Frau", "Sexualität und Sexuelle Orientierung", "Sexualstrafrecht", "Abschluss"]}, {"kapitel": "Lebensformen und Werte", "kn": 12, "nr": "12.2", "titel": "Lebensformen", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/12+Lebensformen+und+Werte/12.2+Lebensformen", "abschnitte": ["Konkubinat", "Ehe: Weg und Wirkungen", "Kindesverhältnis", "Güterrecht: Errungenschaftsbeteiligung", "Scheidung und Trennung", "Erbrecht", "Abschluss"]}, {"kapitel": "Sozialversicherungen", "kn": 13, "nr": "13.1", "titel": "Die Altersvorsorge", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/13+Sozialversicherungen/13.1+Die+Altersvorsorge", "abschnitte": ["Das Dreisäulenprinzip", "Die Alters- und Hinterlassenenversicherung (AHV) – 1. Säule", "Die Invalidenversicherung (IV) – 1. Säule", "Die Arbeitslosenversicherung (ALV) – 1. Säule", "Die Erwerbsersatzordnung (EO) – 1. Säule", "Die Pensionskasse (BVG) – 2. Säule", "Die private Vorsorge – 3. Säule", "Abschluss"]}, {"kapitel": "Wohnen", "kn": 14, "nr": "14.1", "titel": "Wohnen und Miete", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/14+Wohnen/14.1+Wohnen+und+Miete", "abschnitte": ["Wohnungssuche und Mietbeginn", "Pflichten und Rechte während der Mietzeit", "Beendigung des Mietverhältnisses", "Mieterschutz", "Wohneigentum als Alternative", "Abschluss"]}, {"kapitel": "Arbeitswelt", "kn": 15, "nr": "15.1", "titel": "Arbeitsrecht", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/15+Arbeitswelt/15.1+Arbeitsrecht", "abschnitte": ["Rechtliche Grundlagen und Einzelarbeitsvertrag", "Pflichten der Arbeitnehmenden", "Pflichten der Arbeitgebenden", "Arbeitszeit", "Beendigung des Arbeitsverhältnisses", "Gesamtarbeitsvertrag (GAV)", "Abschluss"]}, {"kapitel": "Arbeitswelt", "kn": 15, "nr": "15.2", "titel": "Qualifizierung für den Arbeitsmarkt", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/15+Arbeitswelt/15.2+Qualifizierung+f%C3%BCr+den+Arbeitsmarkt", "abschnitte": ["Angebotstypen der beruflichen Weiterbildung in der Schweiz", "Höhere Berufsbildung und Berufsmaturität nach dem EFZ", "Motivation und Nutzen beruflicher Weiterbildung", "Strategische Auswahl einer Weiterbildung", "Abschluss"]}, {"kapitel": "Arbeitswelt", "kn": 15, "nr": "15.3", "titel": "Arbeitslosigkeit", "url": "https://lehrmittel.aburossi.ch/ABUlehrmittel/15+Arbeitswelt/15.3+Arbeitslosigkeit", "abschnitte": ["Grundlagen der Arbeitslosigkeit und das Schweizer System", "Friktionelle Arbeitslosigkeit", "Konjunkturelle Arbeitslosigkeit", "Strukturelle Arbeitslosigkeit", "Saisonale Arbeitslosigkeit", "Abschluss"]}];
+const $ = (id) => document.getElementById(id);
+const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+                set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+
+let cur = null, gewaehlt = new Set();
+
+// [3,5,7] → "3,5,7"; [1,2,3,4] → "1-4"; [1,2,3,7] → "1-3,7"
+function kurz(nums) {
+  const s = [...nums].sort((a, b) => a - b), out = [];
+  for (let i = 0; i < s.length; ) {
+    let j = i; while (j + 1 < s.length && s[j + 1] === s[j] + 1) j++;
+    out.push(j > i ? s[i] + "-" + s[j] : String(s[i])); i = j + 1;
+  }
+  return out.join(",");
+}
+const anzeige = (nums) => kurz(nums).replace(/-/g, "–").replace(/,/g, ", ");
+function linkFuer(e, nums) {
+  if (!nums.length || nums.length === e.abschnitte.length) return { href: e.url, hash: "" };
+  const hash = "#teil=" + kurz(nums);
+  return { href: e.url + hash, hash };
+}
+// 11 Abschnitte in 3 Gruppen → 4, 4, 3
+function aufteilen(k, n) {
+  n = Math.max(1, Math.min(n, k));
+  const g = [], basis = Math.floor(k / n), rest = k % n;
+  let start = 1;
+  for (let i = 0; i < n; i++) { const len = basis + (i < rest ? 1 : 0); g.push(Array.from({ length: len }, (_, x) => start + x)); start += len; }
+  return g;
+}
+
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) { if (k === "class") e.className = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); }
+  for (const c of kids) if (c != null) e.append(c);
+  return e;
+}
+function toast(t) { const x = $("toast"); x.textContent = t; x.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => x.classList.remove("on"), 1600); }
+async function kopieren(text, urlEl, msg) {
+  try { await navigator.clipboard.writeText(text); toast(msg || "Kopiert"); }
+  catch (e) {
+    if (urlEl) { const r = document.createRange(); r.selectNodeContents(urlEl); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    toast("Markiert – mit Strg+C kopieren");
+  }
+}
+
+function linkKarte(was, nums) {
+  const { href, hash } = linkFuer(cur, nums);
+  const titel = nums.map((n) => cur.abschnitte[n - 1]).join(" · ");
+  const url = el("div", { class: "url" }, hash ? href.slice(0, -hash.length) : href, hash ? el("b", {}, hash) : null);
+  return el("div", { class: "link" },
+    el("div", { class: "kopf" }, el("span", { class: "was" }, was),
+      el("div", { class: "row" },
+        el("button", { type: "button", onclick: () => kopieren(href, url) }, "Kopieren"),
+        el("a", { class: "btn", href, target: "_blank", rel: "noopener" }, "Öffnen ↗"))),
+    el("div", { class: "titel" }, titel),
+    url);
+}
+
+function fuellen(filter) {
+  const sel = $("einheit"), q = (filter || "").trim().toLowerCase();
+  sel.textContent = "";
+  let gruppe = null, kap = null;
+  for (const [i, e] of EINHEITEN.entries()) {
+    const text = e.nr + " " + e.titel + " " + e.kapitel + " " + e.abschnitte.join(" ");
+    if (q && !text.toLowerCase().includes(q)) continue;
+    if (e.kapitel !== kap) { kap = e.kapitel; gruppe = el("optgroup", { label: e.kn + " " + e.kapitel }); sel.append(gruppe); }
+    gruppe.append(el("option", { value: String(i) }, e.nr + " " + e.titel + "  (" + e.abschnitte.length + ")"));
+  }
+  if (cur && [...sel.options].some((o) => +o.value === EINHEITEN.indexOf(cur))) sel.value = String(EINHEITEN.indexOf(cur));
+  else if (sel.options.length) waehlen(+sel.options[0].value);
+}
+
+function waehlen(i) {
+  cur = EINHEITEN[i]; $("einheit").value = String(i); store.set("teil-links-einheit", cur.nr);
+  gewaehlt = new Set(); render();
+}
+
+function render() {
+  if (!cur) return;
+  const n = +$("gruppen").value || 3;
+  const gruppen = aufteilen(cur.abschnitte.length, n);
+  const gNr = {}; gruppen.forEach((g, gi) => g.forEach((x) => { gNr[x] = gi + 1; }));
+
+  const ul = $("secs"); ul.textContent = "";
+  cur.abschnitte.forEach((t, k) => {
+    const nr = k + 1, id = "s" + nr;
+    const box = el("input", { type: "checkbox", id });
+    box.checked = gewaehlt.has(nr);
+    box.addEventListener("change", () => { box.checked ? gewaehlt.add(nr) : gewaehlt.delete(nr); render(); });
+    ul.append(el("li", { class: gewaehlt.has(nr) ? "on" : "" },
+      el("label", { for: id }, box, el("span", { class: "n" }, String(nr)), el("span", {}, t, el("span", { class: "gruppe", title: "Gruppe beim Aufteilen" }, "G" + gNr[nr])))));
+  });
+
+  const aus = $("auswahl"); aus.textContent = "";
+  const nums = [...gewaehlt].sort((a, b) => a - b);
+  if (!nums.length) aus.append(el("p", { class: "leer" }, "Noch nichts angekreuzt. Links Abschnitte wählen, z. B. 3, 5 und 7."));
+  else aus.append(linkKarte(nums.length === cur.abschnitte.length ? "Ganze Einheit" : "Abschnitte " + anzeige(nums), nums));
+
+  const tl = $("teilen"); tl.textContent = "";
+  gruppen.forEach((g, gi) => tl.append(linkKarte("Gruppe " + (gi + 1) + " · Abschnitte " + anzeige(g), g)));
+  $("gruppen").max = String(cur.abschnitte.length);
+}
+
+$("suche").addEventListener("input", (ev) => fuellen(ev.target.value));
+$("einheit").addEventListener("change", (ev) => waehlen(+ev.target.value));
+$("gruppen").addEventListener("input", render);
+$("alle").addEventListener("click", () => { cur.abschnitte.forEach((_, k) => gewaehlt.add(k + 1)); render(); });
+$("keine").addEventListener("click", () => { gewaehlt.clear(); render(); });
+$("alleKopieren").addEventListener("click", () => {
+  const n = +$("gruppen").value || 3;
+  const text = cur.nr + " " + cur.titel + "\n\n" + aufteilen(cur.abschnitte.length, n).map((g, gi) =>
+    "Gruppe " + (gi + 1) + " (Abschnitte " + anzeige(g) + "): " + g.map((x) => cur.abschnitte[x - 1]).join(", ") + "\n" + linkFuer(cur, g).href).join("\n\n");
+  kopieren(text, null, "Alle Gruppen-Links kopiert");
+});
+
+// Start: zuletzt gewählte Einheit, sonst 10.1 Steuern
+const start = EINHEITEN.findIndex((e) => e.nr === (store.get("teil-links-einheit") || "10.1"));
+cur = EINHEITEN[start >= 0 ? start : 0];
+fuellen("");
+waehlen(EINHEITEN.indexOf(cur));
+</script>
+
+</body>
+</html>
