@@ -23,6 +23,8 @@
         var forced = /[?&]look=heft(&|$)/.test(location.search);
         if (parent === 'https://zh.abu-hko.ch' || forced) document.documentElement.classList.add('heft');
     })();</script>
+    <!-- Light or dark look, told by the host page (vault/publish.js). Light unless told otherwise. -->
+    <script src="js/theme.js"></script>
 </head>
 
 <body>

@@ -192,7 +192,7 @@ export function showLoginDialog({ closable = false, notice = '' } = {}) {
 // ---- signed in, but no assignment to show -----------------------------------------
 
 function logoutLink() {
-    const a = el('a', 'color: #007bff; cursor: pointer;', 'Abmelden');
+    const a = el('a', 'color: var(--c-link, #007bff); cursor: pointer;', 'Abmelden');
     a.href = '#';
     a.className = 'auth-logout';
     a.addEventListener('click', (e) => { e.preventDefault(); logout(); });
@@ -256,11 +256,11 @@ function showAccountError() {
 function showUser(name) {
     const actions = document.getElementById('action-container');
     if (!actions || document.getElementById('auth-user')) return;
-    const span = el('span', 'float: right; font-size: 0.8em; color: #6c757d; line-height: 2.8;');
+    const span = el('span', 'float: right; font-size: 0.8em; color: var(--c-muted, #6c757d); line-height: 2.8;');
     span.id = 'auth-user';
     const link = logoutLink();
     link.id = 'auth-logout';
-    link.style.color = '#6c757d';
+    link.style.color = 'var(--c-muted, #6c757d)';
     span.append(el('span', '', name), ' · ', link);
     actions.appendChild(span);
 }

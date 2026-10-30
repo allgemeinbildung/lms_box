@@ -102,27 +102,27 @@ function updateSaveStatus(status) {
     switch (status) {
         case 'saving':
             statusEl.textContent = 'Speichere...';
-            statusEl.style.color = '#6c757d';
+            statusEl.style.color = 'var(--c-muted, #6c757d)';
             break;
         case 'local':
             statusEl.textContent = 'Lokal gespeichert.';
-            statusEl.style.color = '#6c757d';
+            statusEl.style.color = 'var(--c-muted, #6c757d)';
             break;
         case 'cloud':
             statusEl.textContent = 'In der Cloud gespeichert.';
-            statusEl.style.color = '#28a745';
+            statusEl.style.color = 'var(--c-ok, #28a745)';
             break;
         case 'error':
             statusEl.textContent = 'Fehler beim Speichern in der Cloud. Nur auf diesem Gerät gesichert.';
-            statusEl.style.color = '#dc3545';
+            statusEl.style.color = 'var(--c-err, #dc3545)';
             break;
         case 'browser':
             statusEl.textContent = 'Nur in diesem Browser gespeichert.';
-            statusEl.style.color = '#6c757d';
+            statusEl.style.color = 'var(--c-muted, #6c757d)';
             break;
         case 'too_large':
             statusEl.textContent = 'Nicht gespeichert: Deine Antwort ist zu lang. Bitte kürze sie.';
-            statusEl.style.color = '#dc3545';
+            statusEl.style.color = 'var(--c-err, #dc3545)';
             break;
     }
 }

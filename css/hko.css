@@ -136,3 +136,40 @@ body.hko #action-container { margin-top: 10px; }
     border-left: 3px solid #ced4da; padding: 0.2em 0 0.2em 0.7em;
 }
 .hko-mitnahme-wert.hko-leer { border-left-color: transparent; }
+
+/* --- Dark look (30.10.2026), see css/styles.css: text on the callout turns light, light cards keep dark text --- */
+html[data-theme="dark"] .hko-vorgaben,
+html[data-theme="dark"] .hko-bezug,
+html[data-theme="dark"] .hko-bezug-block,
+html[data-theme="dark"] .hko-krit-indikator,
+html[data-theme="dark"] .hko-meldung,
+html[data-theme="dark"] .hko-woerter,
+html[data-theme="dark"] .hko-platzhalter,
+html[data-theme="dark"] .hko-leer,
+html[data-theme="dark"] #save-status.hko-status { color: var(--c-muted); }
+html[data-theme="dark"] .hko-link { color: var(--c-link); }
+html[data-theme="dark"] .hko-warnung,
+html[data-theme="dark"] #save-status.hko-status-error,
+html[data-theme="dark"] #save-status.hko-status-too_large { color: var(--c-err); }
+html[data-theme="dark"] #save-status.hko-status-cloud { color: var(--c-ok); }
+html[data-theme="dark"] .hko-krit,
+html[data-theme="dark"] .hko-krit-name,
+html[data-theme="dark"] .hko-mitnahme-wert { border-color: #5a6068; }
+html[data-theme="dark"] .hko-raster-tabelle th,
+html[data-theme="dark"] .hko-raster-tabelle td { border-color: #5a6068; }
+html[data-theme="dark"] .hko-mitnahme-wert { border-left-color: #5a6068; }
+html[data-theme="dark"] .hko-mitnahme-wert.hko-leer { border-left-color: transparent; }
+/* light cards: dark text */
+html[data-theme="dark"] .hko-ki-regel,
+html[data-theme="dark"] .hko-hinweis,
+html[data-theme="dark"] .hko-raster-tabelle th,
+html[data-theme="dark"] .hko-raster-beispiel td,
+html[data-theme="dark"] .hko-raster-zelle,
+html[data-theme="dark"] .hko-raster-befund-feld,
+html[data-theme="dark"] .hko-selbst-text { color: var(--c-card-text); }
+html[data-theme="dark"] .hko-raster-tabelle th.hko-raster-begriff { color: #084298; }
+html[data-theme="dark"] .hko-raster-beispiel td { color: #6c757d; }
+@media (max-width: 599px) {
+    html[data-theme="dark"] .hko-raster-tabelle tr { color: var(--c-card-text); }
+    html[data-theme="dark"] .hko-raster-tabelle td::before { color: #495057; }
+}
