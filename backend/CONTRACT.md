@@ -275,6 +275,14 @@ The student page tells its host page how much was written, so that publish.js (�
 - Optional `formativ: { direkt, verbessert, besser, offen, ohne }` (integers 0–50): the trail counts of this sub-assignment (see «Formative feedback»), `ohne` = questions with formativ but no feedback yet. Absent when the sub-assignment has no formativ or the status could not be read. Counts only, nothing else about the feedback. The Lernansicht shows them for the current step and keeps them with the «written» marks in localStorage, per account.
 - The height message (`lmsbox-height`, `js/embedHeight.js`) is older and still posts to `"*"`; it carries a number only.
 
+## Theme message (`js/theme.js`)
+
+Publish is dark on a dark device, the page in the `lms_box` iframe cannot read that, so the host page tells it. The page sends `{ type: 'lmsbox-theme-request' }` (once at start, again on `load`) and publish.js (block «Theme der LMS-Box») answers `{ type: 'lmsbox-theme', theme: 'dark' | 'light' }` to the asking frame, and to every `lms_box` frame whenever `body.theme-dark` changes.
+
+- Result: `html[data-theme="dark"]` (`css/styles.css`, `css/hko.css`). Light is the default and the fallback: no host page, no answer, another host, the Heft look. The last answer is kept in `localStorage` (`lmsbox-theme`) of the page's own origin so the next frame paints without a flash. `?theme=dark|light` forces a look for local tests.
+- Embedded, the page is transparent on the callout: text turns light, everything with its own light surface (answer fields, feedback panel, notes, dialogs) stays a light card with dark text. Meaning is never carried by the theme.
+- Origins like the progress message: the page posts only to `https://lehrmittel.aburossi.ch` (or a local origin while it runs locally), never `"*"`, and accepts the answer only from that origin and from `window.parent`. publish.js accepts the request only from `https://allgemeinbildung.github.io` and answers to that origin. `zh.abu-hko.ch` is not on the list. Nothing but the word `dark` or `light` travels.
+
 ## Mindmap editor (`js/mindmap.js`)
 
 The mindmaps embedded in the vault come from another repo on the same origin: `allgemeinbildung.github.io/mindmap/index.html?mindmap=<mapId>` (`github.com/allgemeinbildung/mindmap`). That page draws `maps/<mapId>.json` (the teacher's skeleton) and, behind a ✏️ button, lets a signed-in student add own branches with the keyboard. It imports `../lms_box/js/mindmap.js` (same origin, so it shares the LMS Box login on the same host page) and never the Firebase SDK directly.

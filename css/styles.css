@@ -283,3 +283,40 @@ html.heft .formativ-button {
 html.heft .formativ-button:hover:not(:disabled) { background: #e9f3f2; }
 html.heft .formativ-button:focus-visible { outline: 2px solid #0d6b67; }
 html.heft .formativ-panel { background: #fff; border-color: #d5d8db; border-radius: 8px; }
+
+/* =====================================================================
+   Dark look (30.10.2026): html[data-theme="dark"], set by js/theme.js when the host page
+   (Obsidian Publish, vault/publish.js) is dark. Light stays the default.
+   Embedded, the page is transparent on the callout, so text sits directly on a dark ground:
+   it turns light. Everything with its own light surface (answer fields, feedback panel, notes,
+   dialogs) stays a light card with dark text, as the answer fields always were. Nothing here
+   applies on the Heft look (theme.js never sets dark there).
+   ===================================================================== */
+html[data-theme="dark"] {
+    --c-text: #e1e3e6;
+    --c-muted: #b4bac0;
+    --c-ok: #5fd08c;
+    --c-err: #ff8f99;
+    --c-link: #7cb9ff;
+    --c-card-text: #343a40;
+}
+html[data-theme="dark"] body { color: var(--c-text); }
+html[data-theme="dark"]:not(.embedded) body { background-color: #1e1e1e; }
+html[data-theme="dark"]:not(.embedded) #assignment-container { background-color: #2a2c2f; box-shadow: none; }
+
+/* Text straight on the callout */
+html[data-theme="dark"] #sub-title { color: var(--c-text); }
+html[data-theme="dark"] .question-block :is(strong, em)[style*="color"] { color: var(--c-link) !important; }
+html[data-theme="dark"] .formativ-info,
+html[data-theme="dark"] .formativ-live { color: var(--c-muted); }
+
+/* Light cards keep dark text (body colour above would be inherited otherwise) */
+html[data-theme="dark"] .ql-container,
+html[data-theme="dark"] .ql-toolbar,
+html[data-theme="dark"] .formativ-panel,
+html[data-theme="dark"] .formativ-button,
+html[data-theme="dark"] #guest-banner,
+html[data-theme="dark"] #action-container button:disabled { color: var(--c-card-text); }
+html[data-theme="dark"] .formativ-button { color: #0d6efd; }
+html[data-theme="dark"] .formativ-button:disabled { color: #6c757d; }
+html[data-theme="dark"] #action-container button:not(:disabled) { color: #fff; }
