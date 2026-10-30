@@ -222,13 +222,17 @@ service cloud.firestore {
         && resource.data.uid == request.auth.uid;
     }
 
-    // Own mindmap branches: the student's own documents only, no list, no delete, no
-    // teacher access (CONTRACT.md). As with quizProgress, that the id is
-    // uid + "__" + enc(mapId) is not checked; a mismatch only touches the own document.
+    // Own mindmap branches: the student's own documents only, no list, no delete
+    // (CONTRACT.md). As with quizProgress, that the id is uid + "__" + enc(mapId) is not
+    // checked; a mismatch only touches the own document.
+    // Teacher: `get` only (decision Pietro 30.10.2026, printing the maps for the
+    // learners' own use in a Lernkontrolle). The print view looks a map up by the uid of
+    // each roster member; no list, no write.
     match /mindmapDrafts/{mapId} {
       // get: a missing own document answers "does not exist", not "denied".
-      allow get: if notAnonymous() && idIsOwn(mapId)
-        && (resource == null || resource.data.uid == request.auth.uid);
+      allow get: if isTeacher()
+        || (notAnonymous() && idIsOwn(mapId)
+            && (resource == null || resource.data.uid == request.auth.uid));
       allow create: if mapOk(mapId);
       allow update: if mapOk(mapId)
         && resource.data.uid == request.auth.uid

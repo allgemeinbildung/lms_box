@@ -717,14 +717,28 @@ test('mindmapDrafts: student creates, reads and updates the own document', async
     await assertFails(deleteDoc(ref));
 });
 
-test('mindmapDrafts: no other student, no teacher, no list', async () => {
+test('mindmapDrafts: no other student, no list', async () => {
     await admin.doc(`mindmapDrafts/${mapId('bob')}`).set({ ...mapDraft('bob'), updatedAt: new Date() });
     await assertFails(getDoc(doc(alice, 'mindmapDrafts', mapId('bob'))));
     await assertFails(setDoc(doc(alice, 'mindmapDrafts', mapId('bob')), mapDraft('alice')));
     await assertFails(setDoc(doc(alice, 'mindmapDrafts', mapId('bob')), mapDraft('bob')));
-    await assertFails(getDoc(doc(teacher, 'mindmapDrafts', mapId('bob'))));
     await assertFails(getDocs(query(collection(alice, 'mindmapDrafts'), where('uid', '==', 'alice'))));
+});
+
+// Decision Pietro 30.10.2026: the teacher reads maps by id (print view), nothing else.
+test('mindmapDrafts: teacher gets one document by id, but cannot list, write or delete', async () => {
+    await admin.doc(`mindmapDrafts/${mapId('bob')}`).set({ ...mapDraft('bob'), updatedAt: new Date() });
+    const snap = await assertSucceeds(getDoc(doc(teacher, 'mindmapDrafts', mapId('bob'))));
+    assert.equal(snap.data().uid, 'bob');
+    await assertSucceeds(getDoc(doc(teacher, 'mindmapDrafts', mapId('nobody'))));   // missing: "does not exist"
     await assertFails(getDocs(collection(teacher, 'mindmapDrafts')));
+    await assertFails(getDocs(query(collection(teacher, 'mindmapDrafts'), where('mapId', '==', MAP))));
+    await assertFails(setDoc(doc(teacher, 'mindmapDrafts', mapId('bob')), mapDraft('bob')));
+    await assertFails(updateDoc(doc(teacher, 'mindmapDrafts', mapId('bob')), { nodes: '{"v":1,"add":[]}' }));
+    await assertFails(deleteDoc(doc(teacher, 'mindmapDrafts', mapId('bob'))));
+    // Without the teacher claim nobody reads another student's map.
+    await assertFails(getDoc(doc(outsider, 'mindmapDrafts', mapId('bob'))));
+    await assertFails(getDoc(doc(anonSession, 'mindmapDrafts', mapId('bob'))));
 });
 
 test('mindmapDrafts: anonymous, outsider and non-password accounts cannot write', async () => {

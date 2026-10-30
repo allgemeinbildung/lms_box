@@ -159,6 +159,27 @@ function studentsOf(classId) {
     return out;
 }
 
+// ---- mindmaps (CONTRACT.md, «Mindmap print view») ----------------------------------------
+
+/** Loads the roster: `Map(classId -> Map(uid -> display name))`, a copy. */
+export const loadClasses = async () => {
+    await loadRoster();
+    return new Map([...classIndex].map(([classId, members]) => [classId, new Map(members)]));
+};
+
+/**
+ * One learner's unit map: `{ nodes, updatedAt }` or null. One `get` by id; the teacher may
+ * not list the collection. A document that names another uid or unit counts as missing.
+ * `nodes` stays a string here: mindmapPrint.js parses and checks it.
+ */
+export const getMindmapDraft = async (uid, mapId) => {
+    const snap = await getDoc(doc(liveDb, 'mindmapDrafts', `${uid}__${enc(mapId)}`));
+    if (!snap.exists()) return null;
+    const d = snap.data();
+    if (d.uid !== uid || d.mapId !== mapId || typeof d.nodes !== 'string') return null;
+    return { nodes: d.nodes, updatedAt: typeof d.updatedAt?.toDate === 'function' ? d.updatedAt.toDate() : null };
+};
+
 /**
  * Loads the roster and returns `{ [classId]: { [studentName]: files[] } }`, the shape of
  * the old `listDrafts`. Files are filled for the class that is being watched; the other
