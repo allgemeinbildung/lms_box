@@ -5,6 +5,7 @@
 //  through api.js.
 //
 import { getFormativSlots } from './api.js';
+import { criterionMarks, MARKS } from '../../js/formativ-trail.js';
 
 const STATUS = {
     erfuellt: { text: '✓ erfüllt', color: '#146c43' },
@@ -20,8 +21,28 @@ function el(tag, css, text) {
     return e;
 }
 
+/** «Spur» line of one question: attempts used and what became of the criteria (never a score). */
+function trailLine(attempts) {
+    const marks = criterionMarks(attempts);
+    const used = `${attempts.length} Rückmeldung${attempts.length === 1 ? '' : 'en'} geholt`;
+    const spur = marks.length ? ` · Spur: ${marks.map((m) => `${MARKS[m.mark].icon}${MARKS[m.mark].up ? '↑' : ''} ${MARKS[m.mark].text}`).join(', ')}` : '';
+    const line = el('div', 'font-size:0.85em; color:#0b4a9e; margin:6px 0 2px; font-weight:600;', used + spur);
+    line.className = 'formativ-trail-line';
+    return line;
+}
+
 function renderSlot(slot) {
     const attempts = [...(slot.frueher || []), slot];
+    if (attempts.length > 1 || criterionMarks(attempts).length) {
+        const wrap = el('div', '');
+        wrap.appendChild(trailLine(attempts));
+        wrap.appendChild(renderAttempts(slot, attempts));
+        return wrap;
+    }
+    return renderAttempts(slot, attempts);
+}
+
+function renderAttempts(slot, attempts) {
     if (attempts.length === 1) return renderAttempt(slot, null);
     const wrap = el('div', '');
     wrap.className = 'formativ-teacher-group';

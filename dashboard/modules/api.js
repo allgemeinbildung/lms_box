@@ -92,7 +92,7 @@ async function loadRoster() {
  * A student can write any `assignmentId` into an own draft; only ids from this set are offered
  * in the dashboard. (The teacher may read the collection; it is what the evaluator works from.)
  */
-const noAssignments = () => ({ ids: new Set(), ready: null, unsubscribe: null });
+const noAssignments = () => ({ ids: new Set(), shapes: new Map(), ready: null, unsubscribe: null });
 let published = noAssignments();
 
 function watchAssignments() {
@@ -103,12 +103,15 @@ function watchAssignments() {
         let first = true;
         mine.unsubscribe = onSnapshot(collection(liveDb, 'assignments'), (snap) => {
             const ids = new Set();
+            const shapes = new Map();
             snap.forEach((d) => {
                 let id = d.get('assignmentId');
                 if (typeof id !== 'string' || !id) { try { id = decodeURIComponent(d.id); } catch { id = d.id; } }
                 ids.add(id);
+                shapes.set(id, shapeOf(d.data()));
             });
             mine.ids = ids;
+            mine.shapes = shapes;
             if (first) { first = false; resolve(); return; }
             // An assignment was published or removed while a class is open: offer / withdraw it.
             if (published === mine && watch.settled) watch.onUpdate?.({ students: studentsOf(watch.classId), changed: [] });
@@ -119,6 +122,28 @@ function watchAssignments() {
         });
     });
     return mine.ready;
+}
+
+/**
+ * What the overview needs of an assignment, without solutions: its title and, per
+ * sub-assignment, the questions (id, short text, whether formativ feedback is offered).
+ * `formativ` follows the public copy: the question's own flag, else the sub-assignment's,
+ * else the assignment's (scripts/public-assignment.mjs).
+ */
+function shapeOf(data) {
+    const flag = (v) => (v === undefined ? undefined : v !== false && v !== null && v !== 0 && v !== '');
+    const subs = data?.subAssignments && typeof data.subAssignments === 'object' ? data.subAssignments : {};
+    return {
+        title: String(data?.assignmentTitle ?? ''),
+        subs: Object.entries(subs).map(([subId, sub]) => ({
+            subId,
+            questions: (Array.isArray(sub?.questions) ? sub.questions : []).map((q) => ({
+                id: String(q?.id ?? ''),
+                text: String(q?.text ?? '').slice(0, 120),
+                formativ: flag(q?.formativ) ?? flag(sub?.formativ) ?? flag(data?.formativ) ?? false,
+            })),
+        })),
+    };
 }
 
 // ---- drafts: live listeners on the members of one class ---------------------------------
@@ -250,6 +275,23 @@ export const watchInfo = () => ({
 });
 
 /**
+ * The watched class for the overview matrix: its members (roster order not guaranteed),
+ * the draft documents the listeners hold (only members' uids were asked for, see
+ * watchClass) and the shapes of the published assignments. Nothing is read here.
+ * `null` when `classId` is not the class being watched (or not settled yet).
+ */
+export const getClassOverviewData = (classId) => {
+    if (!classId || watch.classId !== classId || !watch.settled) return null;
+    const members = classIndex.get(classId) || new Map();
+    return {
+        classId,
+        members: [...members].map(([uid, name]) => ({ uid, name })),
+        drafts: [...watch.drafts.values()].filter((d) => members.has(d.uid) && published.ids.has(d.assignmentId)),
+        shapes: published.shapes,
+    };
+};
+
+/**
  * All drafts of one student for one assignment, in the shape the old draft file had:
  * `{ assignments: { [assignmentId]: { [subId]: { title, type, questions, answers } } }, createdAt }`.
  * `createdAt` is the newest `updatedAt` of the sub-assignments. Returns null on failure.
@@ -378,6 +420,34 @@ export const getFormativSlots = async (targetStudentKey, assignmentId) => {
         });
         // The latest attempt is flat in the entry, earlier ones in frueher[] (CONTRACT.md, «Formative feedback»).
         out[key] = { ...view(e), frueher: (Array.isArray(e.frueher) ? e.frueher : []).map(view) };
+    }
+    return out;
+};
+
+/**
+ * The finished formativ slots of a whole class in as many queries as the class has chunks of
+ * 30 uids (not one read per student and assignment): `Map(uid -> Map(assignmentId -> slots))`,
+ * `slots` keyed `"<subId>::<questionId>"`, each `{ at, result, frueher: [...] }` as getFormativSlots.
+ * Asked for by uid (roster members of the watched class), never by what a document claims.
+ */
+export const getClassFormativ = async (classId) => {
+    const members = classIndex.get(classId) || new Map();
+    const uids = [...members.keys()];
+    const out = new Map();
+    for (let i = 0; i < uids.length; i += IN_LIMIT) {
+        const snap = await getDocs(query(collection(liveDb, 'formativUsage'), where('uid', 'in', uids.slice(i, i + IN_LIMIT))));
+        snap.forEach((d) => {
+            const data = d.data();
+            if (!members.has(data.uid) || typeof data.assignmentId !== 'string') return;
+            const slots = {};
+            for (const [key, e] of Object.entries(data.slots || {})) {
+                if (e?.state !== 'done') continue;
+                const view = (a) => ({ at: a.at, result: a.result });
+                slots[key] = { ...view(e), frueher: (Array.isArray(e.frueher) ? e.frueher : []).map(view) };
+            }
+            if (!out.has(data.uid)) out.set(data.uid, new Map());
+            out.get(data.uid).set(data.assignmentId, slots);
+        });
     }
     return out;
 };

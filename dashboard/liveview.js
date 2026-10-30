@@ -11,6 +11,7 @@ import { setupAnalysisExport, setupRawDownload } from './modules/exporter.js';
 import { setupBulkAssessment } from './modules/assessment.js';
 import { setupPrintAll } from './modules/printer.js';
 import { setupBulkFreigabe } from './modules/bulkFreigabe.js';
+import { initOverview } from './modules/overview.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -50,6 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const downloadBtn = document.getElementById('download-btn');
+
+    // Class tiles and class matrix (modules/overview.js); the selects below stay the one source of truth.
+    const overview = initOverview({ classSelect, assignmentSelect, contentRenderer, refreshBtn });
     const printTitle = document.getElementById('print-title');
 
     const updateTitle = () => {
@@ -105,6 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (exportBtn) exportBtn.disabled = !classSelect.value;
         if (downloadBtn) downloadBtn.disabled = !classSelect.value;
+        overview.classesLoaded();
     };
 
     // --- Auth Chain ---
@@ -175,6 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!cls) return;
         state.draftsMap[cls] = students;
         fillAssignmentSelect(assignmentsOf(students));
+        overview.draftsChanged();
         const assId = assignmentSelect.value;
         if (!assId || !document.getElementById('live-grid')) return;
         const hasCard = (name) => Array.from(document.querySelectorAll('.student-card')).some(c => c.dataset.studentName === name);
@@ -213,6 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (studentNames.length === 0) {
             assignmentSelect.innerHTML = '<option value="">Keine Schüler gefunden</option>';
+            overview.classReady();
             return;
         }
 
@@ -248,6 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         fillAssignmentSelect(foundAssignments);
         updateTitle();
+        overview.classReady();
     });
 
     // --- Render Trigger ---

@@ -194,6 +194,16 @@ rueckmeldungen.html?parent=<host origin>&items=<JSON [[assignmentId, subId, sect
 - «Zur Frage» posts `{ type: 'lmsbox-rm-goto', index }` (`index` into `items`) to the parent, under the same origin rules as the progress message (`?parent=` from the list, never `"*"`). Without an allowed parent the page works on its own and shows no «Zur Frage».
 - publish.js handles `lmsbox-rm-goto` only from `https://allgemeinbildung.github.io` and only from its own overview iframe. It sends no feedback text into the host page: it passes ids in, an index comes back.
 
+## Teacher Live View: class overview (`dashboard/modules/overview.js`)
+
+Since 30.10.2026 (branch `liveview-uebersicht`, not deployed): the Live View opens with the teacher's classes as tiles (class id, number of students from the roster) and, for the chosen class, a matrix: rows = students, columns = assignments (chapters) of which at least one class member has a draft. No rule change: it reads only what the teacher may already read (`drafts`, `assignments`, `formativUsage`).
+
+- **Data, no extra reads for progress.** The cells come from the draft documents the class listener of `dashboard/modules/api.js` already holds (asked for by the uids of the roster, never by the `classId` a draft carries) and from the question lists of `assignments` (kept by the existing listener, `shapeOf`: ids, 120 characters of question text, whether `formativ` is offered; no solutions). A cell is `none` (no characters written), `started`, or `done` (every question of the published assignment has ≥ 15 characters of plain text, the «bearbeitet» rule of `js/progress.js`). Answer text is measured, never shown in the matrix.
+- **Rückmeldungen.** One query `formativUsage where uid in [≤ 30 uids]` per chunk of the class (not one `get` per student and chapter), read once when the class is opened and again on «Aktualisieren». Per cell: attempts used (`frueher[]` + the latest, `nicht_verfuegbar` skipped) and the trail marks of `js/formativ-trail.js` (`criterionMarks`), counted, never added into one number, never turned into a grade. Entries from before 23.10.2026 (one flat attempt, no `frueher`) count as one attempt. If the query fails, the matrix works on drafts alone and says so.
+- **Drill-down.** A column header or a cell sets `#assignment-select` (the dropdown stays in the page as the state of the detail view, visually hidden) and the existing detail view renders; a cell also opens that student's card. The detail view shows, per question, «n Rückmeldungen geholt · Spur: …» above the feedback texts. «← Übersicht» returns.
+- Names (roster, runtime), assignment ids, titles and question texts go into the DOM as text only. Nothing is stored; nothing is sent anywhere.
+- Test: `npm run test:e2e:uebersicht`.
+
 ## Cost report (`scripts/kosten-bericht.mjs`, teacher only, local)
 
 Since 23.10.2026 (not deployed): what the feedback costs, per student, per question and per model. Three sources, joined by formativ's `request_id`:
