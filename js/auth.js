@@ -269,12 +269,14 @@ function showUser(name) {
 
 function showGuest() {
     if (document.getElementById('guest-banner')) return;
-    const box = el('p', 'margin: 0 0 0.6em 0; padding: 0.4em 0.7em; background: #f8f9fa; border-left: 4px solid #6c757d; border-radius: 4px; font-size: 0.85em; color: #333;');
+    // Warning colours on purpose (02.11.2026): the grey line was overlooked. Dark text on amber, links as buttons.
+    const box = el('p', 'margin: 0 0 0.8em 0; padding: 0.6em 0.9em; background: #ffd54a; border-left: 6px solid #b45309; border-radius: 4px; font-size: 1.05em; line-height: 1.6; color: #1c1e21;');
     box.id = 'guest-banner';
     const renderer = document.getElementById('content-renderer');
+    const BUTTON = 'display: inline-block; margin: 0.1em 0.15em; padding: 0.15em 0.7em; background: #1c1e21; color: #fff; border-radius: 4px; cursor: pointer; font-weight: bold; text-decoration: none;';
     // ?hinweis=kurz: the host page explains guest mode once; here only the way to sign in (CONTRACT.md).
     if (new URLSearchParams(location.search).get('hinweis') === 'kurz') {
-        const short = el('a', 'color: #007bff; cursor: pointer; font-weight: bold;', 'Mit Schulkonto anmelden');
+        const short = el('a', BUTTON, 'Mit Schulkonto anmelden');
         short.href = '#';
         short.id = 'guest-login';
         short.addEventListener('click', (e) => { e.preventDefault(); showLoginDialog({ closable: true }); });
@@ -283,11 +285,11 @@ function showGuest() {
         renderer.parentNode.insertBefore(box, renderer);
         return;
     }
-    const login = el('a', 'color: #007bff; cursor: pointer; font-weight: bold;', 'mit Passwort');
+    const login = el('a', BUTTON, 'mit Passwort');
     login.href = '#';
     login.id = 'guest-login';
     login.addEventListener('click', (e) => { e.preventDefault(); showLoginDialog({ closable: true }); });
-    const sso = el('a', 'color: #007bff; cursor: pointer; font-weight: bold;', 'Mit dem Lernportal anmelden');
+    const sso = el('a', BUTTON, 'Mit dem Lernportal anmelden');
     sso.href = '#';
     sso.id = 'guest-sso';
     sso.addEventListener('click', async (e) => {

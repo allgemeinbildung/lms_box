@@ -219,18 +219,18 @@ html.heft #assignment-container {
 }
 html.heft #assignment-container::-webkit-scrollbar { display: none; }
 
-/* Login line: one quiet line instead of a grey box (inline styles in js/auth.js) */
+/* Login notice: compact but clearly visible (amber, 02.11.2026; inline styles in js/auth.js) */
 html.heft #guest-banner {
     margin: 0 0 .7em !important;
-    padding: .05em 0 .05em .7em !important;
-    background: transparent !important;
-    border-left: 2px solid rgba(13, 107, 103, .35) !important;
-    border-radius: 0 !important;
-    font-size: .8em !important;
-    line-height: 1.45;
-    color: #55595f !important;
+    padding: .4em .7em !important;
+    background: #ffd54a !important;
+    border-left: 4px solid #b45309 !important;
+    border-radius: 4px !important;
+    font-size: .92em !important;
+    line-height: 1.5;
+    color: #1c1e21 !important;
 }
-html.heft #guest-banner a { color: #0d6b67 !important; font-weight: 600 !important; }
+html.heft #guest-banner a { color: #fff !important; background: #1c1e21 !important; font-weight: 600 !important; }
 
 /* Questions */
 html.heft .question-block { margin-bottom: 1em; }
