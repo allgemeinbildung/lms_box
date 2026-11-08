@@ -210,7 +210,7 @@ Since 30.10.2026 (branch `liveview-uebersicht`, not deployed): the Live View ope
 
 ## Class analysis (`klassenanalysen`, `functions/klassenanalyse.js`)
 
-Since 08.11.2026 (Spielfeld pilot, not deployed): a language model reads the answers of one card (= one sub-assignment) of one class and writes an analysis for the teacher — patterns, groups, individual students, a check of the formativ feedback, what works. No grade, no ranking, no judgement of persons (forbidden in the prompt).
+Since 08.11.2026 (Spielfeld pilot, **live since 08.11.2026**: functions `boxKlassenanalyse` and `boxKlassenanalyseAuto`, rules, «Spielfeld 2.1» with `klassenanalyse: true`, pages on `main`): a language model reads the answers of one card (= one sub-assignment) of one class and writes an analysis for the teacher — patterns, groups, individual students, a check of the formativ feedback, what works. No grade, no ranking, no judgement of persons (forbidden in the prompt).
 
 **Provider.** Two paths, for the pilot's comparison:
 
