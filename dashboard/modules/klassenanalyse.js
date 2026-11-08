@@ -39,16 +39,30 @@ export async function laeufeLesen(classId, assignmentId, subId) {
 const callable = httpsCallable(functions, 'boxKlassenanalyse', { timeout: 310000 });
 /**
  * Starts an analysis now; resolves when it is stored. Errors carry `details.code`.
- * `anbieter` ('infomaniak' | 'gemini') picks the provider for this run; empty = the configured one.
+ * `wahl` is a value of MODELLE ('' = the configured default, Gemma at Infomaniak).
  */
-export const analyseStarten = (classId, assignmentId, subId, anbieter = '') =>
-    callable({ classId, assignmentId, subId, ...(anbieter ? { anbieter } : {}) });
+export const analyseStarten = (classId, assignmentId, subId, wahl = '') => {
+    const [anbieter, modell] = String(wahl || '').split('|');
+    return callable({ classId, assignmentId, subId, ...(anbieter ? { anbieter } : {}), ...(modell ? { modell } : {}) });
+};
 
 // Where the answers go. Shown on every analysis and next to the start button.
 export const ANBIETER = {
-    infomaniak: { kurz: 'Infomaniak (Schweiz)', wahl: 'Gemma · Infomaniak, Schweiz' },
-    gemini: { kurz: 'Google Gemini', wahl: 'Gemini · Google, ausserhalb der Schweiz' },
+    infomaniak: { kurz: 'Infomaniak (Schweiz)' },
+    gemini: { kurz: 'Google Gemini (ausserhalb der Schweiz)' },
 };
+// The choice next to the start button. The function checks the model against its own list
+// (functions/klassenanalyse.js, INFOMANIAK_MODELLE); this list only labels it.
+export const MODELLE = [
+    ['', 'Standard: Gemma 4 · Infomaniak, Schweiz'],
+    ['infomaniak|Qwen/Qwen3.8-27B-FP8', 'Qwen 3.8 27B · Infomaniak, Schweiz'],
+    ['infomaniak|Qwen/Qwen3.5-397B-A17B-FP8', 'Qwen 3.5 397B · Infomaniak, Schweiz'],
+    ['infomaniak|moonshotai/Kimi-K2.6', 'Kimi K2.6 · Infomaniak, Schweiz (langsam)'],
+    ['infomaniak|mistralai/Mistral-Small-4-119B-2603', 'Mistral Small 4 · Infomaniak, Schweiz'],
+    ['infomaniak|mistralai/Ministral-3-14B-Instruct-2512', 'Ministral 14B · Infomaniak, Schweiz'],
+    ['infomaniak|swiss-ai/Apertus-v1.5-70B', 'Apertus 70B · Infomaniak, Schweiz'],
+    ['gemini', 'Gemini Flash · Google, ausserhalb der Schweiz'],
+];
 
 // ---- drawing -------------------------------------------------------------------------------
 
@@ -169,7 +183,7 @@ export function analyseKasten(ctx) {
         b.type = 'button';
         const wahl = el('select');
         wahl.setAttribute('aria-label', 'Modell für diese Analyse');
-        for (const [v, t] of [['', 'Modell: Standard'], ...Object.entries(ANBIETER).map(([k, x]) => [k, x.wahl])]) {
+        for (const [v, t] of MODELLE) {
             const o = el('option', '', t); o.value = v; wahl.append(o);
         }
         b.addEventListener('click', async () => {

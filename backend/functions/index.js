@@ -179,9 +179,6 @@ const KLASSENANALYSE_ANBIETER = defineString('KLASSENANALYSE_ANBIETER', {
 const KLASSENANALYSE_MODELL_INFOMANIAK = defineString('KLASSENANALYSE_MODELL_INFOMANIAK', {
     default: 'google/gemma-4-31B-it', description: 'Infomaniak model of the class analysis.',
 });
-const KLASSENANALYSE_DENKEN_INFOMANIAK = defineString('KLASSENANALYSE_DENKEN_INFOMANIAK', {
-    default: 'high', description: 'reasoning_effort for Infomaniak: none, low, medium, high.',
-});
 const KLASSENANALYSE_MODELL_GEMINI = defineString('KLASSENANALYSE_MODELL_GEMINI', {
     default: 'gemini-3.8-flash', description: 'Gemini model of the class analysis (prices: scripts/kosten-preise.json).',
 });
@@ -196,14 +193,14 @@ const ANALYSE_STATUS = {
 function analyseDeps() {
     // Emulator only: local stand-ins for both providers (test/fake-gemini.js). Ignored in the cloud.
     const emu = process.env.FUNCTIONS_EMULATOR === 'true';
-    const denken = KLASSENANALYSE_DENKEN_INFOMANIAK.value();
     return klassenanalyse.firestoreDeps({
         rosterDb, boxDb,
         modell: {
             anbieter: KLASSENANALYSE_ANBIETER.value(),
             infomaniak: {
                 apiKey: INFOMANIAK_API_TOKEN.value(), produktId: INFOMANIAK_PRODUKT.value(),
-                model: KLASSENANALYSE_MODELL_INFOMANIAK.value(), reasoningEffort: denken === 'none' ? 'none' : denken,
+                // reasoning_effort per model: klassenanalyse.INFOMANIAK_MODELLE (Gemma: high)
+                model: KLASSENANALYSE_MODELL_INFOMANIAK.value(), reasoningEffort: 'high',
                 ...(emu && process.env.INFOMANIAK_BASE_URL ? { baseUrl: process.env.INFOMANIAK_BASE_URL } : {}),
             },
             gemini: {
@@ -227,14 +224,17 @@ exports.boxKlassenanalyse = onCall(
     { region: REGION, maxInstances: 5, timeoutSeconds: 300, memory: '512MiB', secrets: [GEMINI_API_KEY, INFOMANIAK_API_TOKEN] },
     async (request) => {
         const uid = teacher(request);
-        const { classId, assignmentId, subId, anbieter = null } = request.data || {};
+        const { classId, assignmentId, subId, anbieter = null, modell = null } = request.data || {};
         checkIds({ assignmentId, subId });
         if (anbieter !== null && !klassenanalyse.ANBIETER.includes(anbieter)) throw badRequest("anbieter ist 'infomaniak' oder 'gemini'.");
+        if (modell !== null && (anbieter !== 'infomaniak' || !klassenanalyse.INFOMANIAK_MODELLE[modell])) {
+            throw badRequest('Dieses Modell ist für die Klassenanalyse nicht freigegeben.');
+        }
         if (typeof classId !== 'string' || !classId || classId.length > 100 || !assignmentId || !subId) {
             throw badRequest("'boxKlassenanalyse' braucht classId, assignmentId und subId.");
         }
         try {
-            return await klassenanalyse.analysieren({ classId, assignmentId, subId, modus: 'manuell', ausgeloest_von: uid, anbieter }, analyseDeps());
+            return await klassenanalyse.analysieren({ classId, assignmentId, subId, modus: 'manuell', ausgeloest_von: uid, anbieter, modell }, analyseDeps());
         } catch (e) {
             if (e instanceof klassenanalyse.AnalyseFehler) {
                 throw new HttpsError(ANALYSE_STATUS[e.code] || 'internal', e.message, { code: e.code });

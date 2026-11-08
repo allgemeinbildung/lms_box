@@ -416,15 +416,39 @@ async function infomaniakAufrufen({ system, user }, { apiKey, produktId, model, 
 }
 
 const ANBIETER = ['infomaniak', 'gemini'];
+
 /**
- * deps.modell = { anbieter: 'infomaniak' | 'gemini', infomaniak: {…}, gemini: {…} }.
- * `wahl` (from the teacher, for testing) overrides the configured provider.
- * Returns the answer plus { anbieter, modell }.
+ * The language models of Infomaniak AI Tools that the teacher may pick (GET …/openai/v1/models,
+ * 08.11.2026), each with the reasoning_effort it accepts and was measured with. Prices in CHF
+ * per 1 million tokens (input / output) from formativ INFOMANIAK.md §5. Every model has its own
+ * words for the effort (Qwen 3.8: low, medium, xhigh; Ministral and Apertus none at all), so the
+ * table, not the caller, decides what is sent. Measurement: CONTRACT.md, «Class analysis».
  */
-async function modellAufrufen(prompt, modell, wahl) {
-    const anbieter = ANBIETER.includes(wahl) ? wahl : modell.anbieter;
+const INFOMANIAK_MODELLE = {
+    'google/gemma-4-31B-it': { denken: 'high', preis: [0.20, 0.40] },
+    'Qwen/Qwen3.8-27B-FP8': { denken: 'medium', preis: [0.40, 3.00] },
+    'Qwen/Qwen3.5-397B-A17B-FP8': { denken: 'high', preis: [0.80, 3.60] },
+    'moonshotai/Kimi-K2.6': { denken: 'high', preis: [0.60, 3.00] },
+    'mistralai/Mistral-Small-4-119B-2603': { denken: 'high', preis: [0.20, 0.75] },
+    'mistralai/Ministral-3-14B-Instruct-2512': { denken: null, preis: [0.30, 0.40] },
+    'swiss-ai/Apertus-v1.5-70B': { denken: null, preis: [0.70, 2.50] },
+};
+
+/**
+ * deps.modell = { anbieter: 'infomaniak' | 'gemini', infomaniak: {…, model}, gemini: {…} }.
+ * `wahl` = { anbieter?, modell? } from the teacher (for testing) overrides the configured one;
+ * an Infomaniak model must be in INFOMANIAK_MODELLE. Returns the answer plus { anbieter, modell }.
+ */
+async function modellAufrufen(prompt, modell, wahl = {}) {
+    const w = typeof wahl === 'string' ? { anbieter: wahl } : (wahl || {});
+    const anbieter = ANBIETER.includes(w.anbieter) ? w.anbieter : modell.anbieter;
     if (!ANBIETER.includes(anbieter)) throw new AnalyseFehler('Unbekannter Anbieter für die Klassenanalyse.', 'not_configured');
-    const cfg = modell[anbieter] || {};
+    let cfg = { ...(modell[anbieter] || {}) };
+    if (anbieter === 'infomaniak') {
+        if (w.anbieter === 'infomaniak' && w.modell && INFOMANIAK_MODELLE[w.modell]) cfg.model = w.modell;
+        const eintrag = INFOMANIAK_MODELLE[cfg.model];
+        if (eintrag) cfg = { ...cfg, reasoningEffort: eintrag.denken };
+    }
     const r = anbieter === 'gemini' ? await geminiAufrufen(prompt, cfg) : await infomaniakAufrufen(prompt, cfg);
     return { ...r, anbieter, modell: cfg.model };
 }
@@ -492,7 +516,15 @@ function ergebnisPruefen(roh, { pseudonyme, antwortenNachPseudonym, fragen }) {
         return [{ lernende: u, beobachtung: frei(e.beobachtung, TEXT.beobachtung), naechster_schritt: frei(e.naechster_schritt, TEXT.naechster_schritt) }];
     });
 
-    const rueckmeldung_check = liste(r.rueckmeldung_check, GRENZEN.rueckmeldung_check).flatMap((c) => {
+    // Some models repeat the same case several times (Kimi K2.6, 08.11.2026): one entry per case.
+    const gesehen = new Set();
+    const checks = (Array.isArray(r.rueckmeldung_check) ? r.rueckmeldung_check : []).filter((c) => {
+        const k = c && typeof c === 'object' ? [c.lernende, c.frage, c.kriterium, c.problem].map(String).join('|') : '';
+        if (!k || gesehen.has(k)) return false;
+        gesehen.add(k);
+        return true;
+    });
+    const rueckmeldung_check = liste(checks, GRENZEN.rueckmeldung_check).flatMap((c) => {
         const u = uid(c.lernende);
         if (!u) return [];
         const frage = text(c.frage, 200);
@@ -542,7 +574,7 @@ function darfStarten(aktuell, { modus, n, now }) {
  *   gemini { apiKey, model, fetchFn }, now(), random()
  * Returns { status: 'fertig' | 'uebersprungen', grund?, id, basis? }. Throws AnalyseFehler.
  */
-async function analysieren({ classId, assignmentId, subId, modus, ausgeloest_von = null, anbieter = null }, deps) {
+async function analysieren({ classId, assignmentId, subId, modus, ausgeloest_von = null, anbieter = null, modell = null }, deps) {
     const now = deps.now ? deps.now() : Date.now();
     const id = analyseId(classId, assignmentId, subId);
     const assignment = await deps.loadAssignment(assignmentId);
@@ -584,7 +616,7 @@ async function analysieren({ classId, assignmentId, subId, modus, ausgeloest_von
         const fertigUids = members.filter((m) => istAbgeschlossen(drafts.get(m.uid), gefunden.fragen)).map((m) => m.uid);
         const usage = await deps.loadUsage(fertigUids, assignmentId);
         const ein = eingabeBauen({ assignment, subId, members, drafts, usage, random: deps.random || Math.random });
-        const antwort = await modellAufrufen(promptBauen(ein.eingabe), deps.modell, anbieter);
+        const antwort = await modellAufrufen(promptBauen(ein.eingabe), deps.modell, { anbieter, modell });
         const { analyse, verworfen } = ergebnisPruefen(antwort.roh, { ...ein, fragen: ein.eingabe.fragen });
         const ende = deps.now ? deps.now() : Date.now();
         const lauf = {
@@ -717,5 +749,5 @@ function firestoreDeps({ rosterDb, boxDb, modell }) {
 module.exports = {
     COLLECTION, SCHWELLE, SCHRITT, PAUSE_AUTO_MS, PAUSE_MANUELL_MS, LAUF_TTL_MS, MAX_ANTWORT, SCHEMA, SYSTEM, PROBLEME,
     AnalyseFehler, analyseId, istAntwort, istAbgeschlossen, stufe, kontextTeile, karteBauen,
-    eingabeBauen, promptBauen, geminiAufrufen, infomaniakAufrufen, modellAufrufen, zuJsonSchema, ANBIETER, ergebnisPruefen, darfStarten, analysieren, beiDraft, firestoreDeps,
+    eingabeBauen, promptBauen, geminiAufrufen, infomaniakAufrufen, modellAufrufen, zuJsonSchema, ANBIETER, INFOMANIAK_MODELLE, ergebnisPruefen, darfStarten, analysieren, beiDraft, firestoreDeps,
 };

@@ -441,3 +441,41 @@ test('boxKlassenanalyse: an unknown provider is a bad request', async () => {
     const { boxKlassenanalyse } = require('../index');
     await assert.rejects(boxKlassenanalyse.run({ data: { classId: KLASSE, assignmentId: AID, subId: SUB, anbieter: 'openai' }, auth: { uid: 't1', token: { role: 'teacher' } } }), (e) => e.code === 'invalid-argument');
 });
+
+test('infomaniak models: the teacher may pick one from the list, each with its own reasoning effort', async () => {
+    let t = Date.now();
+    const f = fakeFetch();
+    const d = memDeps({ fertig: 6, fetchFn: f, anbieter: 'infomaniak', now: () => t });
+    d.modell.infomaniak.model = 'google/gemma-4-31B-it';
+    const job = { classId: KLASSE, assignmentId: AID, subId: SUB, modus: 'manuell' };
+    await ka.analysieren(job, d);                                                        // default
+    t += 2 * MIN;
+    await ka.analysieren({ ...job, anbieter: 'infomaniak', modell: 'Qwen/Qwen3.8-27B-FP8' }, d);
+    t += 2 * MIN;
+    await ka.analysieren({ ...job, anbieter: 'infomaniak', modell: 'swiss-ai/Apertus-v1.5-70B' }, d);
+    t += 2 * MIN;
+    await ka.analysieren({ ...job, anbieter: 'infomaniak', modell: 'evil/model' }, d);  // not on the list: default
+    const sent = f.bodies.map((b) => [b.body.model, b.body.reasoning_effort ?? null]);
+    assert.deepEqual(sent, [
+        ['google/gemma-4-31B-it', 'high'],
+        ['Qwen/Qwen3.8-27B-FP8', 'medium'],
+        ['swiss-ai/Apertus-v1.5-70B', null],
+        ['google/gemma-4-31B-it', 'high'],
+    ]);
+    assert.deepEqual([...d.laeufe.values()].map((l) => l.modell), sent.map((x) => x[0]));
+});
+
+test('a case the model repeats is kept once', () => {
+    const p = new Map([['L01', 'u1']]);
+    const c = { lernende: 'L01', frage: 'Q-1', kriterium: 'k1', problem: 'zu_mild', begruendung: 'x' };
+    const r = ka.ergebnisPruefen({ rueckmeldung_check: [c, c, { ...c }, { ...c, problem: 'zu_streng' }] },
+        { pseudonyme: p, antwortenNachPseudonym: new Map(), fragen: [{ id: 'Q-1', rubrik: [{ id: 'k1' }] }] });
+    assert.deepEqual(r.analyse.rueckmeldung_check.map((x) => x.problem), ['zu_mild', 'zu_streng']);
+});
+
+test('boxKlassenanalyse: a model that is not on the list is a bad request', async () => {
+    const { boxKlassenanalyse } = require('../index');
+    const auth = { uid: 't1', token: { role: 'teacher' } };
+    await assert.rejects(boxKlassenanalyse.run({ data: { classId: KLASSE, assignmentId: AID, subId: SUB, anbieter: 'infomaniak', modell: 'evil/model' }, auth }), (e) => e.code === 'invalid-argument');
+    await assert.rejects(boxKlassenanalyse.run({ data: { classId: KLASSE, assignmentId: AID, subId: SUB, anbieter: 'gemini', modell: 'Qwen/Qwen3.8-27B-FP8' }, auth }), (e) => e.code === 'invalid-argument');
+});

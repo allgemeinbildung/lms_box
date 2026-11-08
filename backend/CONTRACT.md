@@ -216,10 +216,10 @@ Since 08.11.2026 (Spielfeld pilot, not deployed): a language model reads the ans
 
 | `anbieter` | Where | Model (parameter) | Call |
 |---|---|---|---|
-| `infomaniak` (default, `KLASSENANALYSE_ANBIETER`) | Infomaniak AI Tools, Switzerland | `KLASSENANALYSE_MODELL_INFOMANIAK`, default `google/gemma-4-31B-it`; `KLASSENANALYSE_DENKEN_INFOMANIAK` = `reasoning_effort`, default `high` | `POST https://api.infomaniak.com/2/ai/{INFOMANIAK_PRODUKT}/openai/v1/chat/completions`, secret `INFOMANIAK_API_TOKEN`, `stream: false`, `response_format: json_schema` (strict) |
+| `infomaniak` (default, `KLASSENANALYSE_ANBIETER`) | Infomaniak AI Tools, Switzerland | `KLASSENANALYSE_MODELL_INFOMANIAK`, default `google/gemma-4-31B-it` with `reasoning_effort: high`; the teacher may pick another model of the list `INFOMANIAK_MODELLE` in `functions/klassenanalyse.js` (callable field `modell`, anything else is `invalid-argument`) | `POST https://api.infomaniak.com/2/ai/{INFOMANIAK_PRODUKT}/openai/v1/chat/completions`, secret `INFOMANIAK_API_TOKEN`, `stream: false`, `response_format: json_schema` (strict) |
 | `gemini` | Google Gemini API, outside Switzerland | `KLASSENANALYSE_MODELL_GEMINI`, default `gemini-3.8-flash` | `generateContent` with `responseSchema`, secret `GEMINI_API_KEY` |
 
-The automatic run uses the default. The teacher may pick the other provider for one run (callable field `anbieter`); the page says next to the button where the answers go. Same input, same prompt, same checks on both paths. Every run is also kept on its own in `klassenanalysen/{analyseDoc}/laeufe/{ms}-{anbieter}` (`analyse, verworfen, basis, erstellt, dauer_ms, ausloeser, anbieter, modell, model_version, response_id, tokens`), teacher reads, so that runs of both providers on the same card can be compared; the main document holds the latest. Infomaniak's `tokens.ausgabe` includes the thinking tokens (OpenAI counting, that is what is billed), Gemini's does not (`denken` separate).
+The automatic run uses the default. The teacher may pick another model for one run (callable fields `anbieter`, `modell`); the page says next to the button where the answers go. Same input, same prompt, same checks on both paths. Every run is also kept on its own in `klassenanalysen/{analyseDoc}/laeufe/{ms}-{anbieter}` (`analyse, verworfen, basis, erstellt, dauer_ms, ausloeser, anbieter, modell, model_version, response_id, tokens`), teacher reads, so that runs of both providers on the same card can be compared; the main document holds the latest. Infomaniak's `tokens.ausgabe` includes the thinking tokens (OpenAI counting, that is what is billed), Gemini's does not (`denken` separate).
 
 Infomaniak commits by contract not to train on the data and to process it in Switzerland; it keeps request contents «temporarily for the duration necessary to process» and logs metadata (formativ `INFOMANIAK.md` §6). «Not stored at all» is not documented. The analysis itself is stored in `lmsbox` (Zurich).
 
@@ -252,6 +252,20 @@ Infomaniak commits by contract not to train on the data and to process it in Swi
 | `gemini-3.1-pro-preview` | 5 100 (incl. 2 700 thinking) | 39–51 s | 6 of 6 | USD 0.09 |
 
 All runs gave valid JSON, nothing was dropped by the checks, and all found the same three patterns of the card.
+
+The other Infomaniak models, same data and planted errors, 08.11.2026. `reasoning_effort` is the one each model accepts (Qwen 3.8 knows only `low`, `medium`, `xhigh`; Ministral and Apertus get none). Price in CHF per 1 million tokens, input / output.
+
+| Model (`INFOMANIAK_MODELLE`) | Effort | Found (wrong) | Time | Output tokens | Dropped by the checks | CHF per analysis | Price |
+|---|---|---|---|---|---|---|---|
+| `google/gemma-4-31B-it` (default) | high | 4, 2, 2 of 6 in three runs (0) | 39–55 s | 3 000–3 350 | 0 | 0.004 | 0.20 / 0.40 |
+| `Qwen/Qwen3.8-27B-FP8` | medium | 6, 6, 6 of 6 in three runs (0) | 34 s | 9 200–10 000 | 0 | 0.035 | 0.40 / 3.00 |
+| `Qwen/Qwen3.5-397B-A17B-FP8` | high | 4 of 6 (0) | 95 s | 7 800 | 0 | 0.040 | 0.80 / 3.60 |
+| `moonshotai/Kimi-K2.6` | high | 4 of 6 (0), each case repeated (now kept once) | 158 s | 15 100 | 0 | 0.056 | 0.60 / 3.00 |
+| `mistralai/Mistral-Small-4-119B-2603` | high | 2 of 6 (8 false alarms) | 101 s | 8 800 | 6 quotes, 6 question ids | 0.010 | 0.20 / 0.75 |
+| `mistralai/Ministral-3-14B-Instruct-2512` | — | 1 of 6 (1) | 49 s | 3 600 | 1 pseudonym | 0.006 | 0.30 / 0.40 |
+| `swiss-ai/Apertus-v1.5-70B` | — | 0 of 6 | 37 s | 2 400 | 7 quotes, 4 criteria | 0.016 | 0.70 / 2.50 |
+
+With `reasoning_effort: high`, Apertus wrote until the token limit (16 000) and the run was unusable.
 
 **Pages.** `dashboard/modules/klassenanalyse.js` draws the analysis for both teacher pages and starts the callable; all text goes in as text. `dashboard/spielfeld.html`: class view one compact box per due card above «Im Plenum aufgreifen», card view the whole analysis on top; below the threshold «Analyse ab 5 Abgeschlossenen (x/5)». `dashboard/liveview.html`: a panel above the detail view for the chosen assignment, with a choice of sub-assignment.
 
