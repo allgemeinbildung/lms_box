@@ -157,7 +157,7 @@ exports.boxSsoToken = onCall(
 );
 
 /*
- * KI-Klassenanalyse (CONTRACT.md, «Class analysis»). Callable for the teacher and a trigger
+ * KI-Klassenanalyse (CONTRACT.md, «Class analysis»), Infomaniak or Gemini. Callable for the teacher and a trigger
  * on drafts that starts it on its own at 5, 8, 11 … completed students, for assignments with
  * `klassenanalyse: true`. Logic: ./klassenanalyse.js.
  *
@@ -172,8 +172,21 @@ exports.boxSsoToken = onCall(
  *   quota       resource-exhausted
  */
 const GEMINI_API_KEY = defineSecret('GEMINI_API_KEY');
-const KLASSENANALYSE_MODELL = defineString('KLASSENANALYSE_MODELL', {
-    default: 'gemini-3.1-pro-preview', description: 'Gemini model of the class analysis (a Pro model; prices: scripts/kosten-preise.json).',
+const INFOMANIAK_API_TOKEN = defineSecret('INFOMANIAK_API_TOKEN');
+const KLASSENANALYSE_ANBIETER = defineString('KLASSENANALYSE_ANBIETER', {
+    default: 'infomaniak', description: 'Provider of the class analysis: "infomaniak" (Switzerland) or "gemini" (Google). The teacher may pick the other one per run.',
+});
+const KLASSENANALYSE_MODELL_INFOMANIAK = defineString('KLASSENANALYSE_MODELL_INFOMANIAK', {
+    default: 'google/gemma-4-31B-it', description: 'Infomaniak model of the class analysis.',
+});
+const KLASSENANALYSE_DENKEN_INFOMANIAK = defineString('KLASSENANALYSE_DENKEN_INFOMANIAK', {
+    default: 'high', description: 'reasoning_effort for Infomaniak: none, low, medium, high.',
+});
+const KLASSENANALYSE_MODELL_GEMINI = defineString('KLASSENANALYSE_MODELL_GEMINI', {
+    default: 'gemini-3.8-flash', description: 'Gemini model of the class analysis (prices: scripts/kosten-preise.json).',
+});
+const INFOMANIAK_PRODUKT = defineString('INFOMANIAK_PRODUKT', {
+    description: 'Infomaniak AI Tools product_id (GET /1/ai), digits only.',
 });
 const ANALYSE_STATUS = {
     not_found: 'not-found', zu_wenige: 'failed-precondition', laeuft: 'aborted', pause: 'resource-exhausted',
@@ -181,12 +194,22 @@ const ANALYSE_STATUS = {
 };
 
 function analyseDeps() {
+    // Emulator only: local stand-ins for both providers (test/fake-gemini.js). Ignored in the cloud.
+    const emu = process.env.FUNCTIONS_EMULATOR === 'true';
+    const denken = KLASSENANALYSE_DENKEN_INFOMANIAK.value();
     return klassenanalyse.firestoreDeps({
         rosterDb, boxDb,
-        gemini: {
-            apiKey: GEMINI_API_KEY.value(), model: KLASSENANALYSE_MODELL.value(),
-            // Emulator only: a local stand-in for Gemini (test/fake-gemini.js). Ignored in the cloud.
-            ...(process.env.FUNCTIONS_EMULATOR === 'true' && process.env.GEMINI_BASE_URL ? { baseUrl: process.env.GEMINI_BASE_URL } : {}),
+        modell: {
+            anbieter: KLASSENANALYSE_ANBIETER.value(),
+            infomaniak: {
+                apiKey: INFOMANIAK_API_TOKEN.value(), produktId: INFOMANIAK_PRODUKT.value(),
+                model: KLASSENANALYSE_MODELL_INFOMANIAK.value(), reasoningEffort: denken === 'none' ? 'none' : denken,
+                ...(emu && process.env.INFOMANIAK_BASE_URL ? { baseUrl: process.env.INFOMANIAK_BASE_URL } : {}),
+            },
+            gemini: {
+                apiKey: GEMINI_API_KEY.value(), model: KLASSENANALYSE_MODELL_GEMINI.value(),
+                ...(emu && process.env.GEMINI_BASE_URL ? { baseUrl: process.env.GEMINI_BASE_URL } : {}),
+            },
         },
     });
 }
@@ -201,16 +224,17 @@ function teacher(request) {
 }
 
 exports.boxKlassenanalyse = onCall(
-    { region: REGION, maxInstances: 5, timeoutSeconds: 300, memory: '512MiB', secrets: [GEMINI_API_KEY] },
+    { region: REGION, maxInstances: 5, timeoutSeconds: 300, memory: '512MiB', secrets: [GEMINI_API_KEY, INFOMANIAK_API_TOKEN] },
     async (request) => {
         const uid = teacher(request);
-        const { classId, assignmentId, subId } = request.data || {};
+        const { classId, assignmentId, subId, anbieter = null } = request.data || {};
         checkIds({ assignmentId, subId });
+        if (anbieter !== null && !klassenanalyse.ANBIETER.includes(anbieter)) throw badRequest("anbieter ist 'infomaniak' oder 'gemini'.");
         if (typeof classId !== 'string' || !classId || classId.length > 100 || !assignmentId || !subId) {
             throw badRequest("'boxKlassenanalyse' braucht classId, assignmentId und subId.");
         }
         try {
-            return await klassenanalyse.analysieren({ classId, assignmentId, subId, modus: 'manuell', ausgeloest_von: uid }, analyseDeps());
+            return await klassenanalyse.analysieren({ classId, assignmentId, subId, modus: 'manuell', ausgeloest_von: uid, anbieter }, analyseDeps());
         } catch (e) {
             if (e instanceof klassenanalyse.AnalyseFehler) {
                 throw new HttpsError(ANALYSE_STATUS[e.code] || 'internal', e.message, { code: e.code });
@@ -223,7 +247,7 @@ exports.boxKlassenanalyse = onCall(
 exports.boxKlassenanalyseAuto = onDocumentWritten(
     {
         document: 'drafts/{draftId}', database: 'lmsbox', region: REGION,
-        maxInstances: 5, timeoutSeconds: 300, memory: '512MiB', secrets: [GEMINI_API_KEY], retry: false,
+        maxInstances: 5, timeoutSeconds: 300, memory: '512MiB', secrets: [GEMINI_API_KEY, INFOMANIAK_API_TOKEN], retry: false,
     },
     async (event) => {
         const after = event.data?.after?.exists ? event.data.after.data() : null;

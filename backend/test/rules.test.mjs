@@ -83,6 +83,7 @@ before(async () => {
     await admin.doc(`publicAssignments/${enc(ASSIGNMENT)}`).set(publicCopy({ assignmentId: ASSIGNMENT, assignmentTitle: 'Test', solution_keys: ['geheim'], subAssignments: { [SUB]: { type: 'quill', questions: [{ id: 'q1', text: 'Frage' }], solution: { q1: 'geheim' } } } }));
     await admin.doc('somethingElse/x').set({ a: 1 });
     await admin.doc('klassenanalysen/TestA__x__y').set({ classId: 'TestA', assignmentId: 'x', subId: 'y', state: 'fertig', analyse: { lage: 'L' } });
+    await admin.doc('klassenanalysen/TestA__x__y/laeufe/1-infomaniak').set({ anbieter: 'infomaniak', analyse: { lage: 'L' } });
     // The roster lives in `(default)`. Fictional entries.
     const roster = adminFirestore(adminApp);
     for (const uid of ['alice', 'bob']) {
@@ -472,6 +473,9 @@ test('a forged role that is not exactly "teacher" grants nothing', async () => {
 test('klassenanalysen: teacher gets and lists, nobody writes, students and guests read nothing', async () => {
     await assertSucceeds(getDoc(doc(teacher, 'klassenanalysen', 'TestA__x__y')));
     await assertSucceeds(getDocs(collection(teacher, 'klassenanalysen')));
+    await assertSucceeds(getDocs(collection(teacher, 'klassenanalysen', 'TestA__x__y', 'laeufe')));
+    await assertFails(setDoc(doc(teacher, 'klassenanalysen', 'TestA__x__y', 'laeufe', 'neu'), { anbieter: 'x' }));
+    await assertFails(getDocs(collection(alice, 'klassenanalysen', 'TestA__x__y', 'laeufe')));
     await assertFails(setDoc(doc(teacher, 'klassenanalysen', 'TestA__x__y'), { state: 'laeuft' }));
     await assertFails(deleteDoc(doc(teacher, 'klassenanalysen', 'TestA__x__y')));
     const fake = client(tok('mallory2', { role: 'Teacher' }));

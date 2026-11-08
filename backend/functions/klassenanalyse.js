@@ -5,6 +5,9 @@
 // Pure logic with injected dependencies (deps), so the tests run without Firestore and
 // without a model. index.js wires it to Firestore, the roster and the Gemini API.
 //
+// Provider (CONTRACT): Infomaniak (Switzerland, default) or Gemini (Google), chosen by the
+// parameter KLASSENANALYSE_ANBIETER or, for one run, by the teacher.
+//
 // What goes to the model: the card (title, core, facts, model answer, «leicht verwechselt»),
 // the questions with their rubric, three class counts, and per student who completed the
 // card a pseudonym L01 … (shuffled per run) with answers, feedback counts and statuses.
@@ -327,6 +330,105 @@ async function geminiAufrufen({ system, user }, { apiKey, model, fetchFn = fetch
     }
 }
 
+// Infomaniak (Switzerland), OpenAI-compatible: POST /2/ai/{product_id}/openai/v1/chat/completions.
+// Same quirks as formativ's adapter (formativ kern/src/adapter/infomaniak.js): stream false,
+// reasoning_effort, max_completion_tokens. JSON through response_format json_schema.
+const INFOMANIAK_URL = 'https://api.infomaniak.com';
+
+/** The Gemini schema (OpenAPI subset, upper-case types) as JSON Schema for strict mode. */
+function zuJsonSchema(s) {
+    const out = { type: String(s.type).toLowerCase() };
+    if (s.description) out.description = s.description;
+    if (s.enum) out.enum = s.enum;
+    if (s.maxItems) out.maxItems = s.maxItems;
+    if (s.items) out.items = zuJsonSchema(s.items);
+    if (s.properties) {
+        out.properties = Object.fromEntries(Object.entries(s.properties).map(([k, v]) => [k, zuJsonSchema(v)]));
+        out.required = Object.keys(s.properties);
+        out.additionalProperties = false;
+    }
+    return out;
+}
+const JSON_SCHEMA = zuJsonSchema(SCHEMA);
+
+function ohneZaun(t) {
+    const m = /^\s*```(?:json)?\s*([\s\S]*?)\s*```\s*$/.exec(t);
+    return m ? m[1] : t;
+}
+
+async function infomaniakAufrufen({ system, user }, { apiKey, produktId, model, reasoningEffort = 'low', fetchFn = fetch, timeoutMs = 240000, baseUrl = INFOMANIAK_URL }) {
+    if (!apiKey || !/^\d+$/.test(String(produktId || ''))) {
+        throw new AnalyseFehler('Die Klassenanalyse mit Infomaniak ist nicht eingerichtet (Token oder Produkt fehlt).', 'not_configured');
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const body = {
+        model,
+        stream: false,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+        temperature: 0.2,
+        max_completion_tokens: 16000,
+        response_format: { type: 'json_schema', json_schema: { name: 'klassenanalyse', strict: true, schema: JSON_SCHEMA } },
+    };
+    if (reasoningEffort) body.reasoning_effort = reasoningEffort;
+    let res;
+    try {
+        res = await fetchFn(`${baseUrl}/2/ai/${produktId}/openai/v1/chat/completions`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+        });
+    } catch (e) {
+        throw new AnalyseFehler(e.name === 'AbortError' ? 'Das Modell hat nicht rechtzeitig geantwortet.' : 'Das Modell ist nicht erreichbar.', 'unavailable');
+    } finally {
+        clearTimeout(timer);
+    }
+    let data = null;
+    try { data = await res.json(); } catch { /* empty */ }
+    if (res.status === 429) throw new AnalyseFehler('Das Kontingent des Modells ist erschöpft.', 'quota');
+    if (res.status !== 200 || !data) throw new AnalyseFehler(`Das Modell antwortet mit HTTP ${res.status}.`, 'unavailable');
+    const choice = data.choices?.[0];
+    const u = data.usage || {};
+    const meta = {
+        model_version: data.model || model,
+        response_id: data.id || null,
+        tokens: {
+            eingabe: u.prompt_tokens ?? null,
+            ausgabe: u.completion_tokens ?? null,
+            denken: u.completion_tokens_details?.reasoning_tokens ?? 0,
+            gesamt: u.total_tokens ?? null,
+            ...(u.prompt_tokens_details?.cached_tokens ? { zwischengespeichert: u.prompt_tokens_details.cached_tokens } : {}),
+        },
+    };
+    if (choice?.finish_reason && choice.finish_reason !== 'stop') {
+        const e = new AnalyseFehler(`Die Antwort des Modells ist unvollständig (${choice.finish_reason}).`, 'unusable');
+        e.meta = meta;
+        throw e;
+    }
+    try {
+        return { roh: JSON.parse(ohneZaun(String(choice?.message?.content || ''))), ...meta };
+    } catch {
+        const e = new AnalyseFehler('Die Antwort des Modells ist kein gültiges JSON.', 'unusable');
+        e.meta = meta;
+        throw e;
+    }
+}
+
+const ANBIETER = ['infomaniak', 'gemini'];
+/**
+ * deps.modell = { anbieter: 'infomaniak' | 'gemini', infomaniak: {…}, gemini: {…} }.
+ * `wahl` (from the teacher, for testing) overrides the configured provider.
+ * Returns the answer plus { anbieter, modell }.
+ */
+async function modellAufrufen(prompt, modell, wahl) {
+    const anbieter = ANBIETER.includes(wahl) ? wahl : modell.anbieter;
+    if (!ANBIETER.includes(anbieter)) throw new AnalyseFehler('Unbekannter Anbieter für die Klassenanalyse.', 'not_configured');
+    const cfg = modell[anbieter] || {};
+    const r = anbieter === 'gemini' ? await geminiAufrufen(prompt, cfg) : await infomaniakAufrufen(prompt, cfg);
+    return { ...r, anbieter, modell: cfg.model };
+}
+
 // ---- checking the answer ------------------------------------------------------------------
 
 const norm = (s) => String(s || '').replace(/[\s ]+/g, ' ').trim();
@@ -440,7 +542,7 @@ function darfStarten(aktuell, { modus, n, now }) {
  *   gemini { apiKey, model, fetchFn }, now(), random()
  * Returns { status: 'fertig' | 'uebersprungen', grund?, id, basis? }. Throws AnalyseFehler.
  */
-async function analysieren({ classId, assignmentId, subId, modus, ausgeloest_von = null }, deps) {
+async function analysieren({ classId, assignmentId, subId, modus, ausgeloest_von = null, anbieter = null }, deps) {
     const now = deps.now ? deps.now() : Date.now();
     const id = analyseId(classId, assignmentId, subId);
     const assignment = await deps.loadAssignment(assignmentId);
@@ -482,23 +584,24 @@ async function analysieren({ classId, assignmentId, subId, modus, ausgeloest_von
         const fertigUids = members.filter((m) => istAbgeschlossen(drafts.get(m.uid), gefunden.fragen)).map((m) => m.uid);
         const usage = await deps.loadUsage(fertigUids, assignmentId);
         const ein = eingabeBauen({ assignment, subId, members, drafts, usage, random: deps.random || Math.random });
-        const antwort = await geminiAufrufen(promptBauen(ein.eingabe), deps.gemini);
+        const antwort = await modellAufrufen(promptBauen(ein.eingabe), deps.modell, anbieter);
         const { analyse, verworfen } = ergebnisPruefen(antwort.roh, { ...ein, fragen: ein.eingabe.fragen });
         const ende = deps.now ? deps.now() : Date.now();
-        await deps.store.schreiben(id, {
-            state: 'fertig', laeuft_seit: null,
+        const lauf = {
             analyse, verworfen, basis: ein.basis,
-            erstellt: new Date(ende).toISOString(), dauer_ms: ende - start,
-            modell: deps.gemini.model, model_version: antwort.model_version, response_id: antwort.response_id, tokens: antwort.tokens,
-            fehler: null,
-        });
+            erstellt: new Date(ende).toISOString(), dauer_ms: ende - start, ausloeser: modus,
+            anbieter: antwort.anbieter, modell: antwort.modell, model_version: antwort.model_version, response_id: antwort.response_id, tokens: antwort.tokens,
+        };
+        await deps.store.schreiben(id, { ...lauf, state: 'fertig', laeuft_seit: null, fehler: null });
+        // Every run is also kept on its own, so that providers can be compared on the same card.
+        if (deps.store.laufSchreiben) await deps.store.laufSchreiben(id, `${ende}-${antwort.anbieter}`, lauf);
         return { status: 'fertig', id, basis: ein.basis };
     } catch (e) {
         const ende = deps.now ? deps.now() : Date.now();
         // The previous analysis stays; the document says that this run failed.
         await deps.store.schreiben(id, {
             state: 'fehler', laeuft_seit: null,
-            fehler: { code: e.code || 'internal', at: new Date(ende).toISOString(), ...(e.meta ? { model_version: e.meta.model_version, tokens: e.meta.tokens } : {}) },
+            fehler: { code: e.code || 'internal', at: new Date(ende).toISOString(), anbieter: ANBIETER.includes(anbieter) ? anbieter : deps.modell?.anbieter ?? null, ...(e.meta ? { model_version: e.meta.model_version, tokens: e.meta.tokens } : {}) },
         });
         throw e instanceof AnalyseFehler ? e : new AnalyseFehler('Die Analyse ist fehlgeschlagen.', 'internal');
     }
@@ -538,12 +641,12 @@ async function beiDraft(after, deps) {
 // ---- Firestore wiring ------------------------------------------------------------------------
 
 /** Dependencies on the real databases. rosterDb = (default), boxDb = lmsbox (Admin SDK). */
-function firestoreDeps({ rosterDb, boxDb, gemini }) {
+function firestoreDeps({ rosterDb, boxDb, modell }) {
     const IN_LIMIT = 30;
     const chunks = (list) => { const out = []; for (let i = 0; i < list.length; i += IN_LIMIT) out.push(list.slice(i, i + IN_LIMIT)); return out; };
     const cache = new Map();   // assignment docs for one minute per instance (the trigger runs on every draft write)
     return {
-        gemini,
+        modell,
         async loadAssignment(aid) {
             const hit = cache.get(aid);
             if (hit && Date.now() - hit.at < 60000) return hit.data;
@@ -604,6 +707,9 @@ function firestoreDeps({ rosterDb, boxDb, gemini }) {
             async schreiben(id, daten) {
                 await boxDb.doc(`${COLLECTION}/${id}`).set(daten, { merge: true });
             },
+            async laufSchreiben(id, laufId, daten) {
+                await boxDb.doc(`${COLLECTION}/${id}/laeufe/${laufId}`).set(daten);
+            },
         },
     };
 }
@@ -611,5 +717,5 @@ function firestoreDeps({ rosterDb, boxDb, gemini }) {
 module.exports = {
     COLLECTION, SCHWELLE, SCHRITT, PAUSE_AUTO_MS, PAUSE_MANUELL_MS, LAUF_TTL_MS, MAX_ANTWORT, SCHEMA, SYSTEM, PROBLEME,
     AnalyseFehler, analyseId, istAntwort, istAbgeschlossen, stufe, kontextTeile, karteBauen,
-    eingabeBauen, promptBauen, geminiAufrufen, ergebnisPruefen, darfStarten, analysieren, beiDraft, firestoreDeps,
+    eingabeBauen, promptBauen, geminiAufrufen, infomaniakAufrufen, modellAufrufen, zuJsonSchema, ANBIETER, ergebnisPruefen, darfStarten, analysieren, beiDraft, firestoreDeps,
 };

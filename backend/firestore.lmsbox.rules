@@ -218,6 +218,10 @@ service cloud.firestore {
     // the functions boxKlassenanalyse / boxKlassenanalyseAuto (Admin SDK); teachers read.
     match /klassenanalysen/{analyseDoc} {
       allow get, list: if isTeacher();
+      // every run on its own (provider comparison); same rights
+      match /laeufe/{laufId} {
+        allow get, list: if isTeacher();
+      }
     }
 
     // Self-test progress: the student's own documents only, no list, no teacher

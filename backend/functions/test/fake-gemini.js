@@ -1,4 +1,5 @@
-// Local stand-in for Gemini generateContent. No model, no network beyond 127.0.0.1.
+// Local stand-in for both providers of the class analysis: Gemini generateContent and
+// Infomaniak's OpenAI-compatible chat/completions. No model, no network beyond 127.0.0.1.
 //
 //   node test/fake-gemini.js [port]        default 5149
 //
@@ -11,7 +12,7 @@ const http = require('node:http');
 
 /** The analysis the fake returns for one request body (also used directly by the tests). */
 function fakeAnalyse(body) {
-    const user = body?.contents?.[0]?.parts?.[0]?.text || '';
+    const user = body?.contents?.[0]?.parts?.[0]?.text || body?.messages?.find?.((m) => m.role === 'user')?.content || '';
     const eingabe = JSON.parse(user.slice(user.indexOf('{')));
     const ps = eingabe.lernende.map((l) => l.pseudonym);
     const f = eingabe.fragen[0];
@@ -54,18 +55,29 @@ function geminiAntwort(body, { modelVersion = 'gemini-fake-001' } = {}) {
     };
 }
 
+/** Same analysis in the OpenAI-compatible shape of Infomaniak's chat/completions. */
+function infomaniakAntwort(body) {
+    return {
+        id: 'fake-infomaniak',
+        model: body.model || 'google/gemma-fake',
+        choices: [{ index: 0, message: { role: 'assistant', content: JSON.stringify(fakeAnalyse(body)) }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 1300, completion_tokens: 600, total_tokens: 1900, completion_tokens_details: { reasoning_tokens: 100 } },
+    };
+}
+
 function startFakeGemini({ port = 5149, delayMs = 0 } = {}) {
     const calls = [];
     const server = http.createServer(async (req, res) => {
         res.setHeader('content-type', 'application/json; charset=utf-8');
         if (req.method === 'GET' && req.url === '/_calls') { res.end(JSON.stringify(calls)); return; }
-        if (req.method !== 'POST' || !req.url.endsWith(':generateContent')) { res.statusCode = 404; res.end('{}'); return; }
+        const openai = req.url.endsWith('/openai/v1/chat/completions');
+        if (req.method !== 'POST' || !(req.url.endsWith(':generateContent') || openai)) { res.statusCode = 404; res.end('{}'); return; }
         let raw = '';
         for await (const chunk of req) raw += chunk;
         const body = JSON.parse(raw);
         calls.push({ url: req.url, headers: req.headers, body });
         if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
-        res.end(JSON.stringify(geminiAntwort(body)));
+        res.end(JSON.stringify(openai ? infomaniakAntwort(body) : geminiAntwort(body)));
     });
     return new Promise((resolve, reject) => {
         server.once('error', reject);
@@ -76,7 +88,7 @@ function startFakeGemini({ port = 5149, delayMs = 0 } = {}) {
     });
 }
 
-module.exports = { startFakeGemini, fakeAnalyse, geminiAntwort };
+module.exports = { startFakeGemini, fakeAnalyse, geminiAntwort, infomaniakAntwort };
 
 if (require.main === module) {
     startFakeGemini({ port: Number(process.argv[2] || 5149) }).then((m) => console.log(`fake gemini on ${m.url}`));

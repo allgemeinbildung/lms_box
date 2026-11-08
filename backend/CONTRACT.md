@@ -145,7 +145,7 @@ teacherMaterials/{enc(einheitId)}       // einheitId e.g. "EB-5.1.1"
 |---|---|---|
 | `boxFormativ` | `{ assignmentId, subId, questionId, text }` | `{ status: 'success', result }` as `formativ.requestFeedback` returns; errors as `HttpsError` with `details: { code, result? }` (code table: comment in `functions/index.js`) |
 | `boxFormativStatus` | `{ assignmentId }` | `{ slots, max }` as `formativ.status` returns (see below) |
-| `boxKlassenanalyse` | `{ classId, assignmentId, subId }` | `{ status: 'fertig', id, basis }` once the analysis is stored; teachers only (see «Class analysis») |
+| `boxKlassenanalyse` | `{ classId, assignmentId, subId, anbieter? }` | `{ status: 'fertig', id, basis }` once the analysis is stored; teachers only (see «Class analysis») |
 
 Both require a signed-in caller whose `students/{uid}` doc exists in `(default)` and is `active !== false`. The rubric and solution are loaded on the server from `assignments`; the client only names the field and sends the text. The model request carries no name and no uid — only the pseudonym.
 
@@ -210,7 +210,18 @@ Since 30.10.2026 (branch `liveview-uebersicht`, not deployed): the Live View ope
 
 ## Class analysis (`klassenanalysen`, `functions/klassenanalyse.js`)
 
-Since 08.11.2026 (Spielfeld pilot, not deployed): a Gemini model reads the answers of one card (= one sub-assignment) of one class and writes an analysis for the teacher — patterns, groups, individual students, a check of the formativ feedback, what works. A stronger model than the one that gives students feedback. No grade, no ranking, no judgement of persons (forbidden in the prompt).
+Since 08.11.2026 (Spielfeld pilot, not deployed): a language model reads the answers of one card (= one sub-assignment) of one class and writes an analysis for the teacher — patterns, groups, individual students, a check of the formativ feedback, what works. No grade, no ranking, no judgement of persons (forbidden in the prompt).
+
+**Provider.** Two paths, for the pilot's comparison:
+
+| `anbieter` | Where | Model (parameter) | Call |
+|---|---|---|---|
+| `infomaniak` (default, `KLASSENANALYSE_ANBIETER`) | Infomaniak AI Tools, Switzerland | `KLASSENANALYSE_MODELL_INFOMANIAK`, default `google/gemma-4-31B-it`; `KLASSENANALYSE_DENKEN_INFOMANIAK` = `reasoning_effort`, default `high` | `POST https://api.infomaniak.com/2/ai/{INFOMANIAK_PRODUKT}/openai/v1/chat/completions`, secret `INFOMANIAK_API_TOKEN`, `stream: false`, `response_format: json_schema` (strict) |
+| `gemini` | Google Gemini API, outside Switzerland | `KLASSENANALYSE_MODELL_GEMINI`, default `gemini-3.8-flash` | `generateContent` with `responseSchema`, secret `GEMINI_API_KEY` |
+
+The automatic run uses the default. The teacher may pick the other provider for one run (callable field `anbieter`); the page says next to the button where the answers go. Same input, same prompt, same checks on both paths. Every run is also kept on its own in `klassenanalysen/{analyseDoc}/laeufe/{ms}-{anbieter}` (`analyse, verworfen, basis, erstellt, dauer_ms, ausloeser, anbieter, modell, model_version, response_id, tokens`), teacher reads, so that runs of both providers on the same card can be compared; the main document holds the latest. Infomaniak's `tokens.ausgabe` includes the thinking tokens (OpenAI counting, that is what is billed), Gemini's does not (`denken` separate).
+
+Infomaniak commits by contract not to train on the data and to process it in Switzerland; it keeps request contents «temporarily for the duration necessary to process» and logs metadata (formativ `INFOMANIAK.md` §6). «Not stored at all» is not documented. The analysis itself is stored in `lmsbox` (Zurich).
 
 **Completed.** A student completed a card when every question of the sub-assignment has a non-empty answer (`istAntwort`: a string, not blank, not `<p><br></p>`), with or without feedback. Counted over the uids of the class roster (`students` with `classIds` containing the class, or `classId` when `classIds` is empty), never over the `classId` a draft carries.
 
@@ -220,7 +231,7 @@ Since 08.11.2026 (Spielfeld pilot, not deployed): a Gemini model reads the answe
 - By the teacher (`boxKlassenanalyse`, callable, claim `role == "teacher"`, otherwise `permission-denied`): «Klassenanalyse erstellen» / «Neu analysieren» for any assignment, from 5 completed (`failed-precondition` / `zu_wenige` below), not twice within a minute (`pause`).
 - Lock: a transaction sets `state: 'laeuft'`; while a run is going (younger than 6 minutes) no other starts (`aborted` / `laeuft`). Afterwards `state: 'fertig'` with the analysis, or `state: 'fehler'` with `fehler{code, at}` — the previous analysis then stays.
 
-**What goes to the model** (Gemini API, key in the secret `GEMINI_API_KEY`, model in the parameter `KLASSENANALYSE_MODELL`, default `gemini-3.1-pro-preview`; JSON with `responseSchema`, temperature 0.2):
+**What goes to the model** (either provider; JSON schema, temperature 0.2):
 
 - the card: its title (the `subId`), and from the rubric's `kontext` (spielfeld's briefing) the sections THEMA, KERN, GESICHERTE FAKTEN, the model answer (SICHTWEISEN) and LEICHT VERWECHSELT; without `kontext` the model answer from `solution`;
 - per question: text and rubric (`id, label, erwartung, niveau`);
@@ -230,7 +241,17 @@ Since 08.11.2026 (Spielfeld pilot, not deployed): a Gemini model reads the answe
 
 **What comes back** (German, «Sie» to the teacher): `lage` (2–3 sentences); `muster` (≤ 4: `titel, beschreibung, kriterien[] ("<questionId>/<criterionId>"), fragen[], lernende[], belege[{lernende, zitat}], plenum_impuls`); `gruppen` (≤ 3: `ziel, lernende[], auftrag`); `einzelne` (≤ 6: `lernende, beobachtung, naechster_schritt`); `rueckmeldung_check` (`lernende, frage, kriterium, problem: zu_mild | zu_streng | irrefuehrend | loesung_verraten, begruendung`); `gelungen` (≤ 4: `beschreibung, lernende[]`). Checked in the function before it is stored: a pseudonym that was not in the input is dropped (an element that names only such a person is dropped whole); a quote must stand verbatim (whitespace aside) in that person's answer and be at most 120 characters, otherwise the quote is dropped; unknown question or criterion ids are dropped. The counts go to `verworfen`. Pseudonyms become uids; a pseudonym in free text becomes `{{uid:<uid>}}`, which the pages show as the roster name.
 
-**Cost.** `model_version`, `tokens` and `response_id` are stored with every analysis so that `scripts/kosten-bericht.mjs` can count them later (not yet read there). Measured 08.11.2026 with a fictional class (20 students, 3 questions, `gemini-3.1-pro-preview`): 14 300 input, 2 000 output and 5 600 thinking tokens, 51 s.
+**Cost.** `anbieter`, `model_version`, `tokens` and `response_id` are stored with every run so that `scripts/kosten-bericht.mjs` can count them later (not yet read there). Measured 08.11.2026, fictional class (20 students, card W-20, 3 questions, about 14 400 input tokens), six planted feedback errors (2 too mild, 2 too strict, 2 giving the solution away):
+
+| Model | Output tokens billed | Time | Planted errors found | Cost per analysis |
+|---|---|---|---|---|
+| Gemma 4 31B, Infomaniak, thinking `high` | 3 350 | 48 s | 4 of 6 | CHF 0.004 |
+| Gemma 4 31B, thinking `low` / `medium` | 2 900–3 700 | 40–60 s | 2–4 of 6 (varies) | CHF 0.004 |
+| Gemma 4 31B, thinking off | 1 450 | 21–24 s | 1 of 6 | CHF 0.003 |
+| `gemini-3.8-flash` | 4 050 (incl. 1 600 thinking) | 30–44 s | 6 of 6 | USD 0.026 (from 2027: 0.05) |
+| `gemini-3.1-pro-preview` | 5 100 (incl. 2 700 thinking) | 39–51 s | 6 of 6 | USD 0.09 |
+
+All runs gave valid JSON, nothing was dropped by the checks, and all found the same three patterns of the card.
 
 **Pages.** `dashboard/modules/klassenanalyse.js` draws the analysis for both teacher pages and starts the callable; all text goes in as text. `dashboard/spielfeld.html`: class view one compact box per due card above «Im Plenum aufgreifen», card view the whole analysis on top; below the threshold «Analyse ab 5 Abgeschlossenen (x/5)». `dashboard/liveview.html`: a panel above the detail view for the chosen assignment, with a choice of sub-assignment.
 

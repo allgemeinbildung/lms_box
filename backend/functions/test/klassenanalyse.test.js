@@ -5,7 +5,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const ka = require('../klassenanalyse');
-const { startFakeGemini, geminiAntwort } = require('./fake-gemini');
+const { startFakeGemini, geminiAntwort, infomaniakAntwort } = require('./fake-gemini');
 
 const AID = 'Spielfeld 9.9';
 const SUB = 'W-01 Interessengruppe';
@@ -59,13 +59,18 @@ function usageFor(m) {
 }
 
 /** Memory deps: `fertig` students completed the card, the rest only started it. */
-function memDeps({ fertig, fetchFn, now = () => Date.now(), random = Math.random }) {
+function memDeps({ fertig, fetchFn, now = () => Date.now(), random = Math.random, anbieter = 'gemini' }) {
+    const laeufe = new Map();
     const docs = new Map();
     const drafts = members.map((m, i) => draft(m, i, i < fertig));
     return {
-        docs, drafts, calls: [],
+        docs, drafts, calls: [], laeufe,
         now, random,
-        gemini: { apiKey: 'test-key', model: 'gemini-test', fetchFn },
+        modell: {
+            anbieter,
+            gemini: { apiKey: 'test-key', model: 'gemini-test', fetchFn },
+            infomaniak: { apiKey: 'im-token', produktId: '4711', model: 'google/gemma-test', reasoningEffort: 'high', fetchFn },
+        },
         loadAssignment: async () => ASSIGNMENT,
         loadMembers: async (c) => (c === KLASSE ? members : []),
         loadStudentClasses: async () => [KLASSE],
@@ -79,6 +84,7 @@ function memDeps({ fertig, fetchFn, now = () => Date.now(), random = Math.random
                 return r;
             },
             async schreiben(id, daten) { docs.set(id, { ...(docs.get(id) || {}), ...structuredClone(daten) }); },
+            async laufSchreiben(id, laufId, daten) { laeufe.set(`${id}/${laufId}`, structuredClone(daten)); },
         },
     };
 }
@@ -89,7 +95,7 @@ function fakeFetch({ delayMs = 0, bodies = [] } = {}) {
         const body = JSON.parse(init.body);
         bodies.push({ url, headers: init.headers, body });
         if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
-        return { status: 200, json: async () => geminiAntwort(body) };
+        return { status: 200, json: async () => (url.includes('/openai/') ? infomaniakAntwort(body) : geminiAntwort(body)) };
     };
     fn.bodies = bodies;
     return fn;
@@ -370,4 +376,68 @@ test('boxKlassenanalyse: only the teacher claim gets in', async () => {
     await assert.rejects(boxKlassenanalyse.run({ data, auth: { uid: 's1', token: { role: 'student' } } }), (e) => e.code === 'permission-denied');
     // a teacher passes the role check; bad input is the next thing that stops it, before any read
     await assert.rejects(boxKlassenanalyse.run({ data: { assignmentId: AID, subId: SUB }, auth: { uid: 't1', token: { role: 'teacher' } } }), (e) => e.code === 'invalid-argument');
+});
+
+// ---------------------------------------------------------------- Infomaniak (Switzerland)
+
+const userText = (b) => (b.contents ? b.contents[0].parts[0].text : b.messages.find((m) => m.role === 'user').content);
+
+test('infomaniak: OpenAI-compatible request with strict JSON schema, bearer token, no names', async () => {
+    const f = fakeFetch();
+    const d = memDeps({ fertig: 6, fetchFn: f, anbieter: 'infomaniak' });
+    await ka.analysieren({ classId: KLASSE, assignmentId: AID, subId: SUB, modus: 'manuell' }, d);
+    const { url, headers, body } = f.bodies[0];
+    assert.equal(url, 'https://api.infomaniak.com/2/ai/4711/openai/v1/chat/completions');
+    assert.equal(headers.authorization, 'Bearer im-token');
+    assert.equal(body.model, 'google/gemma-test');
+    assert.equal(body.stream, false);
+    assert.equal(body.reasoning_effort, 'high');
+    assert.equal(body.temperature, 0.2);
+    assert.equal(body.response_format.type, 'json_schema');
+    assert.equal(body.response_format.json_schema.strict, true);
+    assert.equal(body.response_format.json_schema.schema.additionalProperties, false);
+    assert.deepEqual(body.response_format.json_schema.schema.required, ['lage', 'muster', 'gruppen', 'einzelne', 'rueckmeldung_check', 'gelungen']);
+    const sent = JSON.stringify(body);
+    for (const m of members) {
+        assert.ok(!sent.includes(m.uid));
+        for (const part of m.name.split(' ')) assert.ok(!sent.includes(part), part);
+    }
+    const doc = d.docs.get(ID);
+    assert.equal(doc.anbieter, 'infomaniak');
+    assert.equal(doc.model_version, 'google/gemma-test');
+    assert.deepEqual(doc.tokens, { eingabe: 1300, ausgabe: 600, denken: 100, gesamt: 1900 });
+    assert.equal(doc.analyse.muster[0].belege.length, 1, 'same checks as with Gemini');
+});
+
+test('provider: the teacher may pick the other one for a run; each run is kept for comparison', async () => {
+    let t = Date.now();
+    const f = fakeFetch();
+    const d = memDeps({ fertig: 6, fetchFn: f, anbieter: 'infomaniak', now: () => t });
+    const job = { classId: KLASSE, assignmentId: AID, subId: SUB, modus: 'manuell' };
+    await ka.analysieren(job, d);
+    t += 2 * MIN;
+    await ka.analysieren({ ...job, anbieter: 'gemini' }, d);
+    t += 2 * MIN;
+    await ka.analysieren({ ...job, anbieter: 'unbekannt' }, d);          // unknown: the configured one
+    assert.deepEqual(f.bodies.map((b) => (b.url.includes('/openai/') ? 'infomaniak' : 'gemini')), ['infomaniak', 'gemini', 'infomaniak']);
+    assert.equal(d.laeufe.size, 3);
+    assert.deepEqual([...d.laeufe.values()].map((l) => l.anbieter), ['infomaniak', 'gemini', 'infomaniak']);
+    assert.ok([...d.laeufe.values()].every((l) => l.analyse && l.tokens && !('state' in l)));
+    // the same pseudonymised input went to both
+    assert.equal(userText(f.bodies[0].body).length, userText(f.bodies[1].body).length);
+});
+
+test('infomaniak: a cut-off answer is unusable; a code fence around the JSON is tolerated; missing product is not_configured', async () => {
+    const mk = (content, finish = 'stop') => async () => ({ status: 200, json: async () => ({ model: 'm', choices: [{ message: { content }, finish_reason: finish }], usage: {} }) });
+    const cfg = { apiKey: 'k', produktId: '1', model: 'm' };
+    await assert.rejects(ka.infomaniakAufrufen({ system: '', user: '' }, { ...cfg, fetchFn: mk('{"lage":', 'length') }), (e) => e.code === 'unusable');
+    const r = await ka.infomaniakAufrufen({ system: '', user: '' }, { ...cfg, fetchFn: mk('```json\n{"lage":"x"}\n```') });
+    assert.equal(r.roh.lage, 'x');
+    await assert.rejects(ka.infomaniakAufrufen({ system: '', user: '' }, { ...cfg, produktId: '' }), (e) => e.code === 'not_configured');
+    await assert.rejects(ka.infomaniakAufrufen({ system: '', user: '' }, { ...cfg, fetchFn: async () => ({ status: 429, json: async () => ({}) }) }), (e) => e.code === 'quota');
+});
+
+test('boxKlassenanalyse: an unknown provider is a bad request', async () => {
+    const { boxKlassenanalyse } = require('../index');
+    await assert.rejects(boxKlassenanalyse.run({ data: { classId: KLASSE, assignmentId: AID, subId: SUB, anbieter: 'openai' }, auth: { uid: 't1', token: { role: 'teacher' } } }), (e) => e.code === 'invalid-argument');
 });

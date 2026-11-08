@@ -373,7 +373,7 @@ function listen(mod, i) {
 // uids der Klassenliste gesucht, nie über die classId im Draft.
 import { auth, db, rosterDb, emulator, onAuthStateChanged, collection, query, where, getDocs, doc, getDoc } from '../js/firebase.js';
 import { signIn, signOut } from '../js/api.js';
-import { analyseKasten, analyseLesen, analyseStarten, SCHWELLE } from './modules/klassenanalyse.js';
+import { analyseKasten, analyseLesen, analyseStarten, laeufeLesen, SCHWELLE } from './modules/klassenanalyse.js';
 
 let MITGLIEDER = [];
 let KLASSEN = new Map();
@@ -417,8 +417,9 @@ const ANALYSE = {
             kriterium: (q, k) => fr.get(q)?.kriterien?.[k] || k,
             kompakt,
             onOpen: () => go('karte/' + spKey(sp)),
-            onStart: async () => {
-                await analyseStarten(KLASSE, CFG.aid, sp.subId);
+            laeufe: () => laeufeLesen(KLASSE, CFG.aid, sp.subId),
+            onStart: async (anbieter) => {
+                await analyseStarten(KLASSE, CFG.aid, sp.subId, anbieter);
                 ANALYSE_DOCS.set(sp.subId, await analyseLesen(KLASSE, CFG.aid, sp.subId));
                 stand();
             },

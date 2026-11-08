@@ -6,7 +6,7 @@
 //  starts the callable boxKlassenanalyse, and draws the result. Everything from the
 //  document goes into the DOM as text; uids become names only through the page's roster.
 //
-import { db, doc, getDoc, functions, httpsCallable } from '../../js/firebase.js';
+import { db, doc, getDoc, getDocs, collection, functions, httpsCallable } from '../../js/firebase.js';
 
 export const SCHWELLE = 5;
 const enc = encodeURIComponent;
@@ -30,9 +30,25 @@ export async function analyseLesen(classId, assignmentId, subId) {
     return s.exists() ? s.data() : null;
 }
 
+/** Every stored run of one card, newest first (for comparing providers). */
+export async function laeufeLesen(classId, assignmentId, subId) {
+    const snap = await getDocs(collection(db, 'klassenanalysen', analyseDocId(classId, assignmentId, subId), 'laeufe'));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(b.erstellt).localeCompare(String(a.erstellt)));
+}
+
 const callable = httpsCallable(functions, 'boxKlassenanalyse', { timeout: 310000 });
-/** Starts an analysis now; resolves when it is stored. Errors carry `details.code`. */
-export const analyseStarten = (classId, assignmentId, subId) => callable({ classId, assignmentId, subId });
+/**
+ * Starts an analysis now; resolves when it is stored. Errors carry `details.code`.
+ * `anbieter` ('infomaniak' | 'gemini') picks the provider for this run; empty = the configured one.
+ */
+export const analyseStarten = (classId, assignmentId, subId, anbieter = '') =>
+    callable({ classId, assignmentId, subId, ...(anbieter ? { anbieter } : {}) });
+
+// Where the answers go. Shown on every analysis and next to the start button.
+export const ANBIETER = {
+    infomaniak: { kurz: 'Infomaniak (Schweiz)', wahl: 'Gemma · Infomaniak, Schweiz' },
+    gemini: { kurz: 'Google Gemini', wahl: 'Gemini · Google, ausserhalb der Schweiz' },
+};
 
 // ---- drawing -------------------------------------------------------------------------------
 
@@ -59,6 +75,12 @@ const CSS = `
 .ka .ka-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px 14px}
 .ka .ka-hinweis{font-size:11.5px;color:#6B7590;margin-top:10px}
 .ka.ka-kompakt{padding:10px 12px}
+.ka .ka-start{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.ka .ka-start select{font:inherit;font-size:12.5px;padding:3px 6px;border:1px solid #C8CFE0;border-radius:8px;max-width:100%}
+.ka details.ka-laeufe{margin-top:10px;font-size:12.5px}
+.ka details.ka-laeufe summary{cursor:pointer;color:#1F3A93;font-weight:600}
+.ka .ka-lauf{display:block;width:100%;text-align:left;font:inherit;font-size:12.5px;background:#fff;border:1px solid #D9DEEA;border-radius:8px;padding:4px 8px;margin:4px 0;cursor:pointer}
+.ka .ka-lauf.on{border-color:#5B3FB0;background:#F6F3FF}
 `;
 function stil() {
     if (document.getElementById('ka-css')) return;
@@ -134,25 +156,34 @@ export function analyseKasten(ctx) {
     h.append(el('span', 'ka-ki', 'KI'), ctx.titel || 'KI-Klassenanalyse');
     kopf.append(h);
     if (a && d.basis) {
-        const st = `aus ${d.basis.abgeschlossen} Abgeschlossenen · ${d.model_version || d.modell || 'Modell ?'} · ${zeit(d.erstellt)}`;
+        const wo = ANBIETER[d.anbieter]?.kurz;
+        const st = `aus ${d.basis.abgeschlossen} Abgeschlossenen · ${d.model_version || d.modell || 'Modell ?'}${wo ? ` · ${wo}` : ''} · ${zeit(d.erstellt)}`;
         kopf.append(el('span', 'ka-stand', st));
     }
     box.append(kopf);
 
+    // Start button with the choice of provider (for the pilot's comparison).
     const knopf = (text) => {
+        const zeile = el('div', 'ka-start');
         const b = el('button', 'ka-btn', text);
         b.type = 'button';
+        const wahl = el('select');
+        wahl.setAttribute('aria-label', 'Modell für diese Analyse');
+        for (const [v, t] of [['', 'Modell: Standard'], ...Object.entries(ANBIETER).map(([k, x]) => [k, x.wahl])]) {
+            const o = el('option', '', t); o.value = v; wahl.append(o);
+        }
         b.addEventListener('click', async () => {
-            b.disabled = true;
+            b.disabled = true; wahl.disabled = true;
             b.textContent = 'Analyse läuft … (bis 2 Minuten)';
             meldung.textContent = '';
-            try { await ctx.onStart(); } catch (e) {
+            try { await ctx.onStart(wahl.value); } catch (e) {
                 meldung.textContent = startFehler(e);
-                b.disabled = false;
+                b.disabled = false; wahl.disabled = false;
                 b.textContent = text;
             }
         });
-        return b;
+        zeile.append(b, wahl);
+        return zeile;
     };
     const meldung = el('div', 'ka-fehler');
 
@@ -254,6 +285,30 @@ export function analyseKasten(ctx) {
         box.append(ul);
     }
     if (ctx.onStart) box.append(knopf('Neu analysieren'));
+    if (ctx.laeufe) {
+        // Earlier runs of this card, loaded when opened: compare providers on the same class.
+        const det = el('details', 'ka-laeufe');
+        det.append(el('summary', '', 'Frühere Läufe (Modelle vergleichen)'));
+        const liste = el('div');
+        det.append(liste);
+        det.addEventListener('toggle', async () => {
+            if (!det.open || liste.childElementCount) return;
+            liste.append(el('span', 'ka-stand', 'lade …'));
+            let runs = [];
+            try { runs = await ctx.laeufe(); } catch (e) { liste.replaceChildren(el('span', 'ka-fehler', `Nicht lesbar (${e?.code || e}).`)); return; }
+            liste.replaceChildren();
+            if (!runs.length) liste.append(el('span', 'ka-stand', 'Noch keine.'));
+            for (const r of runs) {
+                const t = r.tokens || {};
+                const b = el('button', 'ka-lauf' + (r.erstellt === d.erstellt && r.anbieter === d.anbieter ? ' on' : ''),
+                    `${zeit(r.erstellt)} · ${r.model_version || r.modell} · ${ANBIETER[r.anbieter]?.kurz || ''} · aus ${r.basis?.abgeschlossen ?? '?'} · ${Math.round((r.dauer_ms || 0) / 1000)} s · ${t.eingabe ?? '?'} / ${t.ausgabe ?? '?'} Token`);
+                b.type = 'button';
+                b.addEventListener('click', () => box.replaceWith(analyseKasten({ ...ctx, doc: { ...d, ...r, state: 'fertig', fehler: null } })));
+                liste.append(b);
+            }
+        });
+        box.append(det);
+    }
     box.append(meldung);
     box.append(el('p', 'ka-hinweis', 'Von einer KI aus den Antworten erstellt. Sie kann irren: Prüfen Sie die Belege, bevor Sie handeln. Keine Noten, keine Rangfolge.'));
     return box;
@@ -320,7 +375,8 @@ export async function analysePanel(host, data) {
             frage: (q) => qText.get(q) || q,
             kriterium: (q, k) => sub.questions.find((x) => x.id === q)?.kriterien?.[k] || k,
             titel: `KI-Klassenanalyse · ${subId}`,
-            onStart: async () => { await analyseStarten(classId, assignmentId, subId); await zeichnen(); },
+            onStart: async (anbieter) => { await analyseStarten(classId, assignmentId, subId, anbieter); await zeichnen(); },
+            laeufe: () => laeufeLesen(classId, assignmentId, subId),
         });
         if (fehler) kasten.append(el('p', 'ka-fehler', fehler));
         ziel.replaceChildren(kasten);
