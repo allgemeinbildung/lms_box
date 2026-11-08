@@ -54,8 +54,8 @@ export const ANBIETER = {
 // The choice next to the start button. The function checks the model against its own list
 // (functions/klassenanalyse.js, INFOMANIAK_MODELLE); this list only labels it.
 export const MODELLE = [
-    ['', 'Standard: Gemma 4 · Infomaniak, Schweiz'],
-    ['infomaniak|Qwen/Qwen3.8-27B-FP8', 'Qwen 3.8 27B · Infomaniak, Schweiz'],
+    ['', 'Standard: Qwen 3.8 27B · Infomaniak, Schweiz'],
+    ['infomaniak|google/gemma-4-31B-it', 'Gemma 4 · Infomaniak, Schweiz'],
     ['infomaniak|Qwen/Qwen3.5-397B-A17B-FP8', 'Qwen 3.5 397B · Infomaniak, Schweiz'],
     ['infomaniak|moonshotai/Kimi-K2.6', 'Kimi K2.6 · Infomaniak, Schweiz (langsam)'],
     ['infomaniak|mistralai/Mistral-Small-4-119B-2603', 'Mistral Small 4 · Infomaniak, Schweiz'],

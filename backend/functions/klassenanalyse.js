@@ -5,7 +5,7 @@
 // Pure logic with injected dependencies (deps), so the tests run without Firestore and
 // without a model. index.js wires it to Firestore, the roster and the Gemini API.
 //
-// Provider (CONTRACT): Infomaniak (Switzerland, default) or Gemini (Google), chosen by the
+// Provider (CONTRACT): Infomaniak (Switzerland, default model Qwen 3.8 27B) or Gemini (Google), chosen by the
 // parameter KLASSENANALYSE_ANBIETER or, for one run, by the teacher.
 //
 // What goes to the model: the card (title, core, facts, model answer, «leicht verwechselt»),

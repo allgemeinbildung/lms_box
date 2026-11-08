@@ -177,7 +177,7 @@ const KLASSENANALYSE_ANBIETER = defineString('KLASSENANALYSE_ANBIETER', {
     default: 'infomaniak', description: 'Provider of the class analysis: "infomaniak" (Switzerland) or "gemini" (Google). The teacher may pick the other one per run.',
 });
 const KLASSENANALYSE_MODELL_INFOMANIAK = defineString('KLASSENANALYSE_MODELL_INFOMANIAK', {
-    default: 'google/gemma-4-31B-it', description: 'Infomaniak model of the class analysis.',
+    default: 'Qwen/Qwen3.8-27B-FP8', description: 'Infomaniak model of the class analysis (one of klassenanalyse.INFOMANIAK_MODELLE).',
 });
 const KLASSENANALYSE_MODELL_GEMINI = defineString('KLASSENANALYSE_MODELL_GEMINI', {
     default: 'gemini-3.8-flash', description: 'Gemini model of the class analysis (prices: scripts/kosten-preise.json).',
@@ -199,8 +199,8 @@ function analyseDeps() {
             anbieter: KLASSENANALYSE_ANBIETER.value(),
             infomaniak: {
                 apiKey: INFOMANIAK_API_TOKEN.value(), produktId: INFOMANIAK_PRODUKT.value(),
-                // reasoning_effort per model: klassenanalyse.INFOMANIAK_MODELLE (Gemma: high)
-                model: KLASSENANALYSE_MODELL_INFOMANIAK.value(), reasoningEffort: 'high',
+                // reasoning_effort per model: klassenanalyse.INFOMANIAK_MODELLE (Qwen 3.8: medium, Gemma: high)
+                model: KLASSENANALYSE_MODELL_INFOMANIAK.value(),
                 ...(emu && process.env.INFOMANIAK_BASE_URL ? { baseUrl: process.env.INFOMANIAK_BASE_URL } : {}),
             },
             gemini: {

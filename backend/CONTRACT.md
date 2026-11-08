@@ -216,7 +216,7 @@ Since 08.11.2026 (Spielfeld pilot, not deployed): a language model reads the ans
 
 | `anbieter` | Where | Model (parameter) | Call |
 |---|---|---|---|
-| `infomaniak` (default, `KLASSENANALYSE_ANBIETER`) | Infomaniak AI Tools, Switzerland | `KLASSENANALYSE_MODELL_INFOMANIAK`, default `google/gemma-4-31B-it` with `reasoning_effort: high`; the teacher may pick another model of the list `INFOMANIAK_MODELLE` in `functions/klassenanalyse.js` (callable field `modell`, anything else is `invalid-argument`) | `POST https://api.infomaniak.com/2/ai/{INFOMANIAK_PRODUKT}/openai/v1/chat/completions`, secret `INFOMANIAK_API_TOKEN`, `stream: false`, `response_format: json_schema` (strict) |
+| `infomaniak` (default, `KLASSENANALYSE_ANBIETER`) | Infomaniak AI Tools, Switzerland | `KLASSENANALYSE_MODELL_INFOMANIAK`, default `Qwen/Qwen3.8-27B-FP8` with `reasoning_effort: medium` (since 08.11.2026, decision Pietro after the measurement below; before: Gemma 4 with `high`); the teacher may pick another model of the list `INFOMANIAK_MODELLE` in `functions/klassenanalyse.js` (callable field `modell`, anything else is `invalid-argument`) | `POST https://api.infomaniak.com/2/ai/{INFOMANIAK_PRODUKT}/openai/v1/chat/completions`, secret `INFOMANIAK_API_TOKEN`, `stream: false`, `response_format: json_schema` (strict) |
 | `gemini` | Google Gemini API, outside Switzerland | `KLASSENANALYSE_MODELL_GEMINI`, default `gemini-3.8-flash` | `generateContent` with `responseSchema`, secret `GEMINI_API_KEY` |
 
 The automatic run uses the default. The teacher may pick another model for one run (callable fields `anbieter`, `modell`); the page says next to the button where the answers go. Same input, same prompt, same checks on both paths. Every run is also kept on its own in `klassenanalysen/{analyseDoc}/laeufe/{ms}-{anbieter}` (`analyse, verworfen, basis, erstellt, dauer_ms, ausloeser, anbieter, modell, model_version, response_id, tokens`), teacher reads, so that runs of both providers on the same card can be compared; the main document holds the latest. Infomaniak's `tokens.ausgabe` includes the thinking tokens (OpenAI counting, that is what is billed), Gemini's does not (`denken` separate).
@@ -257,8 +257,8 @@ The other Infomaniak models, same data and planted errors, 08.11.2026. `reasonin
 
 | Model (`INFOMANIAK_MODELLE`) | Effort | Found (wrong) | Time | Output tokens | Dropped by the checks | CHF per analysis | Price |
 |---|---|---|---|---|---|---|---|
-| `google/gemma-4-31B-it` (default) | high | 4, 2, 2 of 6 in three runs (0) | 39–55 s | 3 000–3 350 | 0 | 0.004 | 0.20 / 0.40 |
-| `Qwen/Qwen3.8-27B-FP8` | medium | 6, 6, 6 of 6 in three runs (0) | 34 s | 9 200–10 000 | 0 | 0.035 | 0.40 / 3.00 |
+| `google/gemma-4-31B-it` | high | 4, 2, 2 of 6 in three runs (0) | 39–55 s | 3 000–3 350 | 0 | 0.004 | 0.20 / 0.40 |
+| `Qwen/Qwen3.8-27B-FP8` (default) | medium | 6, 6, 6 of 6 in three runs (0) | 34 s | 9 200–10 000 | 0 | 0.035 | 0.40 / 3.00 |
 | `Qwen/Qwen3.5-397B-A17B-FP8` | high | 4 of 6 (0) | 95 s | 7 800 | 0 | 0.040 | 0.80 / 3.60 |
 | `moonshotai/Kimi-K2.6` | high | 4 of 6 (0), each case repeated (now kept once) | 158 s | 15 100 | 0 | 0.056 | 0.60 / 3.00 |
 | `mistralai/Mistral-Small-4-119B-2603` | high | 2 of 6 (8 false alarms) | 101 s | 8 800 | 6 quotes, 6 question ids | 0.010 | 0.20 / 0.75 |
