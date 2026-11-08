@@ -131,6 +131,16 @@
         #print-header {
             display: none;
         }
+
+        #detail-bar[hidden]~#ka-panel {
+            display: none;
+        }
+
+        @media print {
+            #ka-panel {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 
@@ -224,6 +234,9 @@
             <button type="button" id="back-to-overview">← Übersicht</button>
             <strong id="detail-title"></strong>
         </div>
+
+        <!-- KI-Klassenanalyse of the chosen assignment (dashboard/modules/klassenanalyse.js) -->
+        <section id="ka-panel" hidden style="max-width:1200px;margin:12px auto 0;padding:0 12px"></section>
 
         <div id="live-content-renderer">
             <div id="placeholder-msg">

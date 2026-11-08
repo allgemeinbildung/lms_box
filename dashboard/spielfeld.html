@@ -1,0 +1,1113 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liveview Spielfeld 2.1</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--ink:#14213D;--ink2:#3C4A6B;--mute:#7C869C;--line:#E1E5EE;--bg:#F5F6FA;--card:#fff;--paper:#FAF6EF;--m:#1F3A93;--w:#B5541C;--lb:#0E7C7B;
+--ok:#2A9D8F;--mid:#E0A82E;--no:#E76F51;--none:#D5DAE4;--okbg:#E3F3F0;--midbg:#FBF1D9;--nobg:#FBE6E0}
+*{box-sizing:border-box}
+/* clip statt hidden: hidden macht body zum Scrollbereich und schaltet den klebenden Kopf ab */
+html,body{max-width:100%;overflow-x:clip}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg);font-size:14px;line-height:1.45;overflow-wrap:break-word}
+button{font:inherit;color:inherit}
+header{background:var(--ink);color:#fff;padding:10px 16px 0;position:sticky;top:0;z-index:20;box-shadow:0 2px 6px rgba(20,33,61,.12)}
+.filterbar{background:var(--bg);margin:0 -16px;padding:8px 16px;border-bottom:1px solid var(--line);color:var(--ink);display:flex;gap:6px 8px;align-items:center;flex-wrap:wrap}
+.filterbar:empty{display:none}
+.filterbar .hint{margin-left:4px}
+.filterbar select{max-width:min(320px,100%)}
+.filterbar .chip{margin:0}
+[data-anker]{scroll-margin-top:calc(var(--hh,120px) + 10px)}
+.top{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap}
+.brand{font-weight:800;font-size:18px;letter-spacing:-.02em}.brand span{color:#8FA3E0;font-weight:500;font-size:13px;margin-left:6px}
+.sim{background:#F4C95D;color:var(--ink);font-size:11px;font-weight:700;border-radius:99px;padding:2px 8px;text-transform:uppercase;letter-spacing:.04em}
+.klasse{color:#C9D1E6;font-size:13px}
+.zeit{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;color:#C9D1E6;flex-wrap:wrap}
+.zeit input{width:180px;accent-color:#F4C95D}
+.zeit b{color:#fff;white-space:nowrap}
+nav.tabs{display:flex;gap:2px;margin-top:8px;overflow-x:auto}
+nav.tabs a{color:#C9D1E6;text-decoration:none;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:600;white-space:nowrap}
+nav.tabs a.on{background:var(--bg);color:var(--ink)}
+main{max-width:1240px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:0 0 4px;letter-spacing:-.01em}h2{font-size:16px;margin:0 0 8px}h3{font-size:14px;margin:0 0 6px}
+.lead{color:var(--ink2);margin:0 0 14px;max-width:820px}
+.hint{font-size:12px;color:var(--mute)}
+.box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px;min-width:0}
+.grid2{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width:900px){.grid2,.grid3{grid-template-columns:minmax(0,1fr)}}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.kpi .v{font-size:24px;font-weight:800;letter-spacing:-.02em}.kpi .l{font-size:12px;color:var(--ink2)}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:2px 9px;margin:2px 3px 2px 0;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.chip:hover{border-color:var(--ink2)}
+.chip.no{background:var(--nobg);border-color:#F2C2B4}.chip.mid{background:var(--midbg);border-color:#EED9A4}.chip.ok{background:var(--okbg);border-color:#BFE3DC}
+.chip.up{background:#E4F1F1;border-color:#B5DAD9}
+.tag{display:inline-block;font-weight:700;font-size:11.5px;border-radius:5px;padding:1px 6px;background:#F6E4D6;color:var(--w);margin-right:6px}
+.tag.e{background:#DDF0EF;color:var(--lb)}
+.stein{border-left:4px solid var(--no);background:#fff;border-radius:0 10px 10px 0;padding:10px 12px;margin-bottom:10px;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stein .kopf{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+.stein .anz{font-weight:700;color:var(--no);white-space:nowrap}
+.stein .erw{color:var(--ink2);margin:4px 0}
+.stein .vw{font-size:12.5px;color:var(--ink2);background:var(--paper);border-radius:6px;padding:6px 8px;margin:6px 0}
+.lnk{all:unset;cursor:pointer;color:var(--m);font-weight:600;font-size:12.5px}
+.lnk:hover{text-decoration:underline}
+.bar{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--none);min-width:60px}
+.bar span{display:block;height:100%}
+.b-ok{background:var(--ok)}.b-mid{background:var(--mid)}.b-no{background:var(--no)}.b-ant{background:#B9C2D6}
+.karten{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.kk{all:unset;box-sizing:border-box;cursor:pointer;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:block}
+.kk:hover{border-color:var(--ink2)}
+.kk.zukunft{opacity:.5}
+.kk .t{display:flex;justify-content:space-between;gap:6px;font-size:12.5px;margin-bottom:6px}
+.kk .s{font-size:12px;color:var(--ink2);margin-top:6px}
+.gruppe h3{display:flex;justify-content:space-between;gap:6px}
+.gruppe h3 .n{color:var(--mute);font-weight:500}
+.gruppe.ab h3{color:var(--no)}.gruppe.lauf h3{color:var(--ink2)}.gruppe.ber h3{color:var(--ok)}
+.pers{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--line);align-items:baseline}
+.pers:first-of-type{border-top:0}
+.pers .w{font-size:12px;color:var(--ink2);text-align:right}
+.auf{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.auf .kopf{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.legende{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--ink2);margin:0 0 10px}
+.legende span{white-space:nowrap}
+.hm-wrap{overflow-x:auto;max-width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;-webkit-overflow-scrolling:touch}
+table.hm{border-collapse:separate;border-spacing:0;font-size:12px}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0}
+table.hm thead th{background:#fff;font-weight:600;vertical-align:bottom;padding:6px 4px;text-align:center;min-width:64px}
+table.hm thead th button{all:unset;cursor:pointer;display:block}
+table.hm thead th .k{display:block;font-weight:700;color:var(--w)}
+table.hm thead th .b{display:block;font-weight:500;color:var(--ink2);font-size:11px;max-width:96px;white-space:normal;line-height:1.2}
+table.hm thead th .l{display:block;font-weight:500;color:var(--mute);font-size:10.5px}
+table.hm thead th.entw .k{color:var(--lb)}
+table.hm thead th.zuk{opacity:.45}
+table.hm .name{position:sticky;left:0;z-index:1;background:#fff;text-align:left;padding:6px 8px;font-weight:600;min-width:96px;white-space:nowrap}
+table.hm .name button{all:unset;cursor:pointer}
+table.hm thead .name{z-index:2;vertical-align:bottom}
+table.hm td button{all:unset;box-sizing:border-box;display:flex;gap:4px;align-items:center;justify-content:center;width:100%;min-height:34px;padding:4px;cursor:pointer;white-space:nowrap}
+table.hm td button:focus-visible,.kk:focus-visible,.lnk:focus-visible,.chip:focus-visible{outline:2px solid var(--m);outline-offset:1px}
+td.leer{background:var(--bg)}td.antwort{background:var(--paper)}td.rm{background:#fff}
+.q{display:inline-flex;gap:1px;align-items:center}.q+.q{border-left:1px solid var(--line);padding-left:4px}
+.dot{font-size:13px;line-height:1}
+.mk-direkt,.mk-verbessert{color:var(--ok)}.mk-besser{color:#B8860B}.mk-offen{color:var(--no)}
+.up{font-size:10px;font-weight:700;vertical-align:super;margin-left:-1px}
+.tok-antwort{color:var(--ink2)}.tok-leer{color:#C3C9D6}
+.sel{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+select{max-width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fff;color:var(--ink);font:inherit}
+.frage{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.frage:first-child{border-top:0;margin-top:0;padding-top:0}
+.qid{font-family:ui-monospace,Consolas,monospace;font-size:11px;font-weight:700;background:var(--ink);color:#fff;border-radius:4px;padding:1px 6px}
+.qtext{font-weight:600;margin:6px 0 10px}
+.krit{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.6fr);gap:4px 14px;padding:8px 0;border-top:1px dashed var(--line)}
+@media (max-width:700px){.krit{grid-template-columns:minmax(0,1fr)}}
+.krit .lb{font-weight:600}.krit .ew{font-size:12px;color:var(--ink2)}
+.krit .ns{font-size:12px}
+.krit.fokus{background:#FFF8EC;border-radius:8px;padding:8px}
+.antwort{background:var(--paper);border-radius:8px;padding:10px 12px;white-space:pre-wrap;font-family:Georgia,"Source Serif 4",serif;font-size:14.5px}
+.antwort.keine{color:var(--mute);font-family:inherit;font-style:italic;background:var(--bg)}
+.antworten{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-top:10px}
+.akarte{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}
+.akarte .wer{display:flex;justify-content:space-between;gap:6px;margin-bottom:6px;font-size:12.5px}
+.versuch{border-left:3px solid var(--m);background:#F5F8FF;border-radius:0 8px 8px 0;padding:8px 10px;margin-top:8px}
+.versuch .vk{font-weight:600;color:var(--m);font-size:13px}
+.versuch ul{margin:6px 0 0;padding-left:0;list-style:none}
+.versuch li{margin:5px 0;font-size:13px}
+.st{font-weight:600;margin-right:6px;white-space:nowrap}
+.st-erfuellt{color:var(--ok)}.st-teilweise{color:#B8860B}.st-fehlt{color:var(--no)}.st-nicht_beurteilbar{color:var(--mute)}
+.lbl{font-weight:600;margin-right:6px}
+.beleg{font-family:Georgia,serif;color:var(--ink2);font-size:12.5px;margin-top:2px}
+.vergleich{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+@media (max-width:700px){.vergleich{grid-template-columns:minmax(0,1fr)}}
+.vergleich .h{font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:4px}
+.spur{display:flex;gap:3px;flex-wrap:wrap;margin:6px 0}
+.spur .zelle{width:26px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;cursor:pointer;border:0}
+.z-leer{background:var(--none);color:var(--mute)!important}.z-ant{background:#B9C2D6}.z-ok{background:var(--ok)}.z-mid{background:var(--mid)}.z-no{background:var(--no)}
+.offen li{margin:6px 0}
+.paste{display:inline-block;font-size:11.5px;background:#EEF0F6;color:var(--ink2);border-radius:5px;padding:1px 6px;margin-left:6px}
+details.karte{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#fff}
+details.karte>summary{cursor:pointer;padding:10px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;list-style:none}
+details.karte>summary::-webkit-details-marker{display:none}
+details.karte>summary .rest{margin-left:auto;font-size:12px;color:var(--ink2)}
+details.karte .in{padding:0 12px 12px}
+.leer-hinweis{color:var(--mute);font-style:italic}
+footer{max-width:1240px;margin:0 auto;padding:4px 16px 28px;color:var(--mute);font-size:12px}
+.boxctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.boxctl select{max-width:170px;font-size:13px;padding:4px 6px}
+.kbtn{border:1px solid #4A5A80;background:transparent;color:#fff;border-radius:8px;padding:4px 10px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap}
+.kbtn.dunkel{background:var(--ink);border-color:var(--ink);width:100%;margin-top:14px;padding:9px}
+#login{max-width:420px;margin:32px auto}
+#login label{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin:10px 0 0}
+#login input{display:block;width:100%;font:inherit;font-size:14px;border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-top:4px}
+#login-status{min-height:1.4em;margin-top:8px;color:var(--no);font-size:13px}
+.meldung{max-width:1240px;margin:12px auto 0;padding:10px 12px;border-left:4px solid var(--no);background:#fff;border-radius:0 8px 8px 0;white-space:pre-wrap}
+.meldung:empty{display:none}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header id="kopf">
+  <div class="top">
+    <div class="brand">Spielfeld 2.1 <span>Liveview</span></div>
+    <span class="klasse" id="klasseInfo"></span>
+    <span class="boxctl" id="boxctl" hidden>
+      <select id="klasse" aria-label="Klasse wählen"><option value="">Klasse wählen …</option></select>
+      <button class="kbtn" id="neu" type="button">Neu laden</button>
+      <a class="kbtn" href="liveview.html">Liveview der LMS Box</a>
+      <button class="kbtn" id="abmelden" type="button">Abmelden</button>
+    </span>
+    <label class="zeit" id="zeitwahl" hidden>Wir sind in Lektion <input type="range" id="zeit" min="1" max="9" step="1" value="1" aria-label="Wir sind in Lektion"> <b id="zeitTxt"></b></label>
+  </div>
+  <nav class="tabs" aria-label="Sichten">
+    <a href="#klasse" data-v="klasse">Klasse</a>
+    <a href="#matrix" data-v="matrix">Matrix</a>
+    <a href="#karte" data-v="karte">Karte</a>
+    <a href="#lernende" data-v="lernende">Lernende</a>
+  </nav>
+  <div class="filterbar" id="filterbar" aria-label="Auswahl"></div>
+</header>
+<div class="meldung" id="meldung" role="alert"></div>
+<section id="login" class="box" hidden>
+  <h1>Anmelden</h1>
+  <p class="lead">Mit Ihrem Lehrpersonen-Konto, dasselbe wie im Liveview der LMS Box.</p>
+  <form id="login-form" autocomplete="on">
+    <label for="login-user">Benutzername oder E-Mail</label>
+    <input id="login-user" name="username" autocomplete="username" required>
+    <label for="login-pass">Passwort</label>
+    <input id="login-pass" name="password" type="password" autocomplete="current-password" required>
+    <button class="kbtn dunkel" id="login-btn" type="submit">Anmelden</button>
+    <div id="login-status" aria-live="polite"></div>
+  </form>
+  <p class="hint" id="umgebung"></p>
+</section>
+<main id="main"></main>
+<footer>Antworten und KI-Rückmeldungen Ihrer Klasse aus der LMS Box, Stand beim Laden («Neu laden» holt den neuesten). Keine Noten: Die Zeichen zeigen, welche Kriterien die KI-Rückmeldung erkannt hat und ob die Rückmeldung genutzt wurde.</footer>
+
+<script type="application/json" id="cfg">{"aid": "Spielfeld 2.1", "lb": "2.1", "spalten": [{"subId": "W-20 Interessengruppe", "kurz": "W-20", "begriff": "Interessengruppe", "entwurf": false, "fragen": [{"id": "Q-W-20-1", "text": "Sehauftrag zum Beitrag «Travail Suisse fordert zwei Prozent mehr Lohn» (Tagesschau, 3 Minuten). Im Bericht heisst es: «Die Gewerkschaft verlangt 2 % mehr.» Erkläre in zwei bis vier Sätzen, wer da spricht und warum diese Forderung nicht für alle gilt. Stütze dich auf den Beitrag und nenne, welche Gruppe im Beitrag die Gegenposition vertritt.", "kriterien": {"k1": "Gemeinsames Anliegen", "k2": "Teil statt alle", "k3": "Wer spricht für wen?"}, "medien": false}, {"id": "Q-W-20-2", "text": "Im Radio warnt der Präsident eines Branchenverbands vor einem neuen Gesetz. Er sitzt auch im Parlament. Ein Kollege sagt dir: «Das ist doch verbotenes Lobbying, und er sagt sowieso die Wahrheit für alle.» Beurteile diese beiden Aussagen.", "kriterien": {"k1": "Lobbying erlaubt, Grenze Korruption", "k2": "Eigenes Interesse des Verbands", "k3": "Doppelrolle beachten"}, "medien": false}, {"id": "Q-W-20-M", "text": "Sehauftrag zum Beitrag «Travail Suisse fordert zwei Prozent mehr Lohn» (Tagesschau, 3 Minuten). Schau ihn mit dem Sehleitfaden an und trenne dabei Bild, Ton und eingeblendeten Text. Halte fest, wer spricht und für welche Gruppe, welche Zahl zu welcher Seite gehört und was jede Seite begründet. Beantworte dann in vier bis sechs Sätzen: Was zeigt dieser Beitrag über Interessengruppen? Schreibe in eigenen Worten und nenne bei jeder Aussage, wo im Beitrag du sie gefunden hast.", "kriterien": {"k1": "Wer spricht für wen", "k2": "Zahlen den Seiten zuordnen", "k3": "Anliegen jeder Seite"}, "medien": true}], "lektion": 1, "stolperstein": "Ein Verband ist keine neutrale Fachstelle, und Lobbying ist nicht von vornherein verboten. Verbände vertreten ihr eigenes Interesse; Einfluss nehmen ist erlaubt, die Grenze liegt bei Korruption."}, {"subId": "W-21 Politische Grundhaltung", "kurz": "W-21", "begriff": "Politische Grundhaltung", "entwurf": false, "fragen": [{"id": "Q-W-21-1", "text": "Erkläre in zwei bis vier Sätzen, warum deine Meinung zu einer einzelnen Frage, etwa zu Mieten, noch keine politische Grundhaltung ist und woran man eine Grundhaltung erkennt.", "kriterien": {"k1": "Meinung versus Grundhaltung", "k2": "Wiederholung bei mehreren Fragen", "k3": "Staat oder Einzelne"}, "medien": false}, {"id": "Q-W-21-2", "text": "Im Beitrag «Pro und Contra zur Individualbesteuerung» (Rendez-vous, Radio SRF, 4 Minuten) berufen sich Yvonne Bürgin (Mitte) und Bertschy (GLP) beide auf «liberal», kommen aber zu entgegengesetzten Schlüssen. Haben die beiden dieselbe Grundhaltung? Begründe mit je einer Stelle aus dem Beitrag und sage, was du noch fragen würdest.", "kriterien": {"k1": "Zwei Bedeutungen von «liberal»", "k2": "Eine Aussage genügt nicht", "k3": "Prüffrage zu weiteren Themen"}, "medien": false}, {"id": "Q-W-21-M", "text": "Hörauftrag zum Beitrag «Pro und Contra zur Individualbesteuerung: Ringen zwischen liberalen und konservativen Kräften?» (Rendez-vous, Radio SRF, 4 Minuten). Höre ihn mit dem Hörleitfaden und halte fest, wer spricht und in welcher Rolle, was jede Person erreichen will und was sie unter «liberal» versteht. Beantworte dann in vier bis sechs Sätzen: Was zeigt der Beitrag über den Begriff politische Grundhaltung? Schreibe in eigenen Worten und nenne bei jeder Aussage die Stelle im Beitrag, zum Beispiel die Zeitmarke.", "kriterien": {"k1": "Bürgins Sicht auf «liberal»", "k2": "Bertschys Sicht auf «liberal»", "k3": "Gleiches Wort, anderer Schluss", "k4": "Stelle im Beitrag"}, "medien": true}], "lektion": 1, "stolperstein": "Links und rechts sind keine Schubladen, die bei jedem Thema passen. «Liberal» meint nicht überall dasselbe: Die eine meint damit das freie Lebensmodell und Eigenständigkeit, der andere eine Wirtschaft mit wenig Staat."}, {"subId": "W-22 Interessen und Werte", "kurz": "W-22", "begriff": "Interessen und Werte", "entwurf": false, "fragen": [{"id": "Q-W-22-1", "text": "Sieh dir den Beitrag «Abstimmung: 2 x Nein zu Mietrechtsvorlagen» (Tagesschau, Hauptausgabe, rund 5 Minuten) an. Erkläre in zwei bis vier Sätzen den Unterschied zwischen einem Interesse und einem Wert und zeige am Beitrag, wie beide in einer politischen Forderung zusammenkommen. Beziehe dich auf eine Aussage aus dem Beitrag.", "kriterien": {"k1": "Interesse: Vorteil für sich", "k2": "Wert: grundsätzlich richtig", "k3": "Zusammenspiel in der Forderung"}, "medien": false}, {"id": "Q-W-22-2", "text": "In einer Gemeinde soll der Parkplatz vor dem Schulhaus einem Spielplatz weichen. Ein Ladenbesitzer sagt: «Das ist ungerecht gegenüber dem Gewerbe, die Fairness fehlt.» Unterscheide in seiner Aussage Interesse und Wert und beurteile, ob er wirklich nur mit einem Wert argumentiert.", "kriterien": {"k1": "Genannter Wert", "k2": "Verstecktes Interesse", "k3": "Wert ist kein Beleg für Uneigennutz"}, "medien": false}, {"id": "Q-W-22-M", "text": "Sehauftrag zum Beitrag «Abstimmung: 2 x Nein zu Mietrechtsvorlagen» (Tagesschau, Hauptausgabe, rund 5 Minuten; der Teil zum Mietrecht liegt in der Mitte). Sieh ihn mit dem Sehleitfaden an: Was zeigen Bild und Ton, wer kommt zu Wort, welche Aussage ist zentral? Achte auf die SP-Nationalrätin und den Präsidenten des Hauseigentümerverbands nach den Resultaten. Was zeigt der Beitrag für den Unterschied zwischen Interesse und Wert? Schreibe in eigenen Worten und nenne die Stelle im Beitrag.", "kriterien": {"k1": "Interesse Mieterseite", "k2": "Einordnung Vermieterseite", "k3": "Interesse, kein Wert genannt"}, "medien": true}], "lektion": 1, "stolperstein": "«Wer mit einem Wert wie Gerechtigkeit argumentiert, hat kein Eigeninteresse.» Falsch: Hinter einem Wert kann ein Interesse stecken, das nur nicht genannt wird. Beides getrennt benennen."}, {"subId": "W-23 Meinungs- und Informationsfreiheit", "kurz": "W-23", "begriff": "Meinungs- und Informationsfreiheit", "entwurf": false, "fragen": [{"id": "Q-W-23-1", "text": "Erkläre in zwei bis vier Sätzen, was die Meinungs- und Informationsfreiheit schützt und gegenüber wem sie vor allem gilt.", "kriterien": {"k1": "Meinung und Information", "k2": "Medienfreiheit", "k3": "Bindung des Staats"}, "medien": false}, {"id": "Q-W-23-2", "text": "Der Beitrag «Hate Speech» (SRF school, knapp 7 Minuten) zeigt, wie Schülerinnen und Schüler unter Videos Hasskommentare gegen Muslime und Frauen erleben. Stell dir vor, unter einem solchen Video verhöhnt ein Kommentar eine Mitlernende wegen ihrer Religion. Die Plattform löscht ihn, der Verfasser ruft: «Das ist Zensur, mein Grundrecht ist verletzt!» Beurteile mit Bezug auf den Beitrag, ob die Meinungsfreiheit hier betroffen ist, und begründe.", "kriterien": {"k1": "Plattform ist nicht Staat", "k2": "Grenze Hetze und Ehre", "k3": "Begründetes Urteil"}, "medien": false}, {"id": "Q-W-23-M", "text": "Sehauftrag zum Beitrag «Hate Speech» (SRF school, knapp 7 Minuten). Sieh dir den Beitrag mit dem Sehleitfaden an: Wer kommt zu Wort, was ist die zentrale Aussage? Erkläre dann in eigenen Worten, was der Beitrag unter Hassrede versteht und was sie bei den Betroffenen bewirkt. Zeige, warum Hassrede nicht einfach «freie Meinung» ist und was der Beitrag dagegen empfiehlt. Nenne zu jedem Punkt die Stelle im Beitrag.", "kriterien": {"k1": "Hassrede erklärt", "k2": "Wirkung und Silencing", "k3": "Gegenrede"}, "medien": true}], "lektion": 1, "stolperstein": "«Meinungsfreiheit heisst: Ich darf alles sagen, und löscht eine Plattform etwas, verletzt sie mein Grundrecht.» Falsch: Das Grundrecht schützt vor dem Staat und hat gesetzliche Grenzen."}, {"subId": "W-24 Algorithmus", "kurz": "W-24", "begriff": "Algorithmus", "entwurf": false, "fragen": [{"id": "Q-W-24-1", "text": "Hörauftrag zum Beitrag «Wie Tiktok-Algorithmen junge Männer radikalisieren» (Echo der Zeit, 4 Minuten). SRF Data hat fünf neue Accounts mit Interessen wie Fussball oder Autos auf TikTok scrollen lassen. Erkläre in zwei bis vier Sätzen, woran die App bei diesen Accounts erkennt, was sie interessiert, warum der Feed sich nach dem Verhalten richtet und ob er zeigt, was wichtig oder wahr ist. Nenne bei jeder Aussage die Stelle im Beitrag.", "kriterien": {"k1": "Signale genannt", "k2": "Unterschied durch Verhalten", "k3": "Nicht wichtig oder wahr"}, "medien": false}, {"id": "Q-W-24-2", "text": "Eine Lernende nutzt abends eine Kurzvideo-App. Sportvideos wischt sie sofort weg, bei Backvideos bleibt sie bis zum Schluss und schaut manche gleich nochmals. Geliked oder kommentiert hat sie nie etwas. Nach einiger Zeit besteht ihr Feed fast nur noch aus Backvideos. Erkläre, woran die App ihr Interesse erkannt hat und welches Ziel der Plattform dahintersteckt. Nenne dann eine Möglichkeit, wie sie den Feed selbst beeinflussen kann.", "kriterien": {"k1": "Signal Verweildauer", "k2": "Ziel der Plattform", "k3": "Signal führt zum Feed", "k4": "Eigene Steuerung"}, "medien": false}, {"id": "Q-W-24-M", "text": "Hörauftrag zum Beitrag «Wie Tiktok-Algorithmen junge Männer radikalisieren» (Echo der Zeit, 4 Minuten). Höre ihn mit dem Hörleitfaden und halte fest, wer spricht und in welcher Rolle, was die Influencer aus der Manosphäre erreichen wollen und was das Experiment von SRF Data zeigt. Beantworte dann in vier bis sechs Sätzen: Was zeigt dieser Beitrag über den Begriff Algorithmus? Schreibe in eigenen Worten und nenne bei jeder Aussage, wo im Beitrag du sie gefunden hast.", "kriterien": {"k1": "Influencer nutzen Algorithmus", "k2": "Länger schauen, mehr davon", "k3": "Zahlen des Experiments", "k4": "Stelle im Beitrag"}, "medien": true}], "lektion": 6, "stolperstein": "«Der Algorithmus zeigt mir, was wichtig oder wahr ist, und allen dasselbe.» Falsch: Er sortiert nach Signalen wie Verweildauer und Likes, damit ich bleibe, und jede Person sieht einen anderen Feed."}, {"subId": "W-25 Filterblase und Echokammer", "kurz": "W-25", "begriff": "Filterblase und Echokammer", "entwurf": false, "fragen": [{"id": "Q-W-25-1", "text": "Lies den Artikel «Meinungsbildung im Netz: Keine Angst vor der Filterblase» (Radio SRF 2 Kultur, 4. Mai 2017) mit der Lesestruktur. Erkläre danach in zwei bis vier Sätzen den Unterschied zwischen Filterblase und Echokammer, wie ihn der Artikel zeigt: Wer wählt jeweils aus, was die Nutzenden zu sehen bekommen? Nenne die Stelle im Artikel.", "kriterien": {"k1": "Auswahl durch die Technik", "k2": "Auswahl durch die Gruppe", "k3": "Allein gegen gemeinsam"}, "medien": false}, {"id": "Q-W-25-2", "text": "Eine Lernende sagt: «Meine Plattform zeigt mir nur noch eine Meinung, der Algorithmus sperrt mich ein, ich kann nichts dafür.» Sie folgt fast nur Leuten, die ihre Ansicht teilen, und klickt nur auf passende Beiträge. Beurteile ihre Aussage und nenne einen Schritt, den sie selbst tun kann.", "kriterien": {"k1": "Rolle der Technik", "k2": "Forschungsstand", "k3": "Eigener Schritt"}, "medien": false}, {"id": "Q-W-25-M", "text": "Leseauftrag zum Artikel «Meinungsbildung im Netz: Keine Angst vor der Filterblase» (Radio SRF 2 Kultur, Online-Artikel vom 4. Mai 2017, rund 350 Wörter). Überfliege den Text, lies dann gezielt und markiere. Halte fest, was der Erfinder des Begriffs unter einer Filterblase versteht und was die Auswertung der Facebook-Likes gefunden hat. Erkläre in eigenen Worten, was der Artikel am Fall der AfD-Anhänger über Filterblase und Echokammer sagt. Nenne die Stelle im Artikel, auf die du dich stützt.", "kriterien": {"k1": "Parisers Filterblase", "k2": "Befund der Like-Auswertung", "k3": "Echokammer: Grund laut Artikel"}, "medien": true}], "lektion": 7, "stolperstein": "«Der Algorithmus sperrt mich ein, ich kann nichts dafür.» Die Forschung zeigt: Was ich selbst anklicke, wem ich folge und mit wem ich mich umgebe, wiegt oft mehr als die Technik, und die Blase ist durchlässig."}, {"subId": "W-26 Desinformation", "kurz": "W-26", "begriff": "Desinformation", "entwurf": false, "fragen": [{"id": "Q-W-26-1", "text": "Im Beitrag «Fakt oder Fake? – Teil 1: Die Geschichte» («10 vor 10», SRF) erklärt der Medienwissenschaftler Daniel Vogler gleich am Anfang, was Fake News im Alltag bedeuten: Desinformation, also absichtlich in die Welt gesetzte Falschnachrichten. Erkläre in zwei bis vier Sätzen, woran du Desinformation von Fehlinformation und von Satire unterscheidest, und nenne die Stelle im Beitrag, die dir das wichtigste Kriterium liefert.", "kriterien": {"k1": "Absicht als Kriterium", "k2": "Fehlinformation unabsichtlich", "k3": "Satire erkennbar"}, "medien": false}, {"id": "Q-W-26-2", "text": "Im Klassenchat teilt jemand ein dramatisches Foto einer überfluteten Strasse mit dem Text «Heute bei uns im Dorf!». Du vermutest, dass das Foto von einem ganz anderen Ort und Ereignis stammt. Benenne die Form, um die es sich handeln könnte, und sage, was du prüfen würdest, bevor du es weiterleitest.", "kriterien": {"k1": "Form benannt", "k2": "Absender oder zweite Quelle", "k3": "Zusammenhang klären", "k4": "Absicht offen, nicht weiterleiten"}, "medien": false}, {"id": "Q-W-26-M", "text": "Sehauftrag zum Beitrag «Fakt oder Fake? – Teil 1: Die Geschichte» («10 vor 10», SRF, knapp 6 Minuten). Sieh ihn mit dem Sehleitfaden M-SM2 an: Bild, Ton, Einblendung, Aussage. Erkläre dann in eigenen Worten, was der Beitrag unter Desinformation versteht, nenne ein Beispiel aus der Geschichte, sage, warum sich Falsches heute schneller verbreitet, und nenne, was dagegen hilft. Gib zu jedem Punkt an, wo im Beitrag du es gesehen oder gehört hast.", "kriterien": {"k1": "Absicht als Kern", "k2": "Beispiel aus Geschichte", "k3": "Grund für Tempo", "k4": "Mittel dagegen"}, "medien": true}], "lektion": 5, "stolperstein": "Desinformation ist nicht alles, was falsch ist oder mir nicht passt. Ein ehrlicher Irrtum ist Fehlinformation; «Fake News» wird zudem als Kampfbegriff gebraucht, um politische Gegner zu delegitimieren."}, {"subId": "W-27 Manipulation", "kurz": "W-27", "begriff": "Manipulation", "entwurf": false, "fragen": [{"id": "Q-W-27-1", "text": "Hörauftrag zum Beitrag «Solothurner Energiegesetz: FDP wirft SVP Verwirrungskampagne vor» (Regionaljournal Aargau Solothurn, Beitrag bis etwa Minute 2:40). Im Streit um den Nein-Post nennt die FDP den Post «extrem manipulativ», die stellvertretende Staatsschreiberin sagt, Abstimmungspropaganda dürfe emotional und reisserisch sein. Erkläre in zwei bis vier Sätzen, woran du Manipulation von legitimer Überzeugung unterscheidest. Warum darf auch eine harte, emotionale Aussage legitim sein? Nenne eine Stelle aus dem Beitrag.", "kriterien": {"k1": "Erkennen und Prüfen verhindert", "k2": "Gefühle statt Gründe, Belege offen", "k3": "Prüfbarkeit statt Ton"}, "medien": false}, {"id": "Q-W-27-2", "text": "Lies diesen erfundenen Post: «Skandal! Die Stadtverwaltung versteckt die Wahrheit über die neue Parkplatzregel. Eine Studie beweist: Alle Autofahrer sind die Verlierer. Teile das, bevor es gelöscht wird!» Nenne zwei Manipulationsmerkmale, die du hier erkennst, und belege jedes mit einer Stelle aus dem Post.", "kriterien": {"k1": "Erstes Merkmal genannt", "k2": "Erstes Merkmal belegt", "k3": "Zweites Merkmal genannt und belegt"}, "medien": false}, {"id": "Q-W-27-M", "text": "Hörauftrag zum Beitrag «Solothurner Energiegesetz: FDP wirft SVP Verwirrungskampagne vor» (Regionaljournal Aargau Solothurn, rund zweieinhalb Minuten; Zeitmarken ab Sendungsbeginn). Höre mit dem Hörleitfaden: Wer spricht, in welcher Rolle, mit welchem Interesse? Halte in eigenen Worten fest, welchen Vorwurf die FDP erhebt, was die SVP antwortet und was die Behörde zum Post sagt. Entscheide dann mit den Merkmalen der Karte: Ist der Post Manipulation oder legitime Überzeugung? Begründe und nenne zu jeder Aussage die Stelle im Beitrag (Zeitmarke oder Person).", "kriterien": {"k1": "Vorwurf der FDP", "k2": "Antwort der SVP", "k3": "Einschätzung der Behörde", "k4": "Begründeter Entscheid"}, "medien": true}], "lektion": 5, "stolperstein": "Manipulation ist nicht dasselbe wie Lüge, und hart oder emotional ist nicht automatisch manipulativ. Entscheidend ist, ob ich die Beeinflussung erkennen und die Aussage prüfen kann."}, {"subId": "W-28 Fakt und Meinung", "kurz": "W-28", "begriff": "Fakt und Meinung", "entwurf": false, "fragen": [{"id": "Q-W-28-1", "text": "Sehauftrag zum Beitrag «Abstimmung SRG-Initiative: Pro- und Contra-Argumente» (10 vor 10, 4 Minuten 39 Sekunden): Erkläre in drei bis vier Sätzen, woran du im Beitrag einen Fakt von einer Meinung unterscheidest und welche Mischform darin vorkommt. Nenne je ein Beispiel aus dem Beitrag und sage, wer es sagt.", "kriterien": {"k1": "Fakt = überprüfbar", "k2": "Meinung = Wertung, begründbar", "k3": "Mischform genannt"}, "medien": false}, {"id": "Q-W-28-2", "text": "Du liest im Netz diesen Post: «Der Quartierladen hat seine Preise erhöht. Das ist eine Frechheit. Die explodierenden Preise treffen alle Familien im Quartier. Bald muss der Laden sowieso schliessen.» Ordne jeden der vier Sätze als Fakt, Meinung oder Mischform ein und begründe kurz.", "kriterien": {"k1": "Satz 1: Fakt, überprüfbar", "k2": "Satz 2: Bewertung = Meinung", "k3": "Satz 3: wertende Wortwahl", "k4": "Vorhersage erkannt"}, "medien": false}, {"id": "Q-W-28-M", "text": "Sehauftrag zum Beitrag «Abstimmung SRG-Initiative: Pro- und Contra-Argumente» (10 vor 10, SRF, 4 Minuten 39 Sekunden). Sieh ihn mit dem Sehleitfaden an und halte fest, welche Gruppen zu Wort kommen. Was zeigt der Beitrag über Fakt und Meinung? Nenne eine Aussage, die du überprüfen könntest, und eine, die eine Meinung oder Vorhersage ist. Sage jeweils, wer sie sagt und woran du den Unterschied erkennst. Schreibe in eigenen Worten und sage, wo im Beitrag du die Stelle gefunden hast.", "kriterien": {"k1": "Fakt aus Beitrag", "k2": "Meinung mit Absender", "k3": "Zahl: wer sagt's", "k4": "Vorhersage erkannt"}, "medien": true}], "lektion": 6, "stolperstein": "Eine Aussage mit Zahlen ist nicht automatisch ein Fakt. Ein typischer Fehlschluss lautet: «Viele sagen das, also ist es ein Fakt.» Auch eine Prognose bleibt eine Meinung, selbst wenn sie wie eine Tatsache klingt."}, {"subId": "W-29 Verlässliche Quelle", "kurz": "W-29", "begriff": "Verlässliche Quelle", "entwurf": false, "fragen": [{"id": "Q-W-29-1", "text": "Erkläre in zwei bis drei Sätzen, warum eine Quelle nicht schon verlässlich ist, nur weil sie professionell aussieht und viele Likes hat. Woran erkennst du Verlässlichkeit stattdessen?", "kriterien": {"k1": "Aussehen, Likes: keine Prüfung", "k2": "Absender oder Belege", "k3": "Überprüfbarkeit als Massstab"}, "medien": false}, {"id": "Q-W-29-2", "text": "Du hast den SRF-Artikel «Wie erkenne ich Fake News? Tipps für den Faktencheck» gelesen und findest zu einer Meldung zwei Quellen. Quelle A: ein Beitrag auf einer Seite ohne erkennbaren Absender und ohne Belege, dafür gut gestaltet und oft geteilt. Quelle B: ein Zeitungsartikel mit genannter Autorin und angegebenen Belegen; die Zeitung hat früher eigene Fehler berichtigt. Welche Quelle ist verlässlicher, und wie gehst du danach vor? Stütze dich auf die Kniffe «Quelle» und «Abgleich» aus dem Artikel.", "kriterien": {"k1": "Wahl von Quelle B", "k2": "Begründung mit Merkmalen", "k3": "Zweite unabhängige Quelle"}, "medien": false}, {"id": "Q-W-29-M", "text": "Leseauftrag zum Artikel «Wie erkenne ich Fake News? Tipps für den Faktencheck» (SRF News, SRF Faktencheck, 538 Wörter). Überfliege ihn, lies dann gezielt und markiere: Welche Kniffe nennt der Text? Was sagt er über die Überprüfung des Absenders, und was empfiehlt er, wenn die Zeit für einen eigenen Check fehlt? Warum erwähnt er den Bestätigungsfehler? Erkläre in eigenen Worten, was der Artikel für den Begriff «verlässliche Quelle» zeigt, und nenne bei jedem Punkt den Kniff, unter dem du die Stelle gefunden hast.", "kriterien": {"k1": "Absender prüfen", "k2": "Abgleich mit anderen", "k3": "Bestätigungsfehler erkannt"}, "medien": true}], "lektion": 6, "stolperstein": "Professionelles Aussehen, viele Likes oder Zustimmung zu deiner Meinung ersetzen die Prüfung nicht; was deine Meinung bestätigt, glaubst du leicht (Bestätigungsfehler). Entscheidend ist, ob du Absender und Belege überprüfen kannst."}, {"subId": "W-30 Aufmerksamkeitsökonomie", "kurz": "W-30", "begriff": "Aufmerksamkeitsökonomie", "entwurf": false, "fragen": [{"id": "Q-W-30-1", "text": "Eine Video-App kostet nichts und ist trotzdem ein gutes Geschäft für die Firma dahinter. Erkläre in zwei bis vier Sätzen, womit die Firma ihr Geld verdient und warum der Feed darauf gebaut ist, dass du möglichst lange bleibst.", "kriterien": {"k1": "Werbung als Einnahme", "k2": "Bezahlt mit Zeit und Daten", "k3": "Mehr Zeit, mehr Einnahmen"}, "medien": false}, {"id": "Q-W-30-2", "text": "Im Beitrag «Hirnforscherin: Zuviel Tiktok schädigt unser Hirn» (SRF Kassensturz, 3 Minuten 24 Sekunden) wird vorgerechnet, wie viele Videos man bei einer Stunde TikTok pro Tag sieht. Eine Kollegin sieht den Beitrag und erkennt sich wieder: Sie öffnet die App meist aus Gewohnheit, wollte oft nur kurz schauen und blieb viel länger als geplant. Leite mit dem Beitrag ab, welche Bauteile des Feeds dahinterstecken, und schlage einen eigenen Schritt vor, mit dem sie gegensteuern kann.", "kriterien": {"k1": "Bauteile des Feeds", "k2": "Verbindung zum Geschäftsmodell", "k3": "Eigener konkreter Schritt", "k4": "Routine statt Verzicht"}, "medien": false}, {"id": "Q-W-30-M", "text": "Sehauftrag zum Beitrag «Hirnforscherin: Zuviel Tiktok schädigt unser Hirn» (SRF Kassensturz, 3 Minuten 24 Sekunden). Sieh ihn mit dem Sehleitfaden M-SM2 an: Bild, Ton und eingeblendeten Text getrennt notieren, festhalten, wer spricht. Beantworte dann in eigenen Worten und mit einer Stelle aus dem Beitrag: Was zeigt der Beitrag über die Aufmerksamkeitsökonomie, also darüber, wie der Feed gebaut ist, damit man dranbleibt, und warum das Jugendliche stärker trifft?", "kriterien": {"k1": "Bauweise des Feeds", "k2": "Verbindung zum Geld", "k3": "Warum Jugendliche stärker"}, "medien": true}], "lektion": 7, "stolperstein": "«Gratis heisst, die Plattform verdient nichts an mir.» Falsch: Sie verdient an der Zeit, die ich bleibe, weil sie mit meiner Aufmerksamkeit und meinen Daten Werbung verkauft."}, {"subId": "A-2.1.2-B Entwurf", "kurz": "A-2.1.2-B Entwurf", "begriff": "Entwurf", "entwurf": true, "fragen": [{"id": "A-2.1.2-B-entwurf", "text": "Gliederung des Kommentars: Meinung in einem Satz, zwei bis drei Gründe in Stichworten, der Beleg aus dem eigenen Tagebuch (Eintrag beschrieben, ohne Namen), ein Beispiel aus dem Alltag. Nicht das ganze Tagebuch.", "kriterien": {"k1": "Die Meinung zur eigenen", "k2": "Zwei bis drei Gründe", "k3": "Mindestens ein Beleg stammt", "k4": "Fakt und eigene Meinung", "k5": "Mindestens ein Begriff aus"}, "medien": false}], "lektion": 6, "stolperstein": ""}], "auftraege": [{"id": "A-2.1.1-A", "titel": "Wer will was? Interessen und Werte in einem Radiobeitrag", "wkarten": ["W-20", "W-21", "W-22", "W-23"], "lektion": 1}, {"id": "A-2.1.2-A", "titel": "Echt oder gefälscht? Zwei Beiträge auf dem Prüfstand", "wkarten": ["W-24", "W-26", "W-27", "W-29"], "lektion": 5}, {"id": "A-2.1.2-B", "titel": "Mein Feed unter der Lupe: Medientagebuch und Kommentar", "wkarten": ["W-24", "W-25", "W-28", "W-30"], "lektion": 6}], "lektionen": {"1": "Einstieg in 2.1: Band, Karte, Code, Lernpaket", "2": "Hörleitfaden M-SM1 einführen, Sehen üben", "3": "A-2.1.1-A: Audio wählen, zweimal hören, Leitfaden beginnen", "4": "A-2.1.1-A abschliessen: abgleichen, einordnen, abgeben", "5": "A-2.1.2-A: Vorwurf gegen Vorwurf, Beiträge lesen", "6": "A-2.1.2-A: Merkmale belegen, Quelle prüfen (M-SK1); Tagebuch einrichten", "7": "A-2.1.2-B: Tagebuch auswerten, Kommentar entwerfen", "8": "A-2.1.2-B: Rückmeldung lesen, Kommentar schreiben", "9": "A-2.1.2-B abgeben, Umfrage, Ausblick auf den Nachweis"}}</script>
+<script type="module">
+const CFG = JSON.parse(document.getElementById('cfg').textContent);
+
+// ==== LOGIK START (rein, ohne DOM und Netz; im Test herausgelöst) ====
+
+// Ids: CONTRACT.md «Ids» — pairDoc = `${uid}__${enc(assignmentId)}`.
+const enc = encodeURIComponent;
+const pairDoc = (uid, assignmentId) => `${uid}__${enc(assignmentId)}`;
+// formativ.slotKey (app/js/formativ.js:16): "<subId>::<questionId>".
+const slotKey = (subId, questionId) => `${subId}::${questionId}`;
+// Höchstens 30 Werte in where('uid','in', …) (dashboard/modules/api.js:128).
+const IN_LIMIT = 30;
+
+// Spur: unverändert aus app/js/formativ-trail.js:21-79.
+const RANK = { fehlt: 0, teilweise: 1, erfuellt: 2 };
+const MARKS = {
+    direkt:     { icon: '●', up: false, text: 'direkt erfüllt' },
+    verbessert: { icon: '●', up: true,  text: 'verbessert' },
+    besser:     { icon: '◐', up: true,  text: 'teilweise verbessert' },
+    offen:      { icon: '○', up: false, text: 'offen' },
+};
+const STATUS = {
+    erfuellt:          { icon: '✓', text: 'erfüllt' },
+    teilweise:         { icon: '◐', text: 'teilweise' },
+    fehlt:             { icon: '✗', text: 'fehlt' },
+    nicht_beurteilbar: { icon: '–', text: 'nicht beurteilbar' },
+};
+const hasCriteria = (a) => a?.result?.zustand !== 'nicht_verfuegbar' && (a?.result?.kriterien || []).length > 0;
+function criterionMarks(attempts) {
+    const rated = (attempts || []).filter(hasCriteria);
+    const byId = new Map();
+    for (const a of rated) {
+        for (const k of a.result.kriterien) {
+            if (!k || typeof k.id !== 'string') continue;
+            const c = byId.get(k.id) || { id: k.id, label: k.label || '', seen: [] };
+            c.seen.push(k.status);
+            c.label = k.label || c.label;
+            byId.set(k.id, c);
+        }
+    }
+    return [...byId.values()].map(({ id, label, seen }) => {
+        const first = seen[0];
+        const last = seen[seen.length - 1];
+        let mark = 'offen';
+        if (first === 'erfuellt') mark = 'direkt';
+        else if (seen.length > 1 && last === 'erfuellt') mark = 'verbessert';
+        else if (seen.length > 1 && first in RANK && last in RANK && RANK[last] > RANK[first]) mark = 'besser';
+        return { id, label, first, last, mark };
+    });
+}
+
+// Versuche eines formativUsage-Eintrags, ältester zuerst: frueher[] + der flache neueste
+// (CONTRACT «Collections in lmsbox», formativUsage; api.js getFormativSlots: nur state 'done';
+// dashboard/modules/formativ.js renderSlot: [...frueher, slot]).
+function attemptsOfUsage(entry) {
+    if (!entry || typeof entry !== 'object' || entry.state !== 'done') return [];
+    const earlier = Array.isArray(entry.frueher) ? entry.frueher : [];
+    return [...earlier, entry]
+        .filter((a) => a && typeof a === 'object' && a.result && typeof a.result === 'object')
+        .map((a) => ({ at: a.at ?? null, result: a.result }));
+}
+
+// «Beantwortet» wie das Box-Liveview (dashboard/modules/renderer.js:236).
+function istAntwort(a) {
+    return typeof a === 'string' && a.trim() !== '' && a !== '<p><br></p>';
+}
+
+// Quill-HTML → reiner Text. Das Ergebnis geht nur über textContent ins DOM.
+const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+function antwortText(html) {
+    return String(html || '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(p|div|li|h[1-6]|blockquote|pre)\s*>/gi, '\n')
+        .replace(/<li[^>]*>/gi, '• ')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (m, n) => {
+            const low = n.toLowerCase();
+            if (low in ENT) return ENT[low];
+            const cp = low.startsWith('#x') ? parseInt(low.slice(2), 16) : low.startsWith('#') ? parseInt(low.slice(1), 10) : NaN;
+            return Number.isInteger(cp) && cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : m;
+        })
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+// Roster → Klassen: wie dashboard/modules/api.js loadRoster (Z. 67-87) und classMembers (Z. 289-291).
+// docs: [{ id, data }] aus students. → Map(classId → [{ uid, name }], nach Name sortiert).
+function klassenAusRoster(docs) {
+    const byClass = new Map();
+    for (const d of docs) {
+        const s = d.data || {};
+        const classes = Array.isArray(s.classIds) && s.classIds.length ? s.classIds : [s.classId];
+        for (const classId of classes) {
+            if (!classId) continue;
+            if (!byClass.has(classId)) byClass.set(classId, []);
+            byClass.get(classId).push({ uid: d.id, name: String(s.name || s.username || d.id), username: s.username || d.id });
+        }
+    }
+    const out = new Map();
+    for (const [classId, members] of byClass) {
+        const count = new Map();
+        for (const m of members) count.set(m.name, (count.get(m.name) || 0) + 1);
+        out.set(classId, members
+            .map((m) => ({ uid: m.uid, name: count.get(m.name) > 1 ? `${m.name} (${m.username})` : m.name }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' })));
+    }
+    return out;
+}
+
+// Eine Zelle: Lernende × Karte (subId). draft = Dokument dieser subId oder null,
+// slots = formativUsage.slots dieser Person (oder null).
+function zelle(spalte, draft, slots) {
+    const answers = Array.isArray(draft?.answers) ? draft.answers : [];
+    const answerMap = new Map(answers.filter((a) => a && typeof a === 'object').map((a) => [a.questionId, a.answer]));
+    const sl = slots && typeof slots === 'object' ? slots : {};
+    const fragen = spalte.fragen.map((f) => {
+        const roh = answerMap.get(f.id);
+        const beantwortet = istAntwort(roh);
+        const attempts = attemptsOfUsage(Object.prototype.hasOwnProperty.call(sl, slotKey(spalte.subId, f.id)) ? sl[slotKey(spalte.subId, f.id)] : null);
+        return { id: f.id, beantwortet, antwort: beantwortet ? antwortText(roh) : '', attempts, marks: criterionMarks(attempts) };
+    });
+    const stand = fragen.some((f) => f.attempts.length) ? 'rm' : fragen.some((f) => f.beantwortet) ? 'antwort' : 'leer';
+    return { stand, fragen };
+}
+
+// Die drei Listen für eine Zelle (Lernende × Karte). Nichts wird über Lernende hinweg gerechnet.
+//  gesichert: jede Frage der Karte hat eine Rückmeldung mit Kriterien, und jedes Kriterium ist
+//             «direkt» (1. Versuch erfüllt) oder «verbessert» (später erfüllt).
+//  klären:    ein Kriterium steht in der neuesten Rückmeldung auf «fehlt», oder eine Frage hat
+//             weder Antwort noch Rückmeldung.
+//  gelungen:  ein Kriterium ist im späteren Versuch besser als im ersten («verbessert» oder «besser»).
+function einordnen(z) {
+    const gesichert = z.fragen.length > 0 && z.fragen.every((f) => f.marks.length > 0
+        && f.marks.every((m) => m.mark === 'direkt' || m.mark === 'verbessert'));
+    const klaeren = z.fragen.some((f) => (!f.beantwortet && f.attempts.length === 0)
+        || f.marks.some((m) => m.last === 'fehlt'));
+    const gelungen = z.fragen.some((f) => f.marks.some((m) => m.mark === 'verbessert' || m.mark === 'besser'));
+    return { gesichert, klaeren, gelungen };
+}
+
+// Drafts nach uid und subId; nur Roster-uids und nur diese Einheit (wie fetchClassPageDrafts).
+function draftsNachUid(draftDocs, uids, assignmentId) {
+    const erlaubt = new Set(uids);
+    const out = new Map();
+    for (const x of draftDocs) {
+        if (!x || !erlaubt.has(x.uid) || x.assignmentId !== assignmentId || typeof x.subId !== 'string') continue;
+        if (!out.has(x.uid)) out.set(x.uid, new Map());
+        out.get(x.uid).set(x.subId, x);
+    }
+    return out;
+}
+
+// Das ganze Modell einer Klasse. mitglieder: [{uid, name}], usage: Map(uid → formativUsage-Daten).
+function modell(spalten, mitglieder, draftDocs, usage, assignmentId) {
+    const drafts = draftsNachUid(draftDocs, mitglieder.map((m) => m.uid), assignmentId);
+    let antworten = 0;
+    const zeilen = mitglieder.map((m) => {
+        const subs = drafts.get(m.uid) || new Map();
+        const u = usage.get(m.uid);
+        const slots = u && u.uid === m.uid ? u.slots : null;
+        const zellen = spalten.map((sp) => zelle(sp, subs.get(sp.subId) || null, slots));
+        for (const z of zellen) antworten += z.fragen.filter((f) => f.beantwortet).length;
+        return { uid: m.uid, name: m.name, zellen };
+    });
+    return { zeilen, antworten };
+}
+
+// Namen je Liste für Spalte i.
+function listen(mod, i) {
+    const out = { gesichert: [], klaeren: [], gelungen: [] };
+    for (const z of mod.zeilen) {
+        const e = einordnen(z.zellen[i]);
+        for (const k of Object.keys(out)) if (e[k]) out[k].push(z.name);
+    }
+    return out;
+}
+
+// ==== LOGIK ENDE ====
+
+
+// =================== DATEN (LMS Box, Firestore; nur lesen) ===================
+// Anmeldung, Emulator-Schalter und Firestore Lite aus ../js/firebase.js (Vertrag: backend/CONTRACT.md,
+// «Client»). Gelesen wird nur, was eine Lehrperson lesen darf: Roster, drafts, formativUsage,
+// pasteEvents, assignments (Schalter klassenanalyse) und klassenanalysen. Drafts werden über die
+// uids der Klassenliste gesucht, nie über die classId im Draft.
+import { auth, db, rosterDb, emulator, onAuthStateChanged, collection, query, where, getDocs, doc, getDoc } from '../js/firebase.js';
+import { signIn, signOut } from '../js/api.js';
+import { analyseKasten, analyseLesen, analyseStarten, SCHWELLE } from './modules/klassenanalyse.js';
+
+let MITGLIEDER = [];
+let KLASSEN = new Map();
+let KLASSE = '';
+let DATEN = null;
+let AUTO = false;                         // Auftrag mit klassenanalyse: true (startet von selbst)
+const ANALYSE_DOCS = new Map();           // subId → klassenanalysen-Dokument
+const KLASSE_TITEL = 'Lektion';
+const AKTIV_LABEL = () => 'heute aktiv';
+const ERSTE_FASSUNG = 'Erste Fassung (so an die KI gesendet)';
+const datenStand = () => DATEN;
+function aktivZahl() {
+    const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+    return [...D.aktiv.values()].filter((t) => t >= t0.getTime()).length;
+}
+function zeitTxt(t) {
+    if (t == null || t === '') return '–';
+    const d = new Date(t);
+    return Number.isNaN(d.getTime()) ? '–' : d.toLocaleString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+// Erste Fassung: der Text, der mit der ersten Rückmeldung an formativ ging (eigener Name maskiert).
+function ersteFassung(uid, subId, qid) {
+    const slots = D.usage.get(uid)?.slots || {};
+    const e = Object.prototype.hasOwnProperty.call(slots, slotKey(subId, qid)) ? slots[slotKey(subId, qid)] : null;
+    const f = Array.isArray(e?.frueher) ? e.frueher[0] : null;
+    return typeof f?.gesendet === 'string' && f.gesendet ? f.gesendet : null;
+}
+const ANALYSE = {
+    schwelle: SCHWELLE,
+    kasten(i, { kompakt }) {
+        const sp = SPALTEN[i];
+        const namen = new Map(MITGLIEDER.map((m) => [m.uid, m.name]));
+        const fr = new Map(sp.fragen.map((f) => [f.id, f]));
+        return analyseKasten({
+            doc: ANALYSE_DOCS.get(sp.subId) || null,
+            n: abgeschlossenZahl(i),
+            auto: AUTO,
+            name: (u) => namen.get(u) || '',
+            onName: (u) => { if (namen.has(u)) go('lernende/' + namen.get(u)); },
+            frage: (q) => (fr.has(q) ? qKurz(fr.get(q)) : q),
+            kriterium: (q, k) => fr.get(q)?.kriterien?.[k] || k,
+            kompakt,
+            onOpen: () => go('karte/' + spKey(sp)),
+            onStart: async () => {
+                await analyseStarten(KLASSE, CFG.aid, sp.subId);
+                ANALYSE_DOCS.set(sp.subId, await analyseLesen(KLASSE, CFG.aid, sp.subId));
+                stand();
+            },
+        });
+    },
+};
+
+const ls = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch { /* ohne Speicher: gilt nur bis zum Neuladen */ } },
+};
+const lektionKey = (c) => `spielfeld-lektion:${CFG.aid}:${c}`;
+function melden(t) { $('meldung').textContent = t || ''; }
+const teile = (l) => { const out = []; for (let i = 0; i < l.length; i += IN_LIMIT) out.push(l.slice(i, i + IN_LIMIT)); return out; };
+const ms = (v) => (typeof v?.toMillis === 'function' ? v.toMillis() : typeof v === 'string' ? Date.parse(v) : null);
+
+async function rosterLaden() {
+    const snap = await getDocs(collection(rosterDb, 'students'));
+    KLASSEN = klassenAusRoster(snap.docs.map((d) => ({ id: d.id, data: d.data() })));
+    const sel = $('klasse');
+    const vorher = sel.value || ls.get('spielfeld-klasse') || '';
+    sel.replaceChildren(h('option', { value: '' }, 'Klasse wählen …'),
+        ...[...KLASSEN.keys()].sort((a, b) => a.localeCompare(b, 'de', { numeric: true })).map((c) => h('option', { value: c }, `${c} (${KLASSEN.get(c).length})`)));
+    if (KLASSEN.has(vorher)) sel.value = vorher;
+    await klasseLaden();
+}
+
+async function klasseLaden() {
+    melden('');
+    KLASSE = $('klasse').value;
+    if (!KLASSE) {
+        DATEN = null; M = null;
+        $('zeitwahl').hidden = true;
+        $('klasseInfo').textContent = '';
+        $('main').replaceChildren(h('p', { class: 'lead' }, 'Wählen Sie oben eine Klasse.'));
+        return;
+    }
+    ls.set('spielfeld-klasse', KLASSE);
+    const klasse = KLASSE;
+    const mitglieder = KLASSEN.get(klasse) || [];
+    const uids = mitglieder.map((m) => m.uid);
+    $('klasseInfo').textContent = `${klasse} · lade …`;
+    const drafts = [], usage = new Map(), paste = [], aktiv = new Map(), hinweise = [];
+    try {
+        for (const c of teile(uids)) {
+            const snap = await getDocs(query(collection(db, 'drafts'), where('uid', 'in', c), where('assignmentId', '==', CFG.aid)));
+            snap.forEach((d) => drafts.push(d.data()));
+        }
+    } catch (e) { melden(`Die Antworten (drafts) konnten nicht gelesen werden (${e?.code || e}).`); $('klasseInfo').textContent = klasse; return; }
+    try {
+        for (const c of teile(uids)) {
+            const snap = await getDocs(query(collection(db, 'formativUsage'), where('uid', 'in', c), where('assignmentId', '==', CFG.aid)));
+            snap.forEach((d) => { const x = d.data(); if (x && typeof x.uid === 'string') usage.set(x.uid, x); });
+        }
+    } catch (e) { hinweise.push(`KI-Rückmeldungen nicht lesbar (${e?.code || e})`); }
+    try {
+        for (const c of teile(uids)) {
+            const snap = await getDocs(query(collection(db, 'pasteEvents'), where('uid', 'in', c), where('assignmentId', '==', CFG.aid)));
+            snap.forEach((d) => { const x = d.data(); paste.push({ uid: x.uid, subId: x.subId, questionId: x.questionId, kind: x.kind, chars: Number(x.chars) || 0, at: ms(x.at) }); });
+        }
+    } catch (e) { hinweise.push(`Einfüge-Hinweise nicht lesbar (${e?.code || e})`); }
+    for (const d of drafts) {
+        const t = ms(d.updatedAt);
+        if (t && uids.includes(d.uid)) aktiv.set(d.uid, Math.max(aktiv.get(d.uid) || 0, t));
+    }
+    try { AUTO = (await getDoc(doc(db, 'assignments', enc(CFG.aid)))).data()?.klassenanalyse === true; } catch { AUTO = false; }
+    ANALYSE_DOCS.clear();
+    try {
+        const docs = await Promise.all(SPALTEN.map((sp) => analyseLesen(klasse, CFG.aid, sp.subId)));
+        SPALTEN.forEach((sp, i) => { if (docs[i]) ANALYSE_DOCS.set(sp.subId, docs[i]); });
+    } catch (e) { hinweise.push(`Klassenanalysen nicht lesbar (${e?.code || e})`); }
+    if ($('klasse').value !== klasse) return;          // inzwischen andere Klasse gewählt
+    MITGLIEDER = mitglieder;
+    DATEN = { drafts, usage, paste, aktiv };
+    $('zeit').value = String(Number(ls.get(lektionKey(klasse))) || 1);
+    $('zeitwahl').hidden = false;
+    $('klasseInfo').textContent = `${klasse} · ${mitglieder.length} Lernende · Stand ${new Date().toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}`;
+    if (hinweise.length) melden(hinweise.join(' · ') + '. Der Rest wird angezeigt.');
+    stand();
+}
+
+// =================== AUSWERTUNG (für echte und simulierte Daten) ===================
+let K = 5, M = null, D = null;
+const SPALTEN = CFG.spalten;
+const faellig = (i) => SPALTEN[i].lektion <= K;
+
+function laden() {
+    D = datenStand(K);
+    M = modell(SPALTEN, MITGLIEDER, D.drafts, D.usage, CFG.aid);
+    M.byUid = new Map(M.zeilen.map((z) => [z.uid, z]));
+}
+
+// Abgeschlossen: jede Frage der Karte hat eine nicht leere Antwort (istAntwort), mit oder ohne
+// Rückmeldung. Gleiche Regel wie die Klassenanalyse (LMS Box, functions/klassenanalyse.js).
+function abgeschlossenZahl(i) {
+    return M.zeilen.filter((z) => z.zellen[i].fragen.length && z.zellen[i].fragen.every((f) => f.beantwortet)).length;
+}
+
+// Stand eines Kriteriums in der neuesten Rückmeldung.
+function kritStand(spalteIdx, frageIdx, kid) {
+    const out = { erfuellt: [], teilweise: [], fehlt: [], ohneRm: [], ohneAntwort: [], verbessert: [] };
+    for (const z of M.zeilen) {
+        const fr = z.zellen[spalteIdx].fragen[frageIdx];
+        const m = fr.marks.find((x) => x.id === kid);
+        if (m && m.last in out) out[m.last].push(z.name);
+        else if (fr.beantwortet || fr.attempts.length) out.ohneRm.push(z.name);
+        else out.ohneAntwort.push(z.name);
+        if (m && (m.mark === 'verbessert' || m.mark === 'besser')) out.verbessert.push(z.name);
+    }
+    return out;
+}
+function spalteStand(i) {
+    const t = { erfuellt: 0, teilweise: 0, fehlt: 0, begonnen: 0, ohne: 0, verbessert: 0, rm: 0 };
+    for (const z of M.zeilen) {
+        const c = z.zellen[i];
+        if (c.stand === 'leer') t.ohne++; else t.begonnen++;
+        for (const f of c.fragen) {
+            if (f.attempts.length) t.rm++;
+            for (const m of f.marks) { if (m.last in t) t[m.last]++; if (m.mark === 'verbessert' || m.mark === 'besser') t.verbessert++; }
+        }
+    }
+    return t;
+}
+// Stolpersteine: je Frage das Kriterium, das in der neuesten Rückmeldung am häufigsten fehlt;
+// die anderen fehlenden Kriterien derselben Frage stehen als «ebenfalls» dabei.
+function stolpersteine() {
+    const out = [];
+    SPALTEN.forEach((sp, i) => {
+        if (!faellig(i)) return;
+        sp.fragen.forEach((f, j) => {
+            const ks = Object.keys(f.kriterien).map((kid) => ({ kid, st: kritStand(i, j, kid) }))
+                .filter((x) => x.st.fehlt.length >= 2)
+                .sort((a, b) => b.st.fehlt.length - a.st.fehlt.length);
+            if (!ks.length) return;
+            const [top, ...rest] = ks;
+            const mitRm = top.st.erfuellt.length + top.st.teilweise.length + top.st.fehlt.length;
+            out.push({ i, j, kid: top.kid, st: top.st, mitRm, quote: top.st.fehlt.length / Math.max(1, mitRm), ebenfalls: rest });
+        });
+    });
+    return out.sort((a, b) => b.st.fehlt.length - a.st.fehlt.length || b.quote - a.quote).slice(0, 5);
+}
+function personStand(z) {
+    const zaehl = { direkt: 0, verbessert: 0, besser: 0, offen: 0 };
+    const offen = []; let faelligOffen = 0, faelligLeer = [];
+    z.zellen.forEach((c, i) => {
+        c.fragen.forEach((f, j) => {
+            for (const m of f.marks) {
+                zaehl[m.mark]++;
+                if (m.last === 'fehlt') {
+                    const a = f.attempts[f.attempts.length - 1];
+                    const k = (a?.result?.kriterien || []).find((x) => x.id === m.id);
+                    offen.push({ i, j, kid: m.id, label: m.label, hinweis: k?.hinweis || '' });
+                }
+            }
+        });
+        // fällig = in einer früheren Lektion eingeführt; die Karten dieser Lektion zählen noch nicht
+        if (SPALTEN[i].lektion < K && c.stand === 'leer' && !SPALTEN[i].entwurf) faelligLeer.push(i);
+    });
+    return { zaehl, offen, faelligLeer, aktiv: D.aktiv.get(z.uid) };
+}
+// Bereit für einen Auftrag: jede nötige Karte hat für alle Wissensfragen (nicht die Medienfrage)
+// eine Rückmeldung, und kein Kriterium steht zuletzt auf «fehlt». «Teilweise» genügt.
+function karteTraegt(c, sp) {
+    return sp.fragen.every((f, j) => {
+        const r = c.fragen[j];
+        if (f.medien && !r.beantwortet) return true;
+        return r.attempts.length > 0 && !r.marks.some((m) => m.last === 'fehlt');
+    });
+}
+function bereitFuer(a) {
+    const idx = a.wkarten.map((w) => SPALTEN.findIndex((s) => s.kurz === w)).filter((i) => i >= 0);
+    const bereit = [], fast = [], fehlt = [];
+    for (const z of M.zeilen) {
+        const offen = idx.filter((i) => !karteTraegt(z.zellen[i], SPALTEN[i]));
+        (offen.length === 0 ? bereit : offen.length === 1 ? fast : fehlt).push({ z, offen });
+    }
+    return { bereit, fast, fehlt };
+}
+// =================== ENDE AUSWERTUNG ===================
+
+// =================== DARSTELLUNG ===================
+const $ = (id) => document.getElementById(id);
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function h(tag, attrs, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+        if (v == null || v === false) continue;
+        if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v === true ? '' : v);
+    }
+    for (const k of kids.flat()) if (k != null && k !== false) e.append(k instanceof Node ? k : String(k));
+    return e;
+}
+function markEl(key) {
+    const m = MARKS[key];
+    const s = el('span', 'dot mk-' + key, m.icon);
+    if (m.up) s.appendChild(el('span', 'up', '↑'));
+    s.title = m.text;
+    return s;
+}
+const kurzTag = (sp) => h('span', { class: 'tag' + (sp.entwurf ? ' e' : '') }, sp.entwurf ? 'Entwurf' : sp.kurz);
+const qKurz = (f) => f.id.replace(/^Q-W-\d+-/, 'Frage ').replace(/Frage M$/, 'Medienfrage').replace(/^A-.*-entwurf$/, 'Gliederung');
+const nameChip = (name, cls) => h('button', { class: 'chip ' + (cls || ''), type: 'button', onclick: () => go('lernende/' + name) }, name);
+const idxByKurz = (k) => SPALTEN.findIndex((s) => (s.entwurf ? 'Entwurf' : s.kurz) === k);
+const spKey = (sp) => (sp.entwurf ? 'Entwurf' : sp.kurz);
+function balken(t) {
+    const sum = t.erfuellt + t.teilweise + t.fehlt;
+    const b = el('div', 'bar');
+    if (!sum) return b;
+    for (const [k, c] of [['erfuellt', 'b-ok'], ['teilweise', 'b-mid'], ['fehlt', 'b-no']]) {
+        const s = el('span', c); s.style.width = (t[k] / sum * 100) + '%'; b.appendChild(s);
+    }
+    b.title = `${t.erfuellt} erfüllt · ${t.teilweise} teilweise · ${t.fehlt} fehlt (Kriterien in der neuesten Rückmeldung)`;
+    return b;
+}
+
+// ---- Sicht: Klasse ----
+function sichtKlasse() {
+    const n = M.zeilen.length;
+    const heute = SPALTEN.map((s, i) => i).filter((i) => SPALTEN[i].lektion === K);
+    const aktivJetzt = aktivZahl();
+    let rm1 = 0, rm2 = 0, verb = 0;
+    for (const z of M.zeilen) for (const c of z.zellen) for (const f of c.fragen) {
+        if (f.attempts.length) rm1++;
+        if (f.attempts.length > 1) rm2++;
+        verb += f.marks.filter((m) => m.mark === 'verbessert' || m.mark === 'besser').length;
+    }
+    const personen = M.zeilen.map((z) => ({ z, p: personStand(z) }));
+    const nieBegonnen = personen.filter((x) => !x.p.aktiv);
+
+    const wrap = el('div');
+    wrap.append(
+        h('h1', {}, `${KLASSE_TITEL} ${K}: ${CFG.lektionen[K] || ''}`),
+        h('p', { class: 'lead' }, heute.length
+            ? h('span', {}, 'In dieser Lektion neu dran: ', ...heute.map((i) => h('button', { class: 'chip', type: 'button', onclick: () => go('karte/' + spKey(SPALTEN[i])) }, kurzTag(SPALTEN[i]), SPALTEN[i].begriff)))
+            : 'In dieser Lektion kommt keine neue Karte dazu; die Klasse arbeitet an Aufträgen und holt Karten nach.'),
+    );
+    const kp = el('div', 'kpis');
+    const kpi = (v, l) => h('div', { class: 'kpi' }, h('div', { class: 'v' }, v), h('div', { class: 'l' }, l));
+    kp.append(
+        kpi(`${aktivJetzt}/${n}`, AKTIV_LABEL()),
+        kpi(String(M.antworten), 'Antworten gespeichert'),
+        kpi(String(rm1), `Fragen mit KI-Rückmeldung, ${rm2} davon ein zweites Mal`),
+        kpi(String(verb), 'Kriterien nach der Rückmeldung verbessert'),
+    );
+    wrap.append(kp);
+
+    // KI-Klassenanalyse je fälliger Karte (nur mit echten Daten)
+    kp.dataset.anker = 'kpis';
+    if (ANALYSE) {
+        const ab = h('div', { class: 'box', 'data-anker': 'analyse' }, h('h2', {}, 'KI-Klassenanalyse'),
+            h('p', { class: 'hint', style: 'margin-top:-4px' }, `Je fällige Karte, erstellt ab ${ANALYSE.schwelle} Abgeschlossenen. Die neuesten Karten zuerst.`));
+        const fl = SPALTEN.map((s, i) => i).filter(faellig).reverse();
+        if (!fl.length) ab.append(h('p', { class: 'leer-hinweis' }, 'Noch keine Karte fällig.'));
+        for (const i of fl) ab.append(h('div', {}, h('div', { style: 'margin:6px 0 4px' }, kurzTag(SPALTEN[i]), h('b', {}, SPALTEN[i].begriff)), ANALYSE.kasten(i, { kompakt: true })));
+        wrap.append(ab);
+    }
+
+    // links: Plenum, rechts: Gruppen
+    const g = el('div', 'grid2');
+    const links = el('div', 'box');
+    links.dataset.anker = 'plenum';
+    links.append(h('h2', {}, 'Im Plenum aufgreifen'), h('p', { class: 'hint', style: 'margin-top:-4px' }, 'Kriterien, die in der neuesten KI-Rückmeldung bei mehreren Lernenden fehlen. Die Namen sind eine mögliche Kleingruppe.'));
+    const steine = stolpersteine();
+    if (!steine.length) links.append(h('p', { class: 'leer-hinweis' }, 'Noch kein Kriterium fehlt bei mehr als einer Person.'));
+    for (const s of steine) {
+        const sp = SPALTEN[s.i], f = sp.fragen[s.j];
+        const rub = f.rubrik?.find?.((r) => r.id === s.kid);
+        links.append(h('div', { class: 'stein', 'data-anker': 'stein-' + links.querySelectorAll('.stein').length },
+            h('div', { class: 'kopf' },
+                h('div', {}, kurzTag(sp), h('b', {}, f.kriterien[s.kid]), h('span', { class: 'hint' }, ` · ${sp.begriff}, ${qKurz(f)}`)),
+                h('span', { class: 'anz' }, `fehlt bei ${s.st.fehlt.length} von ${s.mitRm}`)),
+            h('div', {}, ...s.st.fehlt.map((nm) => nameChip(nm, 'no'))),
+            s.ebenfalls.length ? h('div', { class: 'hint' }, 'Ebenfalls oft fehlend: ' + s.ebenfalls.map((x) => `${f.kriterien[x.kid]} (${x.st.fehlt.length})`).join(' · ')) : null,
+            s.st.verbessert.length ? h('div', { class: 'hint' }, `Nach der Rückmeldung schon verbessert: ${s.st.verbessert.join(', ')}`) : null,
+            sp.stolperstein ? h('div', { class: 'vw' }, h('b', {}, 'Typische Verwechslung: '), sp.stolperstein) : null,
+            h('button', { class: 'lnk', type: 'button', onclick: () => go(`karte/${spKey(sp)}/${f.id}/${s.kid}`) }, 'Antworten zu diesem Kriterium vergleichen →'),
+        ));
+    }
+    g.append(links);
+
+    const rechts = el('div');
+    // Gruppen
+    const ab = [], lauf = [], ok = [];
+    for (const x of personen) {
+        const p = x.p;
+        if (!p.aktiv || p.faelligLeer.length >= 2 || p.offen.length >= 6) ab.push(x);
+        else if (p.offen.length || p.faelligLeer.length) lauf.push(x);
+        else ok.push(x);
+    }
+    const gruppe = (cls, titel, tipp, liste, warum) => {
+        const b = h('div', { class: 'box gruppe ' + cls, 'data-anker': 'gruppe-' + cls }, h('h3', {}, titel, h('span', { class: 'n' }, String(liste.length))), h('p', { class: 'hint', style: 'margin:-2px 0 6px' }, tipp));
+        if (!liste.length) b.append(h('p', { class: 'leer-hinweis' }, 'niemand'));
+        for (const x of liste) b.append(h('div', { class: 'pers' }, nameChip(x.z.name), h('span', { class: 'w' }, warum(x.p))));
+        return b;
+    };
+    const warum = (p) => {
+        if (!p.aktiv) return 'noch nichts abgegeben';
+        const t = [];
+        if (p.faelligLeer.length) t.push('nicht begonnen: ' + p.faelligLeer.map((i) => SPALTEN[i].kurz).join(', '));
+        if (p.offen.length) t.push(`${p.offen.length} ${p.offen.length === 1 ? 'Kriterium' : 'Kriterien'} offen`);
+        return t.join(' · ');
+    };
+    rechts.append(
+        gruppe('ab', 'Abholen', 'Nichts abgegeben, mehrere fällige Karten nicht begonnen oder viele Kriterien offen.', ab, warum),
+        gruppe('lauf', 'Unterwegs', 'Einzelne Lücken; die KI-Rückmeldung zeigt den nächsten Schritt.', lauf, warum),
+        gruppe('ber', 'Auf Kurs', 'Alle fälligen Karten bearbeitet, kein Kriterium fehlt.', ok, (p) => p.zaehl.verbessert ? `${p.zaehl.verbessert}× verbessert` : 'alles im ersten Versuch'),
+    );
+    g.append(rechts);
+    wrap.append(g);
+
+    // Aufträge
+    const af = el('div', 'box');
+    af.dataset.anker = 'auftraege';
+    af.append(h('h2', {}, 'Bereit für die Aufträge?'), h('p', { class: 'hint', style: 'margin-top:-4px' }, 'Bereit heisst: Zu jeder Karte, die der Auftrag braucht, sind die Wissensfragen beantwortet und kein Kriterium fehlt in der neuesten Rückmeldung («teilweise» genügt). Die Medienfrage zählt nur, wenn sie beantwortet ist.'));
+    for (const a of CFG.auftraege) {
+        const r = bereitFuer(a);
+        const spaeter = a.wkarten.map((w) => SPALTEN.find((s) => s.kurz === w)).filter((s) => s && s.lektion > K);
+        const kopf = h('div', { class: 'kopf' },
+            h('div', {}, h('b', {}, a.id), ' ', a.titel),
+            h('span', { class: 'hint' }, `ab Lektion ${a.lektion} · braucht ${a.wkarten.join(', ')}`));
+        if (spaeter.length) {
+            af.append(h('div', { class: 'auf', style: 'opacity:.6' }, kopf,
+                h('div', { class: 'hint', style: 'margin-top:4px' }, `Noch nicht absehbar: ${spaeter.map((s) => `${s.kurz} kommt in Lektion ${s.lektion}`).join(', ')}.`)));
+            continue;
+        }
+        af.append(h('div', { class: 'auf' }, kopf,
+            h('div', { style: 'margin:6px 0 2px' }, h('b', { style: 'color:var(--ok)' }, `${r.bereit.length} bereit`), r.bereit.length ? ': ' : '', ...r.bereit.map((x) => nameChip(x.z.name, 'ok'))),
+            r.fast.length ? h('div', { style: 'margin:2px 0' }, h('b', { style: 'color:#B8860B' }, `${r.fast.length} fehlt eine Karte`), ': ', ...r.fast.map((x) => h('span', {}, nameChip(x.z.name, 'mid'), h('span', { class: 'hint' }, SPALTEN[x.offen[0]].kurz + '  ')))) : null,
+            r.fehlt.length ? h('details', {}, h('summary', { class: 'hint', style: 'cursor:pointer' }, `${r.fehlt.length} fehlen zwei oder mehr Karten: wem welche`),
+                h('div', { style: 'margin-top:6px' }, ...r.fehlt.sort((a, b) => b.offen.length - a.offen.length).map((x) => h('div', { class: 'pers' }, nameChip(x.z.name), h('span', { class: 'w' }, x.offen.map((i) => SPALTEN[i].kurz).join(', ')))))) : null,
+        ));
+    }
+    wrap.append(af);
+
+    // Karten
+    const kb = el('div', 'box');
+    kb.dataset.anker = 'karten';
+    kb.append(h('h2', {}, 'Karten im Überblick'), h('p', { class: 'hint', style: 'margin-top:-4px' }, 'Balken: Kriterien in der neuesten Rückmeldung (grün erfüllt, gelb teilweise, rot fehlt). Blasse Karten sind laut Lektionsplan noch nicht dran.'));
+    const kk = el('div', 'karten');
+    SPALTEN.forEach((sp, i) => {
+        const t = spalteStand(i);
+        kk.append(h('button', { class: 'kk' + (faellig(i) ? '' : ' zukunft'), type: 'button', onclick: () => go('karte/' + spKey(sp)) },
+            h('div', { class: 't' }, h('span', {}, kurzTag(sp), h('b', {}, sp.begriff)), h('span', { class: 'hint' }, 'L' + sp.lektion)),
+            balken(t),
+            h('div', { class: 's' }, `${t.begonnen}/${n} begonnen` + (t.verbessert ? ` · ${t.verbessert}× verbessert` : ''))));
+    });
+    kb.append(kk);
+    wrap.append(kb);
+    if (nieBegonnen.length === n) wrap.prepend(h('p', { class: 'leer-hinweis' }, 'Noch keine Antworten.'));
+    return wrap;
+}
+
+// ---- Sicht: Matrix ----
+let SORT = 'name';
+function sichtMatrix() {
+    const wrap = el('div');
+    wrap.append(h('h1', {}, 'Matrix: Lernende × Karten'),
+        h('p', { class: 'lead' }, 'Ein Zeichen je Kriterium, │ trennt die Fragen einer Karte. Klick auf eine Zelle öffnet die Antworten dieser Person, Klick auf einen Kartenkopf die Karte.'));
+    const lg = h('div', { class: 'legende' },
+        h('span', {}, h('span', { class: 'tok-leer' }, '·'), ' keine Antwort'),
+        h('span', {}, h('span', { class: 'tok-antwort' }, '✎'), ' Antwort, keine Rückmeldung geholt'),
+        h('span', {}, markEl('direkt'), ' direkt erfüllt'),
+        h('span', {}, markEl('verbessert'), ' nach Rückmeldung erfüllt'),
+        h('span', {}, markEl('besser'), ' verbessert, noch nicht erfüllt'),
+        h('span', {}, markEl('offen'), ' offen'));
+    const sel = h('select', { 'aria-label': 'Sortierung', onchange: (e) => { SORT = e.target.value; zeichnen(); } },
+        ...[['name', 'nach Name'], ['offen', 'meiste offene Kriterien zuerst'], ['aktiv', 'zuletzt aktiv zuerst']].map(([v, t]) => h('option', { value: v, selected: SORT === v }, t)));
+    filter(h('span', { class: 'hint' }, 'Sortieren'), sel,
+        h('span', { class: 'hint' }, 'Springen zu'), h('select', { 'aria-label': 'Zu Lernenden springen', onchange: (e) => { if (e.target.value) go('lernende/' + e.target.value); } },
+            h('option', { value: '' }, 'Lernende …'), ...M.zeilen.map((z) => h('option', { value: z.name }, z.name))));
+    wrap.append(lg);
+    const hw = el('div', 'hm-wrap');
+    hw.dataset.anker = 'matrix';
+    const t = el('table', 'hm');
+    hw.append(t); wrap.append(hw);
+    function zeichnen() {
+        t.replaceChildren();
+        const hr = el('tr');
+        hr.append(h('th', { class: 'name', scope: 'col' }, 'Lernende'));
+        SPALTEN.forEach((sp) => hr.append(h('th', { class: (sp.entwurf ? 'entw' : '') + (sp.lektion > K ? ' zuk' : ''), scope: 'col' },
+            h('button', { type: 'button', onclick: () => go('karte/' + spKey(sp)) }, h('span', { class: 'k' }, sp.entwurf ? 'Entwurf' : sp.kurz), h('span', { class: 'b' }, sp.entwurf ? 'A-2.1.2-B' : sp.begriff), h('span', { class: 'l' }, 'L' + sp.lektion)))));
+        t.append(h('thead', {}, hr));
+        let rows = M.zeilen.map((z) => ({ z, p: personStand(z) }));
+        if (SORT === 'offen') rows.sort((a, b) => b.p.offen.length - a.p.offen.length);
+        if (SORT === 'aktiv') rows.sort((a, b) => (b.p.aktiv || 0) - (a.p.aktiv || 0));
+        const tb = el('tbody');
+        for (const { z } of rows) {
+            const tr = el('tr');
+            tr.append(h('th', { class: 'name', scope: 'row' }, h('button', { type: 'button', onclick: () => go('lernende/' + z.name) }, z.name)));
+            z.zellen.forEach((c, i) => {
+                const b = h('button', { type: 'button', onclick: () => go(`lernende/${z.name}/${spKey(SPALTEN[i])}`) });
+                for (const f of c.fragen) {
+                    const q = el('span', 'q');
+                    if (f.marks.length) f.marks.forEach((m) => q.append(markEl(m.mark)));
+                    else if (f.beantwortet) q.append(el('span', 'tok-antwort', '✎'));
+                    else q.append(el('span', 'tok-leer', '·'));
+                    b.append(q);
+                }
+                b.setAttribute('aria-label', `${z.name}, ${SPALTEN[i].subId}`);
+                tr.append(h('td', { class: c.stand }, b));
+            });
+            tb.append(tr);
+        }
+        t.append(tb);
+    }
+    zeichnen();
+    return wrap;
+}
+
+// ---- Sicht: Karte ----
+function sichtKarte(arg) {
+    const [kurz, qid, kid] = arg;
+    let i = kurz ? idxByKurz(kurz) : -1;
+    if (i < 0) i = Math.max(0, SPALTEN.map((s, x) => x).filter(faellig).pop() ?? 0);
+    const sp = SPALTEN[i];
+    const wrap = el('div');
+    const sel = h('select', { 'aria-label': 'Karte wählen', onchange: (e) => go('karte/' + e.target.value) },
+        ...SPALTEN.map((s) => h('option', { value: spKey(s), selected: s === sp }, `${s.entwurf ? 'Entwurf A-2.1.2-B' : s.kurz + ' ' + s.begriff} (L${s.lektion})`)));
+    const t = spalteStand(i);
+    const nach = h('select', { 'aria-label': 'Antworten ordnen nach Kriterium', onchange: (e) => go(e.target.value ? `karte/${spKey(sp)}/${e.target.value}` : 'karte/' + spKey(sp)) },
+        h('option', { value: '' }, 'Antworten ordnen nach …'),
+        ...sp.fragen.map((f) => h('optgroup', { label: `${f.id} (${qKurz(f)})` },
+            ...Object.keys(f.kriterien).map((k) => h('option', { value: `${f.id}/${k}`, selected: qid === f.id && kid === k }, f.kriterien[k])))));
+    const n = SPALTEN.length;
+    filter(
+        h('button', { class: 'chip', type: 'button', 'aria-label': 'vorherige Karte', onclick: () => go('karte/' + spKey(SPALTEN[(i + n - 1) % n])) }, '←'),
+        sel,
+        h('button', { class: 'chip', type: 'button', 'aria-label': 'nächste Karte', onclick: () => go('karte/' + spKey(SPALTEN[(i + 1) % n])) }, '→'),
+        nach);
+    wrap.append(h('h1', {}, sp.entwurf ? 'Entwurf zum Auftrag A-2.1.2-B' : `${sp.kurz} ${sp.begriff}`),
+        h('p', { class: 'hint', style: 'margin:0 0 8px' }, `Laut Plan ab Lektion ${sp.lektion} · ${t.begonnen} von ${M.zeilen.length} begonnen · ${abgeschlossenZahl(i)} abgeschlossen · ${t.rm} Rückmeldungen · ${t.verbessert}× verbessert`));
+    if (ANALYSE) wrap.append(h('div', { 'data-anker': 'analyse' }, ANALYSE.kasten(i, {})));
+    if (sp.stolperstein) wrap.append(h('p', { class: 'lead' }, h('b', {}, 'Typische Verwechslung: '), sp.stolperstein));
+
+    // Listen wie in der echten Liveview
+    const l = listen(M, i);
+    wrap.append(h('div', { class: 'grid3', 'data-anker': 'listen' },
+        ...[['gesichert', 'ok', 'alle Kriterien erfüllt'], ['klaeren', 'no', '«fehlt» in der Rückmeldung oder eine Frage ohne Antwort'], ['gelungen', 'up', 'im zweiten Versuch besser als im ersten']].map(([k, c, d]) =>
+            h('div', { class: 'box' }, h('h3', {}, k === 'klaeren' ? 'klären' : k, h('span', { class: 'hint' }, ` · ${l[k].length}`)), h('p', { class: 'hint', style: 'margin:-4px 0 6px' }, d),
+                l[k].length ? h('div', {}, ...l[k].map((nm) => nameChip(nm, c))) : h('span', { class: 'leer-hinweis' }, 'niemand')))));
+
+    sp.fragen.forEach((f, j) => {
+        const b = h('div', { class: 'box frage', id: 'f-' + f.id, 'data-anker': 'frage-' + j });
+        b.append(h('div', {}, h('span', { class: 'qid' }, f.id), ' ', h('span', { class: 'hint' }, qKurz(f))), h('div', { class: 'qtext' }, f.text));
+        let fokus = qid === f.id ? kid : null;
+        for (const k of Object.keys(f.kriterien)) {
+            const st = kritStand(i, j, k);
+            const rub = (CFG.rubrik?.[f.id] || {})[k];
+            const tt = { erfuellt: st.erfuellt.length, teilweise: st.teilweise.length, fehlt: st.fehlt.length };
+            b.append(h('div', { class: 'krit' + (fokus === k ? ' fokus' : ''), 'data-anker': `frage-${j}-${k}` },
+                h('div', {}, h('div', { class: 'lb' }, f.kriterien[k]), h('div', { style: 'margin-top:6px' }, balken(tt)),
+                    h('button', { class: 'lnk', type: 'button', style: 'margin-top:6px', onclick: () => go(`karte/${spKey(sp)}/${f.id}/${k}`) }, fokus === k ? 'Antworten unten nach diesem Kriterium' : 'Antworten danach ordnen')),
+                h('div', { class: 'ns' },
+                    st.fehlt.length ? h('div', {}, h('span', { class: 'st st-fehlt' }, '✗ fehlt'), ...st.fehlt.map((n) => nameChip(n, 'no'))) : null,
+                    st.teilweise.length ? h('div', {}, h('span', { class: 'st st-teilweise' }, '◐ teilweise'), ...st.teilweise.map((n) => nameChip(n, 'mid'))) : null,
+                    st.erfuellt.length ? h('div', {}, h('span', { class: 'st st-erfuellt' }, '✓ erfüllt'), h('span', { class: 'hint' }, `${st.erfuellt.length} Lernende`), st.verbessert.length ? h('span', { class: 'hint' }, `, davon verbessert: ${st.verbessert.join(', ')}`) : null) : null,
+                    st.ohneRm.length ? h('div', { class: 'hint' }, `Antwort ohne Rückmeldung: ${st.ohneRm.join(', ')}`) : null,
+                    st.ohneAntwort.length ? h('div', { class: 'hint' }, `Keine Antwort: ${st.ohneAntwort.length}`) : null)));
+        }
+        // Antworten
+        const ant = M.zeilen.map((z) => ({ z, f: z.zellen[i].fragen[j] })).filter((x) => x.f.beantwortet);
+        const ordnung = { fehlt: 0, teilweise: 1, erfuellt: 2 };
+        if (fokus) ant.sort((a, b) => (ordnung[a.f.marks.find((m) => m.id === fokus)?.last] ?? 3) - (ordnung[b.f.marks.find((m) => m.id === fokus)?.last] ?? 3));
+        const det = h('details', { open: fokus ? true : null, 'data-anker': `frage-${j}-ant` }, h('summary', { style: 'cursor:pointer;font-weight:600;margin-top:10px' }, `Alle ${ant.length} Antworten` + (fokus ? ` · geordnet nach «${f.kriterien[fokus]}»` : '')));
+        const g = el('div', 'antworten');
+        for (const { z, f: fr } of ant) {
+            const m = fokus ? fr.marks.find((x) => x.id === fokus) : null;
+            const last = fr.attempts[fr.attempts.length - 1];
+            const kk = fokus ? (last?.result?.kriterien || []).find((x) => x.id === fokus) : null;
+            g.append(h('div', { class: 'akarte' },
+                h('div', { class: 'wer' }, nameChip(z.name), h('span', {}, ...fr.marks.map((x) => markEl(x.mark)))),
+                h('div', { class: 'antwort' }, fr.antwort),
+                m ? h('div', { style: 'margin-top:6px;font-size:12.5px' }, h('span', { class: 'st st-' + m.last }, STATUS[m.last]?.icon + ' ' + STATUS[m.last]?.text), kk?.hinweis || '') : null,
+                fr.attempts.length > 1 ? h('div', { class: 'hint', style: 'margin-top:4px' }, 'überarbeitet nach der ersten Rückmeldung') : null));
+        }
+        det.append(g);
+        b.append(det);
+        wrap.append(b);
+    });
+    wrap.ziel = qid ? `frage-${sp.fragen.findIndex((f) => f.id === qid)}-${kid}` : null;
+    return wrap;
+}
+
+// ---- Sicht: Lernende ----
+function sichtLernende(arg) {
+    const [name, kurz] = arg;
+    const z = M.zeilen.find((x) => x.name === name) || M.zeilen[0];
+    const p = personStand(z);
+    const wrap = el('div');
+    const sel = h('select', { 'aria-label': 'Lernende wählen', onchange: (e) => go('lernende/' + e.target.value) },
+        ...M.zeilen.map((x) => h('option', { value: x.name, selected: x === z }, x.name)));
+    const pos = M.zeilen.indexOf(z);
+    filter(
+        h('button', { class: 'chip', type: 'button', 'aria-label': 'vorherige Person', onclick: () => go('lernende/' + M.zeilen[(pos + M.zeilen.length - 1) % M.zeilen.length].name) }, '←'),
+        sel,
+        h('button', { class: 'chip', type: 'button', 'aria-label': 'nächste Person', onclick: () => go('lernende/' + M.zeilen[(pos + 1) % M.zeilen.length].name) }, '→'),
+        h('select', { 'aria-label': 'Zu Karte springen', onchange: (e) => { if (e.target.value) go(`lernende/${z.name}/${e.target.value}`); } },
+            h('option', { value: '' }, 'Zu Karte …'),
+            ...SPALTEN.map((s) => h('option', { value: spKey(s) }, s.entwurf ? 'Entwurf A-2.1.2-B' : `${s.kurz} ${s.begriff}`))));
+    wrap.append(h('h1', {}, z.name), h('p', { class: 'lead' }, p.aktiv ? `Zuletzt aktiv: ${zeitTxt(p.aktiv)}` : 'Noch nichts abgegeben.'));
+
+    // Spur über alle Karten
+    const spur = el('div', 'spur');
+    z.zellen.forEach((c, i) => {
+        const sp = SPALTEN[i];
+        let cls = 'z-leer';
+        if (c.stand !== 'leer') {
+            const e = einordnen(c);
+            cls = e.gesichert ? 'z-ok' : c.fragen.some((f) => f.marks.some((m) => m.last === 'fehlt')) ? 'z-no' : c.stand === 'rm' ? 'z-mid' : 'z-ant';
+        }
+        spur.append(h('button', { class: 'zelle ' + cls, type: 'button', title: `${sp.subId}`, style: sp.lektion > K ? 'opacity:.4' : null, onclick: () => go(`lernende/${z.name}/${spKey(sp)}`) }, sp.entwurf ? 'E' : sp.kurz.slice(2)));
+    });
+    const kz = p.zaehl;
+    wrap.append(h('div', { class: 'box', 'data-anker': 'spur' },
+        h('h3', {}, 'Spur über die Karten'), spur,
+        h('div', { class: 'hint' }, 'grün gesichert · gelb unterwegs · rot ein Kriterium fehlt · grau Antwort ohne Rückmeldung · hell nicht begonnen'),
+        h('div', { class: 'legende', style: 'margin:10px 0 0' },
+            h('span', {}, markEl('direkt'), ` ${kz.direkt} direkt erfüllt`), h('span', {}, markEl('verbessert'), ` ${kz.verbessert} nach Rückmeldung erfüllt`),
+            h('span', {}, markEl('besser'), ` ${kz.besser} verbessert`), h('span', {}, markEl('offen'), ` ${kz.offen} offen`))));
+
+    const g = el('div', 'grid2');
+    const off = h('div', { class: 'box' }, h('h3', {}, 'Was die KI zuletzt als fehlend gemeldet hat'));
+    if (!p.offen.length) off.append(h('p', { class: 'leer-hinweis' }, 'Kein Kriterium fehlt.'));
+    else off.append(h('ul', { class: 'offen', style: 'padding-left:18px;margin:0' }, ...p.offen.map((o) => h('li', {},
+        kurzTag(SPALTEN[o.i]), h('b', {}, o.label), h('span', { class: 'hint' }, ` (${qKurz(SPALTEN[o.i].fragen[o.j])})`),
+        o.hinweis ? h('div', { class: 'hint', style: 'color:var(--ink2)' }, 'Rückmeldung: ', o.hinweis) : null))));
+    const nb = h('div', { class: 'box' }, h('h3', {}, 'Fällig, nicht begonnen'));
+    if (!p.faelligLeer.length) nb.append(h('p', { class: 'leer-hinweis' }, 'Nichts.'));
+    else nb.append(h('div', {}, ...p.faelligLeer.map((i) => h('button', { class: 'chip', type: 'button', onclick: () => go('karte/' + spKey(SPALTEN[i])) }, kurzTag(SPALTEN[i]), SPALTEN[i].begriff, h('span', { class: 'hint' }, ' L' + SPALTEN[i].lektion)))));
+    const pa = D.paste.filter((x) => x.uid === z.uid);
+    if (pa.length) nb.append(h('h3', { style: 'margin-top:12px' }, 'Einfüge-Hinweise'), h('p', { class: 'hint', style: 'margin:-4px 0 6px' }, 'Text wurde eingefügt oder sehr schnell geschrieben. Ein Hinweis, kein Beweis.'),
+        ...pa.map((x) => h('div', { class: 'hint', style: 'color:var(--ink2)' }, `${x.questionId}: ${x.kind === 'bulk' ? 'ein Block' : 'sehr schnell'}, ${x.chars} Zeichen`)));
+    g.append(off, nb);
+    g.dataset.anker = 'offen';
+    wrap.append(g);
+
+    // Karten im Detail
+    const pasteBy = new Set(pa.map((x) => x.questionId));
+    z.zellen.forEach((c, i) => {
+        const sp = SPALTEN[i];
+        const offen = kurz === spKey(sp);
+        const leer = c.stand === 'leer';
+        const d = h('details', { class: 'karte', open: offen ? true : null, id: 'k-' + spKey(sp), 'data-anker': 'k-' + spKey(sp), style: leer ? 'opacity:.7' : null },
+            h('summary', {}, kurzTag(sp), h('b', {}, sp.entwurf ? 'Entwurf A-2.1.2-B' : sp.begriff), h('span', {}, ...c.fragen.map((f) => h('span', { class: 'q', style: 'margin-left:6px' }, ...(f.marks.length ? f.marks.map((m) => markEl(m.mark)) : [el('span', f.beantwortet ? 'tok-antwort' : 'tok-leer', f.beantwortet ? '✎' : '·')])))),
+                h('span', { class: 'rest' }, leer ? (sp.lektion > K ? `ab Lektion ${sp.lektion}` : 'nicht begonnen') : einordnen(c).gesichert ? 'gesichert' : '')));
+        const inn = el('div', 'in');
+        sp.fragen.forEach((f, j) => {
+            const r = c.fragen[j];
+            const fb = h('div', { class: 'frage', 'data-anker': `k-${spKey(sp)}-${j}` }, h('div', {}, h('span', { class: 'qid' }, f.id), pasteBy.has(f.id) ? h('span', { class: 'paste', title: 'Einfüge-Hinweis' }, '⎘ eingefügt') : null), h('div', { class: 'qtext' }, f.text));
+            if (!r.beantwortet) { fb.append(h('div', { class: 'antwort keine' }, 'Keine Antwort')); inn.append(fb); return; }
+            const erste = r.attempts.length > 1 ? ersteFassung(z.uid, sp.subId, f.id) : null;
+            if (erste) fb.append(h('div', { class: 'vergleich' },
+                h('div', {}, h('div', { class: 'h' }, ERSTE_FASSUNG), h('div', { class: 'antwort' }, erste)),
+                h('div', {}, h('div', { class: 'h' }, 'Nach der Rückmeldung überarbeitet'), h('div', { class: 'antwort' }, r.antwort))));
+            else fb.append(h('div', { class: 'antwort' }, r.antwort));
+            if (!r.attempts.length) fb.append(h('p', { class: 'hint' }, 'Keine Rückmeldung geholt.'));
+            r.attempts.forEach((a, n) => {
+                const v = h('div', { class: 'versuch' }, h('div', { class: 'vk' }, `${n + 1}. KI-Rückmeldung · ${zeitTxt(a.at)}`));
+                const ul = el('ul');
+                for (const k of a.result.kriterien) {
+                    const vorher = n > 0 ? r.attempts[n - 1].result.kriterien.find((x) => x.id === k.id) : null;
+                    ul.append(h('li', {},
+                        vorher && vorher.status !== k.status ? h('span', { class: 'st st-' + vorher.status }, STATUS[vorher.status].icon, ' → ') : null,
+                        h('span', { class: 'st st-' + k.status }, `${STATUS[k.status].icon} ${STATUS[k.status].text}`),
+                        h('span', { class: 'lbl' }, k.label), k.hinweis,
+                        k.beleg ? h('div', { class: 'beleg' }, `«${k.beleg}»`) : null));
+                }
+                v.append(ul);
+                fb.append(v);
+            });
+            inn.append(fb);
+        });
+        d.append(inn);
+        wrap.append(d);
+    });
+    wrap.ziel = kurz ? 'k-' + kurz : null;
+    return wrap;
+}
+
+// ---- Auswahlleiste im Kopf ----
+function filter(...kids) { $('filterbar').replaceChildren(...kids); }
+
+// ---- Position halten ----
+// Vor dem Neuzeichnen: welcher Abschnitt steht oben unter dem Kopf, wie weit, und welche
+// Aufklapper sind offen. Danach steht derselbe Abschnitt wieder an derselben Stelle,
+// auch wenn eine andere Person, Karte oder Lektion gewählt ist.
+const kopfHoehe = () => $('kopf').getBoundingClientRect().bottom;
+function positionMerken() {
+    const hh = kopfHoehe();
+    let anker = null;
+    for (const e of document.querySelectorAll('#main [data-anker]')) {
+        if (!e.getClientRects().length) continue;              // in einem zugeklappten Teil
+        const t = e.getBoundingClientRect().top;
+        if (t <= hh + 4) anker = { id: e.dataset.anker, off: t };
+    }
+    const offen = new Set([...document.querySelectorAll('#main details[data-anker]')].filter((d) => d.open).map((d) => d.dataset.anker));
+    return { anker, offen, y: scrollY };
+}
+function positionHerstellen(pos) {
+    for (const d of document.querySelectorAll('#main details[data-anker]')) d.open = pos.offen.has(d.dataset.anker);
+    const e = pos.anker && document.querySelector(`#main [data-anker="${CSS.escape(pos.anker.id)}"]`);
+    if (!e) { scrollTo(0, pos.anker ? pos.y : 0); return; }
+    for (let p = e.parentElement; p; p = p.parentElement) if (p.tagName === 'DETAILS') p.open = true;
+    scrollBy(0, e.getBoundingClientRect().top - pos.anker.off);
+}
+function zuZiel(id) {
+    const e = document.querySelector(`#main [data-anker="${CSS.escape(id)}"]`);
+    if (!e) return;
+    if (e.tagName === 'DETAILS') e.open = true;
+    for (let p = e.parentElement; p; p = p.parentElement) if (p.tagName === 'DETAILS') p.open = true;
+    e.scrollIntoView({ block: 'start' });
+}
+
+// ---- Router ----
+let SICHT = null;
+function go(pfad) {
+    const ziel = '#' + pfad.split('/').map(encodeURIComponent).join('/');
+    if (location.hash === ziel) zeigen(); else location.hash = ziel;
+}
+// halten = true: Lektion gewechselt, Ziel aus der Adresse nicht erneut anspringen.
+function zeigen(halten) {
+    const teile = location.hash.slice(1).split('/').map(decodeURIComponent);
+    const v = ['klasse', 'matrix', 'karte', 'lernende'].includes(teile[0]) ? teile[0] : 'klasse';
+    document.querySelectorAll('nav.tabs a').forEach((a) => a.classList.toggle('on', a.dataset.v === v));
+    const pos = SICHT === v ? positionMerken() : null;
+    filter();
+    const inhalt = v === 'matrix' ? sichtMatrix() : v === 'karte' ? sichtKarte(teile.slice(1)) : v === 'lernende' ? sichtLernende(teile.slice(1)) : sichtKlasse();
+    $('main').replaceChildren(inhalt);
+    document.documentElement.style.setProperty('--hh', $('kopf').offsetHeight + 'px');
+    SICHT = v;
+    if (inhalt.ziel && halten !== true) zuZiel(inhalt.ziel);
+    else if (pos) positionHerstellen(pos);
+    else scrollTo(0, 0);
+}
+function stand() {
+    if (!DATEN) return;
+    K = Number($('zeit').value);
+    $('zeitTxt').textContent = String(K);
+    laden();
+    zeigen(SICHT !== null);   // beim ersten Aufruf das Ziel aus der Adresse anspringen
+}
+const fehler = (e) => { console.error(e); melden(`Lesen fehlgeschlagen (${e?.code || e?.message || e}).`); };
+$('zeit').addEventListener('input', () => { ls.set(lektionKey(KLASSE), $('zeit').value); stand(); });
+$('klasse').addEventListener('change', () => klasseLaden().catch(fehler));
+$('neu').addEventListener('click', () => klasseLaden().catch(fehler));
+addEventListener('hashchange', () => { if (M) zeigen(); });
+addEventListener('resize', () => document.documentElement.style.setProperty('--hh', $('kopf').offsetHeight + 'px'));
+
+// ---- Anmeldung (wie dashboard/modules/auth.js) ----
+const LOGIN_FEHLER = {
+    'auth/invalid-credential': 'Benutzername oder Passwort ist falsch.',
+    'auth/wrong-password': 'Benutzername oder Passwort ist falsch.',
+    'auth/user-not-found': 'Benutzername oder Passwort ist falsch.',
+    'auth/invalid-email': 'Benutzername oder Passwort ist falsch.',
+    'auth/user-disabled': 'Dieses Konto ist gesperrt.',
+    'auth/too-many-requests': 'Zu viele Versuche. Bitte warten Sie einen Moment.',
+    'auth/network-request-failed': 'Keine Verbindung. Bitte prüfen Sie Ihr Internet.',
+};
+$('umgebung').textContent = emulator ? 'Lokale Seite: verbunden mit den Firebase-Emulatoren. Echte Daten nur mit ?live=1.' : '';
+$('login-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    $('login-status').textContent = '';
+    $('login-btn').disabled = true;
+    try { await signIn($('login-user').value, $('login-pass').value); }
+    catch (e) { $('login-status').textContent = LOGIN_FEHLER[e?.code] || 'Anmeldung fehlgeschlagen.'; $('login-btn').disabled = false; }
+});
+$('abmelden').addEventListener('click', () => signOut());
+let drin = false;
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        if (drin) { location.reload(); return; }
+        $('login').hidden = false; $('boxctl').hidden = true; $('zeitwahl').hidden = true;
+        $('main').replaceChildren(); $('login-btn').disabled = false;
+        return;
+    }
+    let lehrperson = false;
+    try { lehrperson = (await user.getIdTokenResult()).claims.role === 'teacher'; } catch { /* kein Token: kein Zugang */ }
+    if (!lehrperson) {
+        $('login').hidden = false;
+        $('login-status').textContent = 'Kein Zugang: Dieses Konto ist kein Lehrpersonen-Konto. Sie wurden wieder abgemeldet.';
+        await signOut();
+        return;
+    }
+    if (drin) return;
+    drin = true;
+    $('login').hidden = true; $('boxctl').hidden = false; $('login-pass').value = '';
+    try { await rosterLaden(); } catch (e) { fehler(e); }
+});
+
+</script>
+</body>
+</html>

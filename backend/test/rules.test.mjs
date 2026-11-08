@@ -82,6 +82,7 @@ before(async () => {
     await admin.doc(`assignments/${enc(ASSIGNMENT)}`).set({ assignmentId: ASSIGNMENT, assignmentTitle: 'Test' });
     await admin.doc(`publicAssignments/${enc(ASSIGNMENT)}`).set(publicCopy({ assignmentId: ASSIGNMENT, assignmentTitle: 'Test', solution_keys: ['geheim'], subAssignments: { [SUB]: { type: 'quill', questions: [{ id: 'q1', text: 'Frage' }], solution: { q1: 'geheim' } } } }));
     await admin.doc('somethingElse/x').set({ a: 1 });
+    await admin.doc('klassenanalysen/TestA__x__y').set({ classId: 'TestA', assignmentId: 'x', subId: 'y', state: 'fertig', analyse: { lage: 'L' } });
     // The roster lives in `(default)`. Fictional entries.
     const roster = adminFirestore(adminApp);
     for (const uid of ['alice', 'bob']) {
@@ -464,6 +465,21 @@ test('a forged role that is not exactly "teacher" grants nothing', async () => {
     await assertFails(getDocs(collection(fake, 'drafts')));
     await assertFails(setDoc(doc(fake, 'assignments', 'x'), { assignmentId: 'x' }));
     await assertFails(getDoc(doc(fake, 'assignments', enc(ASSIGNMENT))));
+});
+
+// ---- klassenanalysen: teachers read, only the function writes ---------------
+
+test('klassenanalysen: teacher gets and lists, nobody writes, students and guests read nothing', async () => {
+    await assertSucceeds(getDoc(doc(teacher, 'klassenanalysen', 'TestA__x__y')));
+    await assertSucceeds(getDocs(collection(teacher, 'klassenanalysen')));
+    await assertFails(setDoc(doc(teacher, 'klassenanalysen', 'TestA__x__y'), { state: 'laeuft' }));
+    await assertFails(deleteDoc(doc(teacher, 'klassenanalysen', 'TestA__x__y')));
+    const fake = client(tok('mallory2', { role: 'Teacher' }));
+    for (const who of [alice, bob, outsider, anonSession, anon, fake]) {
+        await assertFails(getDoc(doc(who, 'klassenanalysen', 'TestA__x__y')));
+        await assertFails(getDocs(collection(who, 'klassenanalysen')));
+        await assertFails(setDoc(doc(who, 'klassenanalysen', 'TestA__neu__y'), { state: 'fertig' }));
+    }
 });
 
 // ---- teacher -----------------------------------------------------------------

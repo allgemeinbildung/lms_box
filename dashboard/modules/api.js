@@ -135,12 +135,16 @@ function shapeOf(data) {
     const subs = data?.subAssignments && typeof data.subAssignments === 'object' ? data.subAssignments : {};
     return {
         title: String(data?.assignmentTitle ?? ''),
+        klassenanalyse: data?.klassenanalyse === true,
         subs: Object.entries(subs).map(([subId, sub]) => ({
             subId,
             questions: (Array.isArray(sub?.questions) ? sub.questions : []).map((q) => ({
                 id: String(q?.id ?? ''),
                 text: String(q?.text ?? '').slice(0, 120),
                 formativ: flag(q?.formativ) ?? flag(sub?.formativ) ?? flag(data?.formativ) ?? false,
+                // criterion labels of an own rubric (for the class analysis); no expectations, no solution
+                kriterien: Object.fromEntries((Array.isArray(q?.formativ?.rubrik) ? q.formativ.rubrik : [])
+                    .filter((k) => k && typeof k.id === 'string').map((k) => [k.id, String(k.label ?? k.id).slice(0, 120)])),
             })),
         })),
     };

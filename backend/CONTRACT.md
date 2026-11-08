@@ -25,6 +25,7 @@ draftDoc      = `${uid}__${enc(assignmentId)}__${enc(subId)}`
 pairDoc       = `${uid}__${enc(assignmentId)}`
 pasteDoc      = `${uid}__${enc(assignmentId)}__${enc(subId)}__${eventId}`   // eventId: [A-Za-z0-9]{8,40}, made by the page
 quizDoc       = `${uid}__${enc(unit)}`
+analyseDoc    = `${enc(classId)}__${enc(assignmentId)}__${enc(subId)}`        // class ids are [A-Za-z0-9-], enc() leaves them as they are
 mapDoc        = `${uid}__${enc(mapId)}`
 ```
 
@@ -47,6 +48,7 @@ Sub-assignment keys contain dots (`"A. Grundsätze …"`). Documents holding the
 | `quizProgress/{quizDoc}` | `uid, unit, last{known, total, date}, hard[], updatedAt` — the self-test («Kurztest») at the end of a unit on lehrmittel.aburossi.ch: result of the last complete run (`date` an ISO string from the device clock) and the terms marked «Nochmals» in that run | get/create/update/delete own only | none |
 | `mindmapDrafts/{mapDoc}` | `uid, mapId, nodes, updatedAt` — the student's own branches on a mindmap of `allgemeinbildung.github.io/mindmap` (see «Mindmap editor») | get/create/update own only | none |
 | `teacherMaterials/{enc(einheitId)}` | the teacher material of one E-B unit for the preparation page (see «Teacher materials»): `einheitId, assignmentId, generiertAm, lehrpersonKarten, hpTeacher, vollfassung, uploadedAt` — with model answers, rubrics and teacher notes | none | read |
+| `klassenanalysen/{analyseDoc}` | the KI-Klassenanalyse of one card for one class (see «Class analysis»): `classId, assignmentId, subId, state, analyse{…}, basis{klassengroesse, begonnen, abgeschlossen}, modell, model_version, tokens{eingabe, ausgabe, denken, gesamt}, response_id, erstellt, dauer_ms, verworfen{…}, gestartet, laeuft_seit, ausloeser, ausgeloest_von, fehler` — students only as uids | none | read |
 | `pasteEvents/{pasteDoc}` | `uid, assignmentId, subId, questionId, kind, chars, excerpt, at` — `kind` one of `paste` (a paste got past the block), `drop` (text dragged in), `bulk` (one change inserted ≥ 40 characters), `fast` (≥ 60 characters in under 3 s, faster than typing); `chars` the number of characters inserted; `excerpt` the first 300 of them | create own only | read |
 
 Rules that must hold:
@@ -61,6 +63,7 @@ Rules that must hold:
 - `quizProgress` carries no name and no class, and the direction of the test (`mode`) is not stored: it stays in the browser.
 - `mindmapDrafts`: the document id must start with `request.auth.uid + "__"` **and** `uid` must equal `request.auth.uid`; written only by a password sign-in with `@lernende.bbw.ch`, `updatedAt` is the server time, `mapId` cannot change on update. No `list`, no delete (an empty map is saved as an empty `add` list). No teacher access for now: a teacher view is a decision of its own (like `quizProgress`).
 - `publicAssignments` is written only by `scripts/upload-assignments.mjs` (Admin SDK), in the same batch as `assignments`. Anyone may `get` a document; nobody may `list` the collection or write to it.
+- `klassenanalysen`: `get` and `list` only with `role == "teacher"`. Nobody writes through the rules; only the functions `boxKlassenanalyse` and `boxKlassenanalyseAuto` write (Admin SDK).
 - `teacherMaterials`: `get` and `list` only with `role == "teacher"`. Students (also via single sign-on), guests and anonymous sessions read nothing. Nobody writes through the rules; only `scripts/upload-teacher-materials.mjs` (Admin SDK) writes.
 - Everything not listed is denied.
 
@@ -142,6 +145,7 @@ teacherMaterials/{enc(einheitId)}       // einheitId e.g. "EB-5.1.1"
 |---|---|---|
 | `boxFormativ` | `{ assignmentId, subId, questionId, text }` | `{ status: 'success', result }` as `formativ.requestFeedback` returns; errors as `HttpsError` with `details: { code, result? }` (code table: comment in `functions/index.js`) |
 | `boxFormativStatus` | `{ assignmentId }` | `{ slots, max }` as `formativ.status` returns (see below) |
+| `boxKlassenanalyse` | `{ classId, assignmentId, subId }` | `{ status: 'fertig', id, basis }` once the analysis is stored; teachers only (see «Class analysis») |
 
 Both require a signed-in caller whose `students/{uid}` doc exists in `(default)` and is `active !== false`. The rubric and solution are loaded on the server from `assignments`; the client only names the field and sends the text. The model request carries no name and no uid — only the pseudonym.
 
@@ -203,6 +207,38 @@ Since 30.10.2026 (branch `liveview-uebersicht`, not deployed): the Live View ope
 - **Drill-down.** A column header or a cell sets `#assignment-select` (the dropdown stays in the page as the state of the detail view, visually hidden) and the existing detail view renders; a cell also opens that student's card. The detail view shows, per question, «n Rückmeldungen geholt · Spur: …» above the feedback texts. «← Übersicht» returns.
 - Names (roster, runtime), assignment ids, titles and question texts go into the DOM as text only. Nothing is stored; nothing is sent anywhere.
 - Test: `npm run test:e2e:uebersicht`.
+
+## Class analysis (`klassenanalysen`, `functions/klassenanalyse.js`)
+
+Since 08.11.2026 (Spielfeld pilot, not deployed): a Gemini model reads the answers of one card (= one sub-assignment) of one class and writes an analysis for the teacher — patterns, groups, individual students, a check of the formativ feedback, what works. A stronger model than the one that gives students feedback. No grade, no ranking, no judgement of persons (forbidden in the prompt).
+
+**Completed.** A student completed a card when every question of the sub-assignment has a non-empty answer (`istAntwort`: a string, not blank, not `<p><br></p>`), with or without feedback. Counted over the uids of the class roster (`students` with `classIds` containing the class, or `classId` when `classIds` is empty), never over the `classId` a draft carries.
+
+**When it runs.**
+
+- Automatically (`boxKlassenanalyseAuto`, Firestore trigger `onDocumentWritten` on `drafts/{id}` of `lmsbox`, `europe-west6`), only for assignments with `klassenanalyse: true` in the content (set by spielfeld's `render/export_lmsbox.py` for «Spielfeld 2.1»). A draft write that leaves its card completed starts a check for each class of the student (roster): at 5 completed, then again at 8, 11, 14 … (`stufe(n)` must be higher than at the last analysis), at most once per card and 10 minutes. A threshold reached inside the 10 minutes is taken by the next completed draft write after them.
+- By the teacher (`boxKlassenanalyse`, callable, claim `role == "teacher"`, otherwise `permission-denied`): «Klassenanalyse erstellen» / «Neu analysieren» for any assignment, from 5 completed (`failed-precondition` / `zu_wenige` below), not twice within a minute (`pause`).
+- Lock: a transaction sets `state: 'laeuft'`; while a run is going (younger than 6 minutes) no other starts (`aborted` / `laeuft`). Afterwards `state: 'fertig'` with the analysis, or `state: 'fehler'` with `fehler{code, at}` — the previous analysis then stays.
+
+**What goes to the model** (Gemini API, key in the secret `GEMINI_API_KEY`, model in the parameter `KLASSENANALYSE_MODELL`, default `gemini-3.1-pro-preview`; JSON with `responseSchema`, temperature 0.2):
+
+- the card: its title (the `subId`), and from the rubric's `kontext` (spielfeld's briefing) the sections THEMA, KERN, GESICHERTE FAKTEN, the model answer (SICHTWEISEN) and LEICHT VERWECHSELT; without `kontext` the model answer from `solution`;
+- per question: text and rubric (`id, label, erwartung, niveau`);
+- class counts: size, started, completed;
+- per student who completed the card: a pseudonym `L01` … — shuffled anew for every run — and per question the current answer as plain text (at most 1500 characters), the number of feedbacks, per criterion the status of the first and of the latest feedback, and the hint of the latest.
+- **Never:** names, uids, e-mail addresses, `classId`, timestamps, `pasteEvents`, other cards, formativ's pseudonym. Every name part (≥ 3 letters) of every student of the class is replaced by `[Name]` in answers and hints before sending. The mapping pseudonym → uid stays in the function.
+
+**What comes back** (German, «Sie» to the teacher): `lage` (2–3 sentences); `muster` (≤ 4: `titel, beschreibung, kriterien[] ("<questionId>/<criterionId>"), fragen[], lernende[], belege[{lernende, zitat}], plenum_impuls`); `gruppen` (≤ 3: `ziel, lernende[], auftrag`); `einzelne` (≤ 6: `lernende, beobachtung, naechster_schritt`); `rueckmeldung_check` (`lernende, frage, kriterium, problem: zu_mild | zu_streng | irrefuehrend | loesung_verraten, begruendung`); `gelungen` (≤ 4: `beschreibung, lernende[]`). Checked in the function before it is stored: a pseudonym that was not in the input is dropped (an element that names only such a person is dropped whole); a quote must stand verbatim (whitespace aside) in that person's answer and be at most 120 characters, otherwise the quote is dropped; unknown question or criterion ids are dropped. The counts go to `verworfen`. Pseudonyms become uids; a pseudonym in free text becomes `{{uid:<uid>}}`, which the pages show as the roster name.
+
+**Cost.** `model_version`, `tokens` and `response_id` are stored with every analysis so that `scripts/kosten-bericht.mjs` can count them later (not yet read there). Measured 08.11.2026 with a fictional class (20 students, 3 questions, `gemini-3.1-pro-preview`): 14 300 input, 2 000 output and 5 600 thinking tokens, 51 s.
+
+**Pages.** `dashboard/modules/klassenanalyse.js` draws the analysis for both teacher pages and starts the callable; all text goes in as text. `dashboard/spielfeld.html`: class view one compact box per due card above «Im Plenum aufgreifen», card view the whole analysis on top; below the threshold «Analyse ab 5 Abgeschlossenen (x/5)». `dashboard/liveview.html`: a panel above the detail view for the chosen assignment, with a choice of sub-assignment.
+
+Tests: `npm run test:klassenanalyse` (fake model, no emulator); the rule in `test/rules.test.mjs`; emulator walk-through: `functions/test/fake-gemini.js` on port 5149 (`GEMINI_BASE_URL` in `functions/.env.local`, read only under the emulator) and `scripts/seed-spielfeld.mjs`.
+
+## Spielfeld liveview (`dashboard/spielfeld.html`)
+
+Generated, not edited by hand: `python render/build_liveview_demo.py data/lb_2_1.json --box <lms_box app>` in the repo spielfeld (same logic as the simulation on spielfeld.web.app/liveview). Teacher sign-in through `js/api.js` (claim `role == "teacher"`), class from the roster, then reads `drafts` (`uid in` the roster's uids and `assignmentId`), `formativUsage` and `pasteEvents` (same filter), `assignments/{doc}` (only for `klassenanalyse`) and `klassenanalysen`. Writes nothing except through `boxKlassenanalyse`. «Wir sind in Lektion k» is kept per class in `localStorage` and steers «fällig», «Abholen» and «Bereit»; the data always show the current state («Neu laden»). No grades, no ranking.
 
 ## Cost report (`scripts/kosten-bericht.mjs`, teacher only, local)
 

@@ -1,4 +1,4 @@
-// LMS Box — callable functions for formative feedback (codebase `lmsbox`, europe-west6).
+// LMS Box — callable functions for formative feedback and the class analysis (codebase `lmsbox`, europe-west6).
 // Binding spec: ../CONTRACT.md, "Callable functions". Logic: ./formativ.js.
 //
 // Deploy only with a target:  firebase deploy --only functions:lmsbox
@@ -7,7 +7,9 @@ const { defineString, defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
+const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 const formativ = require('./formativ');
+const klassenanalyse = require('./klassenanalyse');
 
 // Set at deploy time, never in code (the repo is public).
 const FORMATIV_URL = defineString('FORMATIV_URL', {
@@ -151,6 +153,82 @@ exports.boxSsoToken = onCall(
         }
         const token = await getAuth(app).createCustomToken(uid, { lmsboxSso: true });
         return { token };
+    },
+);
+
+/*
+ * KI-Klassenanalyse (CONTRACT.md, «Class analysis»). Callable for the teacher and a trigger
+ * on drafts that starts it on its own at 5, 8, 11 … completed students, for assignments with
+ * `klassenanalyse: true`. Logic: ./klassenanalyse.js.
+ *
+ *   code        HttpsError status
+ *   forbidden   permission-denied    (no teacher claim)
+ *   bad_request invalid-argument
+ *   not_found   not-found            (assignment, card or class unknown)
+ *   zu_wenige   failed-precondition  (fewer than 5 completed)
+ *   laeuft      aborted              (a run for this card is going)
+ *   pause       resource-exhausted   (started less than a minute ago)
+ *   not_configured, unavailable, unusable  unavailable
+ *   quota       resource-exhausted
+ */
+const GEMINI_API_KEY = defineSecret('GEMINI_API_KEY');
+const KLASSENANALYSE_MODELL = defineString('KLASSENANALYSE_MODELL', {
+    default: 'gemini-3.1-pro-preview', description: 'Gemini model of the class analysis (a Pro model; prices: scripts/kosten-preise.json).',
+});
+const ANALYSE_STATUS = {
+    not_found: 'not-found', zu_wenige: 'failed-precondition', laeuft: 'aborted', pause: 'resource-exhausted',
+    not_configured: 'unavailable', unavailable: 'unavailable', unusable: 'unavailable', quota: 'resource-exhausted',
+};
+
+function analyseDeps() {
+    return klassenanalyse.firestoreDeps({
+        rosterDb, boxDb,
+        gemini: {
+            apiKey: GEMINI_API_KEY.value(), model: KLASSENANALYSE_MODELL.value(),
+            // Emulator only: a local stand-in for Gemini (test/fake-gemini.js). Ignored in the cloud.
+            ...(process.env.FUNCTIONS_EMULATOR === 'true' && process.env.GEMINI_BASE_URL ? { baseUrl: process.env.GEMINI_BASE_URL } : {}),
+        },
+    });
+}
+
+/** The caller must carry the custom claim role == "teacher" (as the rules' isTeacher()). */
+function teacher(request) {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.', { code: 'unauthenticated' });
+    if (request.auth.token?.role !== 'teacher') {
+        throw new HttpsError('permission-denied', 'Nur für Lehrpersonen.', { code: 'forbidden' });
+    }
+    return request.auth.uid;
+}
+
+exports.boxKlassenanalyse = onCall(
+    { region: REGION, maxInstances: 5, timeoutSeconds: 300, memory: '512MiB', secrets: [GEMINI_API_KEY] },
+    async (request) => {
+        const uid = teacher(request);
+        const { classId, assignmentId, subId } = request.data || {};
+        checkIds({ assignmentId, subId });
+        if (typeof classId !== 'string' || !classId || classId.length > 100 || !assignmentId || !subId) {
+            throw badRequest("'boxKlassenanalyse' braucht classId, assignmentId und subId.");
+        }
+        try {
+            return await klassenanalyse.analysieren({ classId, assignmentId, subId, modus: 'manuell', ausgeloest_von: uid }, analyseDeps());
+        } catch (e) {
+            if (e instanceof klassenanalyse.AnalyseFehler) {
+                throw new HttpsError(ANALYSE_STATUS[e.code] || 'internal', e.message, { code: e.code });
+            }
+            throw e;
+        }
+    },
+);
+
+exports.boxKlassenanalyseAuto = onDocumentWritten(
+    {
+        document: 'drafts/{draftId}', database: 'lmsbox', region: REGION,
+        maxInstances: 5, timeoutSeconds: 300, memory: '512MiB', secrets: [GEMINI_API_KEY], retry: false,
+    },
+    async (event) => {
+        const after = event.data?.after?.exists ? event.data.after.data() : null;
+        const out = await klassenanalyse.beiDraft(after, analyseDeps());
+        for (const r of out) if (r.status !== 'uebersprungen') console.log('klassenanalyse', r.status, r.code || '', r.id);
     },
 );
 

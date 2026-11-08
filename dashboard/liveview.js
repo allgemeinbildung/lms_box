@@ -4,7 +4,8 @@
 // ────────────────────────────────────────────────────────────────
 //
 import { state, setDraftsMap } from './modules/state.js';
-import { listDrafts, fetchDraftContent, watchClass } from './modules/api.js';
+import { listDrafts, fetchDraftContent, watchClass, getClassOverviewData } from './modules/api.js';
+import { analysePanel } from './modules/klassenanalyse.js';
 import { initAuth } from './modules/auth.js';
 import { renderLiveGrid } from './modules/renderer.js';
 import { setupAnalysisExport, setupRawDownload } from './modules/exporter.js';
@@ -258,6 +259,16 @@ document.addEventListener('DOMContentLoaded', () => {
         overview.classReady();
     });
 
+    // --- KI-Klassenanalyse of the chosen assignment (CONTRACT.md, «Class analysis») ---
+    const kaPanel = document.getElementById('ka-panel');
+    const panelZeichnen = (cls, assId) => {
+        const data = getClassOverviewData(cls);
+        if (!kaPanel || !data) return;
+        analysePanel(kaPanel, {
+            classId: cls, assignmentId: assId, members: data.members, drafts: data.drafts, shape: data.shapes.get(assId),
+        }).catch((e) => console.error('[klassenanalyse]', e));
+    };
+
     // --- Render Trigger ---
     const runRender = () => enqueueRender(async () => {
         const cls = classSelect.value;
@@ -270,6 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 bulkAssessBtn
             });
             updateTitle();
+            panelZeichnen(cls, assId);
         }
     });
 

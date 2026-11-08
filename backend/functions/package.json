@@ -1,13 +1,13 @@
 {
   "name": "lmsbox-functions",
   "private": true,
-  "description": "LMS Box callables boxFormativ / boxFormativStatus (codebase lmsbox). CommonJS. See ../CONTRACT.md.",
+  "description": "LMS Box callables boxFormativ / boxFormativStatus / boxSsoToken / boxKlassenanalyse (+ trigger) (codebase lmsbox). CommonJS. See ../CONTRACT.md.",
   "main": "index.js",
   "engines": {
     "node": "22"
   },
   "scripts": {
-    "test": "node --test test/formativ.test.js"
+    "test": "node --test test/formativ.test.js test/klassenanalyse.test.js"
   },
   "dependencies": {
     "firebase-admin": "14.5.0",
