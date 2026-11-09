@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Matrix je Kapitel</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--ink:#14213D;--ink2:#3C4A6B;--mute:#7C869C;--line:#E1E5EE;--bg:#F5F6FA;--paper:#FAF6EF;--m:#1F3A93;
+--ok:#2A9D8F;--mid:#E0A82E;--no:#E76F51;--none:#D5DAE4}
+*{box-sizing:border-box}
+html,body{max-width:100%;overflow-x:clip}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg);font-size:14px;line-height:1.45}
+header{background:var(--ink);color:#fff;padding:10px 16px;display:flex;gap:8px 14px;align-items:center;flex-wrap:wrap}
+.brand{font-weight:800;font-size:18px}.brand span{color:#8FA3E0;font-weight:500;font-size:13px;margin-left:6px}
+header select{max-width:260px;font-size:13px;padding:4px 6px}
+.kbtn{border:1px solid #4A5A80;background:transparent;color:#fff;border-radius:8px;padding:4px 10px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.info{color:#C9D1E6;font-size:13px;margin-left:auto}
+main{max-width:1400px;margin:0 auto;padding:14px 16px 30px}
+select{border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font:inherit}
+.meldung{max-width:1400px;margin:10px auto 0;padding:10px 12px;border-left:4px solid var(--no);background:#fff;white-space:pre-wrap}
+.meldung:empty{display:none}
+.lead{color:var(--ink2)}
+.legende{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--ink2);margin:0 0 10px}
+.hm-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:#fff}
+table.hm{border-collapse:separate;border-spacing:0;font-size:12px}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0}
+table.hm thead th{background:#fff;font-weight:600;vertical-align:bottom;padding:6px 6px;text-align:center;min-width:70px;max-width:130px}
+table.hm thead th .k{display:block;font-weight:700;color:#B5541C}
+table.hm thead th .b{display:block;font-weight:500;color:var(--ink2);font-size:11px;white-space:normal;line-height:1.2}
+table.hm .name{position:sticky;left:0;z-index:1;background:#fff;text-align:left;padding:6px 8px;font-weight:600;min-width:110px;white-space:nowrap}
+table.hm thead .name{z-index:2}
+table.hm td button{all:unset;box-sizing:border-box;display:flex;gap:4px;align-items:center;justify-content:center;width:100%;min-height:34px;padding:4px 6px;cursor:pointer;white-space:nowrap}
+table.hm td button:focus-visible{outline:2px solid var(--m);outline-offset:-2px}
+td.leer{background:var(--bg)}td.antwort{background:var(--paper)}td.rm{background:#fff}
+td.sel{box-shadow:inset 0 0 0 2px var(--m)}
+.q{display:inline-flex;gap:1px;align-items:center}.q+.q{border-left:1px solid var(--line);padding-left:4px}
+.dot{font-size:13px;line-height:1}
+.mk-direkt,.mk-verbessert{color:var(--ok)}.mk-besser{color:#B8860B}.mk-offen{color:var(--no)}
+.up{font-size:10px;font-weight:700;vertical-align:super;margin-left:-1px}
+.tok-antwort{color:var(--ink2)}.tok-leer{color:#C3C9D6}
+#detail{margin-top:14px}
+.frage{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}
+.qid{font-family:ui-monospace,Consolas,monospace;font-size:11px;font-weight:700;background:var(--ink);color:#fff;border-radius:4px;padding:1px 6px}
+.qtext{font-weight:600;margin:6px 0 8px}
+.antwort{background:var(--paper);border-radius:8px;padding:10px 12px;white-space:pre-wrap;font-family:Georgia,serif;font-size:14.5px}
+.keine{color:var(--mute);font-style:italic;font-family:inherit;background:var(--bg)}
+.versuch{border-left:3px solid var(--m);background:#F5F8FF;border-radius:0 8px 8px 0;padding:8px 10px;margin-top:8px}
+.versuch ul{margin:6px 0 0;padding-left:0;list-style:none}.versuch li{margin:4px 0;font-size:13px}
+.st{font-weight:600;margin-right:6px}
+.st-erfuellt{color:var(--ok)}.st-teilweise{color:#B8860B}.st-fehlt{color:var(--no)}.st-nicht_beurteilbar{color:var(--mute)}
+#login{max-width:420px;margin:32px auto;background:#fff;border-radius:10px;padding:16px}
+#login label{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin:10px 0 0}
+#login input{display:block;width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-top:4px}
+#login button{margin-top:14px;width:100%;background:var(--ink);padding:9px}
+#login-status{min-height:1.4em;margin-top:8px;color:var(--no);font-size:13px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Matrix <span>je Kapitel</span></div>
+  <span id="ctl" hidden style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <select id="klasse" aria-label="Klasse wählen"><option value="">Klasse wählen …</option></select>
+    <select id="kapitel" aria-label="Kapitel wählen" disabled><option value="">Kapitel wählen …</option></select>
+    <button class="kbtn" id="neu" type="button">Neu laden</button>
+  </span>
+  <span class="info" id="info"></span>
+</header>
+<div class="meldung" id="meldung" role="alert"></div>
+<section id="login" hidden>
+  <h2 style="margin-top:0">Anmelden</h2>
+  <p class="lead">Mit Ihrem Lehrpersonen-Konto, dasselbe wie im Liveview der LMS Box.</p>
+  <form id="login-form" autocomplete="on">
+    <label for="login-user">Benutzername oder E-Mail</label>
+    <input id="login-user" name="username" autocomplete="username" required>
+    <label for="login-pass">Passwort</label>
+    <input id="login-pass" name="password" type="password" autocomplete="current-password" required>
+    <button class="kbtn" id="login-btn" type="submit">Anmelden</button>
+    <div id="login-status" aria-live="polite"></div>
+  </form>
+</section>
+<main id="main"></main>
+
+<script type="module">
+// Matrix Lernende × Teilaufgabe für JEDES Kapitel (Auftrag) einer Klasse, im Stil der Spielfeld-Matrix.
+// Nur lesen: Klassenliste (students), drafts, formativUsage, assignments (nur Lehrperson).
+// Drafts werden über die uids der Klassenliste gesucht, nie über die classId im Draft.
+import { auth, db, rosterDb, emulator, onAuthStateChanged, collection, query, where, getDocs, doc, getDoc } from '../js/firebase.js';
+import { signIn, signOut } from '../js/api.js';
+import { criterionMarks, MARKS } from '../js/formativ-trail.js';
+
+const $ = (id) => document.getElementById(id);
+const IN_LIMIT = 30;
+const enc = encodeURIComponent;
+const slotKey = (subId, qid) => `${subId}::${qid}`;
+const teile = (l) => { const o = []; for (let i = 0; i < l.length; i += IN_LIMIT) o.push(l.slice(i, i + IN_LIMIT)); return o; };
+function h(tag, attrs, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+        if (v == null || v === false) continue;
+        if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v === true ? '' : v);
+    }
+    for (const c of kids.flat()) if (c != null) e.append(c);
+    return e;
+}
+const melden = (t) => { $('meldung').textContent = t || ''; };
+const istAntwort = (a) => typeof a === 'string' && a.trim() !== '' && a !== '<p><br></p>';
+const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+function antwortText(html) {          // Quill-HTML → Text; geht nur als Text ins DOM
+    return String(html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h[1-6]|blockquote|pre)\s*>/gi, '\n')
+        .replace(/<li[^>]*>/gi, '• ').replace(/<[^>]*>/g, '')
+        .replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (m, n) => {
+            const l = n.toLowerCase();
+            if (l in ENT) return ENT[l];
+            const c = l[0] === '#' ? (l[1] === 'x' ? parseInt(l.slice(2), 16) : parseInt(l.slice(1), 10)) : NaN;
+            return Number.isFinite(c) ? String.fromCodePoint(c) : m;
+        }).replace(/\n{3,}/g, '\n\n').trim();
+}
+function attemptsOfUsage(e) {
+    if (!e || typeof e !== 'object' || e.state !== 'done') return [];
+    const fr = Array.isArray(e.frueher) ? e.frueher : [];
+    return [...fr, e].filter((a) => a && typeof a === 'object' && a.result && typeof a.result === 'object')
+        .map((a) => ({ at: a.at ?? null, result: a.result }));
+}
+function markEl(key) {
+    const m = MARKS[key];
+    const s = h('span', { class: 'dot mk-' + key, title: m.text }, m.icon);
+    if (m.up) s.append(h('span', { class: 'up' }, '↑'));
+    return s;
+}
+
+// ---- Daten ----
+let KLASSEN = new Map(), MITGLIEDER = [], DRAFTS = [], USAGE = new Map(), KAPITEL = new Map();
+const ASSIGN = new Map();                    // assignmentId → { spalten } oder null
+
+function klassenAusRoster(docs) {
+    const byClass = new Map();
+    for (const d of docs) {
+        const s = d.data || {};
+        const classes = Array.isArray(s.classIds) && s.classIds.length ? s.classIds : [s.classId];
+        for (const c of classes) {
+            if (!c) continue;
+            if (!byClass.has(c)) byClass.set(c, []);
+            byClass.get(c).push({ uid: d.id, name: String(s.name || s.username || d.id), username: s.username || d.id });
+        }
+    }
+    const out = new Map();
+    for (const [c, ms] of byClass) {
+        const count = new Map();
+        for (const m of ms) count.set(m.name, (count.get(m.name) || 0) + 1);
+        out.set(c, ms.map((m) => ({ uid: m.uid, name: count.get(m.name) > 1 ? `${m.name} (${m.username})` : m.name }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' })));
+    }
+    return out;
+}
+async function rosterLaden() {
+    const snap = await getDocs(collection(rosterDb, 'students'));
+    KLASSEN = klassenAusRoster(snap.docs.map((d) => ({ id: d.id, data: d.data() })));
+    const vorher = $('klasse').value || ls('matrix-klasse') || '';
+    $('klasse').replaceChildren(h('option', { value: '' }, 'Klasse wählen …'),
+        ...[...KLASSEN.keys()].sort((a, b) => a.localeCompare(b, 'de', { numeric: true })).map((c) => h('option', { value: c }, `${c} (${KLASSEN.get(c).length})`)));
+    if (KLASSEN.has(vorher)) $('klasse').value = vorher;
+    await klasseLaden();
+}
+function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
+
+async function klasseLaden() {
+    melden('');
+    const klasse = $('klasse').value;
+    $('main').replaceChildren(); $('kapitel').replaceChildren(h('option', { value: '' }, 'Kapitel wählen …')); $('kapitel').disabled = true;
+    if (!klasse) { $('info').textContent = ''; $('main').append(h('p', { class: 'lead' }, 'Wählen Sie oben eine Klasse.')); return; }
+    ls('matrix-klasse', klasse);
+    MITGLIEDER = KLASSEN.get(klasse) || [];
+    const uids = MITGLIEDER.map((m) => m.uid);
+    $('info').textContent = `${klasse} · lade …`;
+    const drafts = [], usage = new Map(), hinweise = [];
+    try {
+        for (const c of teile(uids)) (await getDocs(query(collection(db, 'drafts'), where('uid', 'in', c)))).forEach((d) => drafts.push(d.data()));
+    } catch (e) { melden(`Die Antworten konnten nicht gelesen werden (${e?.code || e}).`); $('info').textContent = klasse; return; }
+    try {
+        for (const c of teile(uids)) (await getDocs(query(collection(db, 'formativUsage'), where('uid', 'in', c)))).forEach((d) => {
+            const x = d.data();
+            if (x && typeof x.uid === 'string' && typeof x.assignmentId === 'string') usage.set(x.uid + '|' + x.assignmentId, x);
+        });
+    } catch (e) { hinweise.push(`KI-Rückmeldungen nicht lesbar (${e?.code || e})`); }
+    if ($('klasse').value !== klasse) return;
+    DRAFTS = drafts.filter((d) => d && uids.includes(d.uid) && typeof d.assignmentId === 'string' && typeof d.subId === 'string'); USAGE = usage;
+    KAPITEL = new Map();
+    for (const d of DRAFTS) {
+        const k = KAPITEL.get(d.assignmentId) || new Set();
+        k.add(d.uid); KAPITEL.set(d.assignmentId, k);
+    }
+    const ids = [...KAPITEL.keys()].sort((a, b) => a.localeCompare(b, 'de', { numeric: true }));
+    $('kapitel').replaceChildren(h('option', { value: '' }, ids.length ? 'Kapitel wählen …' : 'Noch nichts bearbeitet'),
+        ...ids.map((id) => h('option', { value: id }, `${id} (${KAPITEL.get(id).size})`)));
+    $('kapitel').disabled = !ids.length;
+    $('info').textContent = `${klasse} · ${MITGLIEDER.length} Lernende · ${ids.length} Kapitel bearbeitet · Stand ${new Date().toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}`;
+    if (hinweise.length) melden(hinweise.join(' · ') + '. Der Rest wird angezeigt.');
+    const vk = ls('matrix-kapitel:' + klasse);
+    if (vk && ids.includes(vk)) { $('kapitel').value = vk; await kapitelZeigen(); }
+    else $('main').append(h('p', { class: 'lead' }, ids.length ? 'Wählen Sie oben ein Kapitel. Genannt sind nur Kapitel, die diese Klasse bearbeitet hat (in Klammern: Lernende mit Antworten).' : 'Diese Klasse hat noch kein Kapitel bearbeitet.'));
+}
+
+async function auftragLaden(id) {
+    if (ASSIGN.has(id)) return ASSIGN.get(id);
+    let out = null;
+    try {
+        const d = (await getDoc(doc(db, 'assignments', enc(id)))).data();
+        const subs = d && typeof d.subAssignments === 'object' ? d.subAssignments : null;
+        if (subs) out = { spalten: Object.entries(subs).map(([subId, s]) => ({
+            subId,
+            fragen: (Array.isArray(s?.questions) ? s.questions : []).filter((q) => q && typeof q.id === 'string').map((q) => ({
+                id: q.id, text: String(q.text || '').replace(/\*\*/g, ''),
+                kriterien: Object.fromEntries((Array.isArray(q.formativ?.rubrik) ? q.formativ.rubrik : []).filter((r) => r && r.id).map((r) => [r.id, r.label || r.id])),
+            })),
+        })).filter((s) => s.fragen.length) };
+    } catch (e) { melden(`Der Auftrag «${id}» konnte nicht gelesen werden (${e?.code || e}).`); }
+    ASSIGN.set(id, out);
+    return out;
+}
+
+// ---- Matrix ----
+function zelle(sp, draft, slots) {
+    const amap = new Map((Array.isArray(draft?.answers) ? draft.answers : []).filter((a) => a && typeof a === 'object').map((a) => [a.questionId, a.answer]));
+    const fragen = sp.fragen.map((f) => {
+        const roh = amap.get(f.id), beantwortet = istAntwort(roh);
+        const attempts = attemptsOfUsage(slots && Object.prototype.hasOwnProperty.call(slots, slotKey(sp.subId, f.id)) ? slots[slotKey(sp.subId, f.id)] : null);
+        return { f, beantwortet, antwort: beantwortet ? antwortText(roh) : '', attempts, marks: criterionMarks(attempts) };
+    });
+    const stand = fragen.some((x) => x.attempts.length) ? 'rm' : fragen.some((x) => x.beantwortet) ? 'antwort' : 'leer';
+    return { stand, fragen };
+}
+
+async function kapitelZeigen() {
+    const id = $('kapitel').value;
+    $('main').replaceChildren();
+    if (!id) return;
+    ls('matrix-kapitel:' + $('klasse').value, id);
+    const A = await auftragLaden(id);
+    if (!A) { $('main').append(h('p', { class: 'lead' }, 'Zu diesem Kapitel gibt es keinen Auftrag in der Datenbank (oder er hat keine Fragen).')); return; }
+    const drafts = new Map();                       // uid → subId → draft
+    for (const d of DRAFTS) if (d.assignmentId === id) {
+        if (!drafts.has(d.uid)) drafts.set(d.uid, new Map());
+        drafts.get(d.uid).set(d.subId, d);
+    }
+    const zeilen = MITGLIEDER.map((m) => {
+        const slots = USAGE.get(m.uid + '|' + id)?.slots || null;
+        return { m, zellen: A.spalten.map((sp) => zelle(sp, drafts.get(m.uid)?.get(sp.subId), slots)) };
+    });
+    const t = h('table', { class: 'hm' });
+    t.append(h('thead', {}, h('tr', {}, h('th', { class: 'name', scope: 'col' }, 'Lernende'),
+        ...A.spalten.map((sp, i) => h('th', { scope: 'col', title: sp.subId }, h('span', { class: 'k' }, String(i + 1)), h('span', { class: 'b' }, sp.subId.length > 40 ? sp.subId.slice(0, 38) + '…' : sp.subId))))));
+    const tb = h('tbody');
+    let gewaehlt = null;
+    for (const z of zeilen) {
+        const tr = h('tr', {}, h('th', { class: 'name', scope: 'row' }, z.m.name));
+        z.zellen.forEach((c, i) => {
+            const b = h('button', { type: 'button', 'aria-label': `${z.m.name}, ${A.spalten[i].subId}` });
+            for (const x of c.fragen) {
+                const q = h('span', { class: 'q' });
+                if (x.marks.length) x.marks.forEach((mk) => q.append(markEl(mk.mark)));
+                else if (x.beantwortet) q.append(h('span', { class: 'tok-antwort', title: 'beantwortet, noch keine Rückmeldung' }, '✎'));
+                else q.append(h('span', { class: 'tok-leer' }, '·'));
+                b.append(q);
+            }
+            const td = h('td', { class: c.stand }, b);
+            b.addEventListener('click', () => { gewaehlt?.classList.remove('sel'); gewaehlt = td; td.classList.add('sel'); detail(z.m.name, A.spalten[i], c); });
+            tr.append(td);
+        });
+        tb.append(tr);
+    }
+    t.append(tb);
+    $('main').append(
+        h('div', { class: 'legende' },
+            h('span', {}, h('span', { class: 'dot mk-direkt' }, '●'), ' direkt erfüllt'),
+            h('span', {}, h('span', { class: 'dot mk-verbessert' }, '●'), h('span', { class: 'up mk-verbessert' }, '↑'), ' verbessert'),
+            h('span', {}, h('span', { class: 'dot mk-besser' }, '◐'), h('span', { class: 'up mk-besser' }, '↑'), ' teilweise verbessert'),
+            h('span', {}, h('span', { class: 'dot mk-offen' }, '○'), ' offen'),
+            h('span', {}, '✎ beantwortet, ohne Rückmeldung'), h('span', {}, '· leer'),
+            h('span', {}, 'Ein Zeichen je Kriterium, │ trennt die Fragen. Keine Noten.')),
+        h('div', { class: 'hm-wrap' }, t),
+        h('div', { id: 'detail' }));
+}
+
+const ST = { erfuellt: 'erfüllt', teilweise: 'teilweise', fehlt: 'fehlt', nicht_beurteilbar: 'nicht beurteilbar' };
+function detail(name, sp, c) {
+    const host = $('detail');
+    host.replaceChildren(h('h3', {}, `${name} · ${sp.subId}`));
+    for (const x of c.fragen) {
+        const box = h('div', { class: 'frage' }, h('span', { class: 'qid' }, x.f.id), h('div', { class: 'qtext' }, x.f.text.length > 300 ? x.f.text.slice(0, 298) + '…' : x.f.text),
+            h('div', { class: 'antwort' + (x.beantwortet ? '' : ' keine') }, x.beantwortet ? x.antwort : 'Keine Antwort.'));
+        x.attempts.forEach((a, n) => {
+            const ks = Array.isArray(a.result?.kriterien) ? a.result.kriterien : [];
+            box.append(h('div', { class: 'versuch' }, h('b', {}, `Rückmeldung ${n + 1}`),
+                h('ul', {}, ...ks.map((k) => h('li', {}, h('span', { class: 'st st-' + k.status }, ST[k.status] || String(k.status ?? '')),
+                    h('b', {}, String(k.label || x.f.kriterien[k.id] || k.id)), k.beleg ? ' – ' + String(k.beleg) : '')))));
+        });
+        host.append(box);
+    }
+    host.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ---- Start, Anmeldung ----
+const fehler = (e) => { console.error(e); melden(`Lesen fehlgeschlagen (${e?.code || e?.message || e}).`); };
+$('klasse').addEventListener('change', () => klasseLaden().catch(fehler));
+$('kapitel').addEventListener('change', () => kapitelZeigen().catch(fehler));
+$('neu').addEventListener('click', () => { ASSIGN.clear(); klasseLaden().catch(fehler); });
+const LOGIN_FEHLER = { 'auth/invalid-credential': 'Benutzername oder Passwort ist falsch.', 'auth/wrong-password': 'Benutzername oder Passwort ist falsch.',
+    'auth/user-not-found': 'Benutzername oder Passwort ist falsch.', 'auth/invalid-email': 'Benutzername oder Passwort ist falsch.',
+    'auth/too-many-requests': 'Zu viele Versuche. Bitte warten Sie einen Moment.', 'auth/network-request-failed': 'Keine Verbindung.' };
+$('login-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault(); $('login-status').textContent = ''; $('login-btn').disabled = true;
+    try { await signIn($('login-user').value, $('login-pass').value); }
+    catch (e) { $('login-status').textContent = LOGIN_FEHLER[e?.code] || 'Anmeldung fehlgeschlagen.'; $('login-btn').disabled = false; }
+});
+let drin = false;
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        if (drin) { location.reload(); return; }
+        $('login').hidden = false; $('ctl').hidden = true; $('main').replaceChildren(); $('login-btn').disabled = false; return;
+    }
+    let lehrperson = false;
+    try { lehrperson = (await user.getIdTokenResult()).claims.role === 'teacher'; } catch { /* kein Zugang */ }
+    if (!lehrperson) { $('login').hidden = false; $('login-status').textContent = 'Kein Zugang: kein Lehrpersonen-Konto.'; await signOut(); return; }
+    if (drin) return;
+    drin = true; $('login').hidden = true; $('ctl').hidden = false; $('login-pass').value = '';
+    try { await rosterLaden(); } catch (e) { fehler(e); }
+});
+</script>
+</body>
+</html>

@@ -158,11 +158,11 @@
 <body>
     <nav id="sichten" role="tablist" aria-label="Sichten">
         <button type="button" role="tab" data-sicht="" aria-selected="true">Klassen-Monitor</button>
+        <button type="button" role="tab" data-sicht="matrix" aria-selected="false">Matrix je Kapitel</button>
         <button type="button" role="tab" data-sicht="klasse" aria-selected="false">Klasse</button>
-        <button type="button" role="tab" data-sicht="matrix" aria-selected="false">Matrix</button>
         <button type="button" role="tab" data-sicht="karte" aria-selected="false">Karte</button>
         <button type="button" role="tab" data-sicht="lernende" aria-selected="false">Lernende</button>
-        <span class="sp-info">Klasse, Matrix, Karte, Lernende: Auftrag «Spielfeld 2.1»</span>
+        <span class="sp-info">Matrix: alle bearbeiteten Kapitel · Klasse, Karte, Lernende: nur «Spielfeld 2.1»</span>
     </nav>
     <iframe id="spielfeld-frame" title="Spielfeld-Liveview" loading="lazy"></iframe>
 
@@ -277,10 +277,11 @@
                 tabs.forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.sicht === v)); });
                 document.body.classList.toggle('sicht-spielfeld', v !== '');
                 if (v === '') return;
-                var ziel = 'spielfeld.html#' + (hash || v);
-                if (!frame.getAttribute('src')) frame.src = ziel;
-                else try { frame.contentWindow.location.hash = hash || v; } catch (e) { frame.src = ziel; }
-                try { history.replaceState(null, '', '#' + (hash || v)); } catch (e) { }
+                var ziel = v === 'matrix' ? 'matrix.html' : 'spielfeld.html#' + (hash || v);
+                var seite = ziel.split('#')[0];
+                if ((frame.getAttribute('src') || '').split('#')[0] !== seite) frame.src = ziel;
+                else if (v !== 'matrix') try { frame.contentWindow.location.hash = hash || v; } catch (e) { frame.src = ziel; }
+                try { history.replaceState(null, '', '#' + (v === 'matrix' ? 'matrix' : (hash || v))); } catch (e) { }
             }
             tabs.forEach(function (b) { b.addEventListener('click', function () { waehlen(b.dataset.sicht); }); });
             frame.addEventListener('load', function () {
@@ -288,6 +289,7 @@
                     var d = frame.contentDocument, st = d.createElement('style');
                     st.textContent = 'a.kbtn[href="liveview.html"]{display:none!important}';
                     d.head.appendChild(st);
+                    if (/matrix\.html/.test(frame.src)) return;
                     frame.contentWindow.addEventListener('hashchange', function () {
                         var v = frame.contentWindow.location.hash.slice(1).split('/')[0];
                         tabs.forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.sicht === v)); });
