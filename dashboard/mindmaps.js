@@ -176,7 +176,7 @@ async function run() {
             const { tree, own } = buildTree(skeletons[j], datas[i][j]);
             if (own === 0) { empty.push(label); return; }
             any = true;
-            pages += (styleSelect.value === 'karten' ? renderLearnerUnit : renderLearnerUnitMap)(sheets, {
+            pages += (styleSelect.value === 'karten' ? renderLearnerUnit : (c, o) => renderLearnerUnitMap(c, o, renderLearnerUnit))(sheets, {
                 name: m.name, classId, unitTitle: noteOf(unit), updatedAt: drafts[i][j].updatedAt, tree,
             });
         });

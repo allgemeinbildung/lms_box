@@ -196,7 +196,7 @@ function runs(branches, n) {
  * Appends the sheets of one learner and unit as a real mind map. Returns the number of pages:
  * the fewest (1 to 3) at which the type reaches MAP.minPt, 3 if even that does not.
  */
-export function renderLearnerUnitMap(container, { name, classId, unitTitle, updatedAt, tree }) {
+function renderTree(container, { name, classId, unitTitle, updatedAt, tree }) {
     for (let n = 1; n <= 3; n++) {
         const parts = runs(tree.children, n);
         const made = [];
@@ -227,9 +227,29 @@ export function renderLearnerUnitMap(container, { name, classId, unitTitle, upda
         });
         if (minPt >= MAP.minPt || n === 3 || parts.length < n) {
             for (const s of made) s.dataset.pt = String(Math.round(minPt * 10) / 10);
-            return made.length;
+            return { pages: made.length, pt: minPt, made };
         }
         made.forEach((s) => s.remove());
     }
-    return 3;
+    return { pages: 3, pt: 0, made: [] };
+}
+
+const TREE_MIN_PT = 8;       // darunter wird die Karte zu klein gedruckt
+const TREE_MAX_PAGES = 2;    // die Lernkontrolle erlaubt zwei A4-Seiten je Lernende:r
+
+/**
+ * Baum-Darstellung; ist sie zu klein (< TREE_MIN_PT) oder länger als TREE_MAX_PAGES, wird `fallback`
+ * (die Kästchen-Darstellung) versucht und behalten, wenn sie nicht schlechter ist. Gibt die Seitenzahl zurück.
+ */
+export function renderLearnerUnitMap(container, opts, fallback) {
+    const tree = renderTree(container, opts);
+    if (!fallback || (tree.pt >= TREE_MIN_PT && tree.pages <= TREE_MAX_PAGES)) return tree.pages;
+    const before = container.children.length;
+    const pages = fallback(container, opts);
+    const boxes = [...container.children].slice(before);
+    const boxPt = Math.min(...boxes.map((s) => Number(s.dataset.pt || 0)));
+    const ok = pages < tree.pages || (pages === tree.pages && boxPt >= tree.pt);
+    if (ok) { tree.made.forEach((s) => s.remove()); return pages; }
+    boxes.forEach((s) => s.remove());
+    return tree.pages;
 }
