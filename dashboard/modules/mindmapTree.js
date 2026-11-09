@@ -202,14 +202,22 @@ export function renderLearnerUnitMap(container, { name, classId, unitTitle, upda
         const made = [];
         let minPt = Infinity;
         parts.forEach((branches, i) => {
-            const part = parts.length > 1 ? `Seite ${i + 1}/${parts.length}` : '';
+            // Ein einziger grosser Hauptast: er wird zur Mitte, seine Unteräste verteilen sich links und rechts.
+            let rootText = tree.text;
+            let shown = branches;
+            let part = parts.length > 1 ? `Seite ${i + 1}/${parts.length}` : '';
+            if (branches.length === 1 && branches[0].children.length >= 2) {
+                rootText = branches[0].text;
+                shown = branches[0].children;
+                part = [part, tree.text].filter(Boolean).join(' · ');
+            }
             const sh = mapSheet({ name, classId, unitTitle, updatedAt, part });
             container.append(sh.s);
             const cw = sh.map.clientWidth || 1000;
             const ch = sh.map.clientHeight || 650;
             let best = null;
             for (const maxw of MAP.widths) {
-                const L = layoutMap(tree.text, branches, maxw);
+                const L = layoutMap(rootText, shown, maxw);
                 const scale = Math.min(cw / L.vb[2], ch / L.vb[3]);
                 if (!best || scale > best.scale) best = { L, scale };
             }
