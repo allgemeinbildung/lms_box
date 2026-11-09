@@ -32,6 +32,13 @@ table.hm .name{position:sticky;left:0;z-index:1;background:#fff;text-align:left;
 table.hm thead .name{z-index:2}
 table.hm td button{all:unset;box-sizing:border-box;display:flex;gap:4px;align-items:center;justify-content:center;width:100%;min-height:34px;padding:4px 6px;cursor:pointer;white-space:nowrap}
 table.hm td button:focus-visible{outline:2px solid var(--m);outline-offset:-2px}
+table.hm .name{width:130px;min-width:130px;max-width:130px;overflow:hidden;text-overflow:ellipsis}
+table.hm .stand{position:sticky;left:130px;z-index:1;background:#fff;text-align:left;padding:4px 8px;min-width:190px;white-space:nowrap;box-shadow:2px 0 0 var(--line)}
+table.hm thead .stand{z-index:2;font-weight:600;vertical-align:bottom}
+.sb{display:inline-block;font-size:12px;font-weight:700;margin-right:7px}
+.sb.g{color:var(--ok)}.sb.t{color:#B8860B}.sb.o{color:var(--no)}.sb.u{color:var(--ink2)}.sb.r{color:var(--m)}.sb.z{color:var(--mute);font-weight:500}
+.fertig{display:inline-block;background:var(--ok);color:#fff;border-radius:99px;padding:0 8px;font-size:11px;font-weight:700}
+.sortbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:13px}
 td.leer{background:var(--bg)}td.antwort{background:var(--paper)}td.rm{background:#fff}
 td.sel{box-shadow:inset 0 0 0 2px var(--m)}
 .q{display:inline-flex;gap:1px;align-items:center}.q+.q{border-left:1px solid var(--line);padding-left:4px}
@@ -220,6 +227,34 @@ async function auftragLaden(id) {
     return out;
 }
 
+// ---- Stand je Person: ein Zahlenblock für die Sortierung ----
+// unb  = Fragen ohne Antwort · ohneRm = beantwortet, aber noch keine Rückmeldung
+// gruen = Kriterien direkt erfüllt oder verbessert · teil = teilweise verbessert · offen = Kriterium nicht erfüllt
+function stand(zellen) {
+    const st = { total: 0, beantw: 0, unb: 0, ohneRm: 0, gruen: 0, teil: 0, offen: 0 };
+    for (const c of zellen) for (const x of c.fragen) {
+        st.total++;
+        if (x.beantwortet) st.beantw++; else if (!x.marks.length) st.unb++;
+        if (x.beantwortet && !x.marks.length) st.ohneRm++;
+        for (const m of x.marks) { if (m.mark === 'direkt' || m.mark === 'verbessert') st.gruen++; else if (m.mark === 'besser') st.teil++; else st.offen++; }
+    }
+    st.rest = st.unb + st.ohneRm + st.teil + st.offen;       // was noch zu tun ist
+    st.fertig = st.total > 0 && st.rest === 0;
+    return st;
+}
+function standZelle(st) {
+    const b = (cls, txt, title) => h('span', { class: 'sb ' + cls, title }, txt);
+    const td = h('td', { class: 'stand' });
+    if (st.fertig) td.append(h('span', { class: 'fertig', title: 'Alles beantwortet, alle Kriterien erfüllt' }, '✓ fertig'), ' ');
+    td.append(b('r', `✎ ${st.beantw}/${st.total}`, 'Fragen beantwortet'));
+    if (st.unb) td.append(b('u', `∅ ${st.unb}`, 'Fragen ohne Antwort'));
+    if (st.ohneRm) td.append(b('z', `⏳ ${st.ohneRm}`, 'beantwortet, noch keine Rückmeldung'));
+    td.append(b('g', `● ${st.gruen}`, 'Kriterien erfüllt (direkt oder verbessert)'));
+    if (st.teil) td.append(b('t', `◐ ${st.teil}`, 'Kriterien teilweise verbessert'));
+    if (st.offen) td.append(b('o', `○ ${st.offen}`, 'Kriterien offen'));
+    return td;
+}
+
 // ---- Matrix ----
 function zelle(sp, draft, slots) {
     const amap = new Map((Array.isArray(draft?.answers) ? draft.answers : []).filter((a) => a && typeof a === 'object').map((a) => [a.questionId, a.answer]));
@@ -248,13 +283,28 @@ async function kapitelZeigen() {
         const slots = USAGE.get(m.uid + '|' + id)?.slots || null;
         return { m, zellen: A.spalten.map((sp) => zelle(sp, drafts.get(m.uid)?.get(sp.subId), slots)) };
     });
+    for (const z of zeilen) z.st = stand(z.zellen);
     const t = h('table', { class: 'hm' });
     t.append(h('thead', {}, h('tr', {}, h('th', { class: 'name', scope: 'col' }, 'Lernende'),
+        h('th', { class: 'stand', scope: 'col', title: 'Pro Person: beantwortete Fragen, Kriterien nach Rückmeldung' }, 'Stand'),
         ...A.spalten.map((sp, i) => h('th', { scope: 'col', title: sp.subId }, h('span', { class: 'k' }, String(i + 1)), h('span', { class: 'b' }, sp.subId.length > 40 ? sp.subId.slice(0, 38) + '…' : sp.subId))))));
     const tb = h('tbody');
     let gewaehlt = null;
-    for (const z of zeilen) {
-        const tr = h('tr', {}, h('th', { class: 'name', scope: 'row' }, z.m.name));
+    const SORTS = {
+        name: ['Name', (a, b) => a.m.name.localeCompare(b.m.name, 'de', { sensitivity: 'base' })],
+        fertig: ['Fertige zuerst', (a, b) => a.st.rest - b.st.rest || a.st.unb - b.st.unb],
+        rm: ['Offene Rückmeldungen zuerst', (a, b) => (b.st.offen + b.st.teil) - (a.st.offen + a.st.teil) || b.st.ohneRm - a.st.ohneRm],
+        unb: ['Unbeantwortete zuerst', (a, b) => b.st.unb - a.st.unb || b.st.ohneRm - a.st.ohneRm],
+    };
+    const sortSel = h('select', { id: 'sort', 'aria-label': 'Sortieren' },
+        ...Object.entries(SORTS).map(([k, [l]]) => h('option', { value: k }, l)));
+    sortSel.value = ls('matrix-sort') in SORTS ? ls('matrix-sort') : 'name';
+    function zeichnen() {
+      ls('matrix-sort', sortSel.value);
+      tb.replaceChildren();
+      gewaehlt = null;
+      for (const z of [...zeilen].sort((a, b) => SORTS[sortSel.value][1](a, b) || SORTS.name[1](a, b))) {
+        const tr = h('tr', {}, h('th', { class: 'name', scope: 'row', title: z.m.name }, z.m.name), standZelle(z.st));
         z.zellen.forEach((c, i) => {
             const b = h('button', { type: 'button', 'aria-label': `${z.m.name}, ${A.spalten[i].subId}` });
             for (const x of c.fragen) {
@@ -269,7 +319,10 @@ async function kapitelZeigen() {
             tr.append(td);
         });
         tb.append(tr);
+      }
     }
+    sortSel.addEventListener('change', zeichnen);
+    zeichnen();
     t.append(tb);
     $('main').append(
         h('div', { class: 'legende' },
@@ -277,8 +330,10 @@ async function kapitelZeigen() {
             h('span', {}, h('span', { class: 'dot mk-verbessert' }, '●'), h('span', { class: 'up mk-verbessert' }, '↑'), ' verbessert'),
             h('span', {}, h('span', { class: 'dot mk-besser' }, '◐'), h('span', { class: 'up mk-besser' }, '↑'), ' teilweise verbessert'),
             h('span', {}, h('span', { class: 'dot mk-offen' }, '○'), ' offen'),
-            h('span', {}, '✎ beantwortet, ohne Rückmeldung'), h('span', {}, '· leer'),
+            h('span', {}, '✎ beantwortet, ohne Rückmeldung'), h('span', {}, '· leer'), h('span', {}, 'Stand: ✎ beantwortet · ∅ ohne Antwort · ⏳ ohne Rückmeldung · ●/◐/○ Kriterien'),
             h('span', {}, 'Ein Zeichen je Kriterium, │ trennt die Fragen. Keine Noten.')),
+        h('div', { class: 'sortbar' }, h('label', { for: 'sort' }, 'Sortieren:'), sortSel,
+            h('span', { class: 'lead' }, `${zeilen.filter((z) => z.st.fertig).length} von ${zeilen.length} fertig`)),
         h('div', { class: 'hm-wrap' }, t),
         h('div', { id: 'detail' }));
 }
