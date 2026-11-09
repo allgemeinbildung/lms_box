@@ -9,6 +9,7 @@ import {
     MAPS_BASE, unitFromInput, noteOf, skeletonNames, cutSkeleton, parseNodes, fallbackSkeleton,
     buildTree, renderLearnerUnit, renderMissing,
 } from './modules/mindmapPrint.js';
+import { renderLearnerUnitMap } from './modules/mindmapTree.js';
 
 const $ = (id) => document.getElementById(id);
 const classSelect = $('mm-class');
@@ -21,6 +22,7 @@ const printBtn = $('mm-print');
 const statusLine = $('mm-status');
 const warningsList = $('mm-warnings');
 const sheets = $('mm-sheets');
+const styleSelect = $('mm-style');       // 'netz' = Mindmap als Baum, 'karten' = Kästchen
 
 const params = new URLSearchParams(location.search);
 const byName = (a, b) => a.localeCompare(b, 'de', { numeric: true, sensitivity: 'base' });
@@ -174,7 +176,7 @@ async function run() {
             const { tree, own } = buildTree(skeletons[j], datas[i][j]);
             if (own === 0) { empty.push(label); return; }
             any = true;
-            pages += renderLearnerUnit(sheets, {
+            pages += (styleSelect.value === 'karten' ? renderLearnerUnit : renderLearnerUnitMap)(sheets, {
                 name: m.name, classId, unitTitle: noteOf(unit), updatedAt: drafts[i][j].updatedAt, tree,
             });
         });
