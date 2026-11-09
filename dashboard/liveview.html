@@ -142,9 +142,29 @@
             }
         }
     </style>
+    <style>
+        /* Sichten-Leiste: Klassen-Monitor (bisher) + die Sichten der Spielfeld-Liveview */
+        #sichten{display:flex;gap:2px;padding:6px 12px 0;background:#1B2A4A;overflow-x:auto;position:sticky;top:0;z-index:50}
+        #sichten button{border:0;background:transparent;color:#C9D1E6;font:inherit;font-weight:600;padding:8px 14px;border-radius:8px 8px 0 0;cursor:pointer;white-space:nowrap}
+        #sichten button[aria-selected="true"]{background:#f4f5f7;color:#111}
+        #sichten .sp-info{margin-left:auto;align-self:center;color:#9AA6C4;font-size:12px;white-space:nowrap;padding:0 6px}
+        #spielfeld-frame{display:none;width:100%;height:calc(100vh - 44px);border:0;background:#f4f5f7}
+        body.sicht-spielfeld #spielfeld-frame{display:block}
+        body.sicht-spielfeld #live-view-container{display:none}
+        @media print{#sichten,#spielfeld-frame{display:none!important}}
+    </style>
 </head>
 
 <body>
+    <nav id="sichten" role="tablist" aria-label="Sichten">
+        <button type="button" role="tab" data-sicht="" aria-selected="true">Klassen-Monitor</button>
+        <button type="button" role="tab" data-sicht="klasse" aria-selected="false">Klasse</button>
+        <button type="button" role="tab" data-sicht="matrix" aria-selected="false">Matrix</button>
+        <button type="button" role="tab" data-sicht="karte" aria-selected="false">Karte</button>
+        <button type="button" role="tab" data-sicht="lernende" aria-selected="false">Lernende</button>
+        <span class="sp-info">Klasse, Matrix, Karte, Lernende: Auftrag «Spielfeld 2.1»</span>
+    </nav>
+    <iframe id="spielfeld-frame" title="Spielfeld-Liveview" loading="lazy"></iframe>
 
     <div id="login-overlay" class="visible">
         <div id="login-box">
@@ -248,6 +268,36 @@
 
     <script src="../js/config.js" type="module"></script>
     <script src="liveview.js" type="module"></script>
+    <script>
+        // Tabs: leer = bisheriger Klassen-Monitor, sonst Sicht der Spielfeld-Liveview (dashboard/spielfeld.html, gleiche Anmeldung)
+        (function () {
+            var frame = document.getElementById('spielfeld-frame');
+            var tabs = document.querySelectorAll('#sichten button');
+            function waehlen(v, hash) {
+                tabs.forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.sicht === v)); });
+                document.body.classList.toggle('sicht-spielfeld', v !== '');
+                if (v === '') return;
+                var ziel = 'spielfeld.html#' + (hash || v);
+                if (!frame.getAttribute('src')) frame.src = ziel;
+                else try { frame.contentWindow.location.hash = hash || v; } catch (e) { frame.src = ziel; }
+                try { history.replaceState(null, '', '#' + (hash || v)); } catch (e) { }
+            }
+            tabs.forEach(function (b) { b.addEventListener('click', function () { waehlen(b.dataset.sicht); }); });
+            frame.addEventListener('load', function () {
+                try {  // der Link zurück zur LMS-Box-Liveview ist hier überflüssig
+                    var d = frame.contentDocument, st = d.createElement('style');
+                    st.textContent = 'a.kbtn[href="liveview.html"]{display:none!important}';
+                    d.head.appendChild(st);
+                    frame.contentWindow.addEventListener('hashchange', function () {
+                        var v = frame.contentWindow.location.hash.slice(1).split('/')[0];
+                        tabs.forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.sicht === v)); });
+                    });
+                } catch (e) { }
+            });
+            var h = location.hash.slice(1), v = h.split('/')[0];
+            if (['klasse', 'matrix', 'karte', 'lernende'].indexOf(v) >= 0) waehlen(v, h);
+        })();
+    </script>
 </body>
 
 </html>
