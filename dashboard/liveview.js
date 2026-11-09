@@ -51,6 +51,15 @@ document.addEventListener('DOMContentLoaded', () => {
         buttonGroup.appendChild(printAllBtn);
     }
 
+    // Mindmaps of a unit, one print sheet per learner (CONTRACT.md, «Mindmap print view»).
+    // Opens in a new tab with the selected class; same origin, so the login carries over.
+    document.getElementById('mindmap-print-btn')?.addEventListener('click', () => {
+        const target = new URLSearchParams();
+        if (classSelect.value) target.set('klasse', classSelect.value);
+        if (new URLSearchParams(location.search).get('live') === '1') target.set('live', '1');
+        window.open(`mindmaps.html?${target}`, '_blank', 'noopener');
+    });
+
     const downloadBtn = document.getElementById('download-btn');
 
     // Class tiles and class matrix (modules/overview.js); the selects below stay the one source of truth.

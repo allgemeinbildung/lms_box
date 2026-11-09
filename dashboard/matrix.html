@@ -96,6 +96,7 @@ td.sel{box-shadow:inset 0 0 0 2px var(--m)}
 import { auth, db, rosterDb, emulator, onAuthStateChanged, collection, query, where, getDocs, doc, getDoc } from '../js/firebase.js';
 import { signIn, signOut } from '../js/api.js';
 import { criterionMarks, MARKS } from '../js/formativ-trail.js';
+import { UNITS } from './modules/mindmapUnits.js';
 
 const $ = (id) => document.getElementById(id);
 const IN_LIMIT = 30;
@@ -333,7 +334,15 @@ async function kapitelZeigen() {
             h('span', {}, '✎ beantwortet, ohne Rückmeldung'), h('span', {}, '· leer'), h('span', {}, 'Stand: ✎ beantwortet · ∅ ohne Antwort · ⏳ ohne Rückmeldung · ●/◐/○ Kriterien'),
             h('span', {}, 'Ein Zeichen je Kriterium, │ trennt die Fragen. Keine Noten.')),
         h('div', { class: 'sortbar' }, h('label', { for: 'sort' }, 'Sortieren:'), sortSel,
-            h('span', { class: 'lead' }, `${zeilen.filter((z) => z.st.fertig).length} von ${zeilen.length} fertig`)),
+            h('span', { class: 'lead' }, `${zeilen.filter((z) => z.st.fertig).length} von ${zeilen.length} fertig`),
+            h('button', { class: 'kbtn', type: 'button', style: 'margin-left:auto;background:#00796b;border-color:#00796b;color:#fff', title: 'Mindmaps dieses Kapitels, ein Blatt pro Lernende:r mit Namen (neuer Tab)',
+                onclick: () => {
+                    const q = new URLSearchParams({ klasse: $('klasse').value });
+                    const u = UNITS.find((x) => x.note === id) || UNITS.find((x) => id.startsWith(x.note) || x.note.startsWith(id));
+                    if (u) q.set('einheit', u.unit);
+                    if (new URLSearchParams(location.search).get('live') === '1') q.set('live', '1');
+                    window.open('mindmaps.html?' + q, '_blank', 'noopener');
+                } }, '🧠 Mindmaps drucken')),
         h('div', { class: 'hm-wrap' }, t),
         h('div', { id: 'detail' }));
 }

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mindmaps drucken</title>
+    <link rel="stylesheet" href="teacher.css">
+    <!-- Contract: backend/CONTRACT.md, «Mindmap print view». The sheets carry names: never publish a PDF of them. -->
+    <style>
+        @page { size: A4 landscape; margin: 8mm; }
+
+        body { background: #e9ecef; }
+        #mm-controls {
+            background: #fff; padding: 16px 24px; border-bottom: 1px solid #ccc;
+            display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-start;
+        }
+        #mm-controls h1 { width: 100%; margin: 0; font-size: 20px; }
+        .mm-group { display: flex; flex-direction: column; gap: 6px; min-width: 200px; }
+        .mm-group label, .mm-group .lbl { font-weight: 600; font-size: 13px; color: #444; }
+        .mm-group select, .mm-group input[type=text] { padding: 6px 8px; font-size: 14px; }
+        #mm-units { display: flex; flex-direction: column; gap: 3px; font-size: 14px; max-height: 160px; overflow: auto; }
+        #mm-chosen { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; }
+        .chip { background: #e0f2f1; border: 1px solid #80cbc4; border-radius: 14px; padding: 3px 4px 3px 10px; font-size: 13px; }
+        .chip button { border: none; background: none; cursor: pointer; font-size: 14px; padding: 0 4px; }
+        .mm-actions { display: flex; gap: 10px; align-items: center; }
+        .mm-actions button {
+            padding: 9px 18px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: #fff; background: #00796b;
+        }
+        .mm-actions button:disabled { background: #9e9e9e; cursor: default; }
+        #logout-btn { background: #fff !important; color: #555 !important; border: 1px solid #ccc !important; }
+        #mm-status { width: 100%; font-size: 14px; color: #333; margin: 0; }
+        #mm-warnings { width: 100%; margin: 0; padding-left: 20px; color: #b71c1c; font-size: 14px; }
+        #mm-warnings:empty { display: none; }
+
+        /* ---- sheets: A4 landscape minus 8 mm margins ---- */
+        #mm-sheets { padding: 16px 0 40px; }
+        .sheet {
+            --pt: 12pt; --cols: 3;
+            width: 281mm; height: 194mm; box-sizing: border-box; margin: 5mm auto 18mm;
+            background: #fff; color: #000; padding: 0; overflow: hidden;
+            display: flex; flex-direction: column; font-size: var(--pt);
+            font-family: "Segoe UI", Arial, Helvetica, sans-serif; line-height: 1.25;
+            /* white rim on screen only: a shadow, so the measured size is the printed size */
+            box-shadow: 0 0 0 5mm #fff, 0 0 0 calc(5mm + 1px) #bbb, 0 4px 16px 5mm rgba(0,0,0,.10);
+            break-after: page; page-break-after: always;
+        }
+        .sheet.overflow { height: auto; overflow: visible; box-shadow: 0 0 0 3px #d32f2f; }
+        .sheet-head {
+            flex: none; display: flex; gap: 5mm; align-items: baseline;
+            border-bottom: .4mm solid #000; padding: 0 0 1.5mm; margin-bottom: 2.5mm; font-size: 11pt;
+        }
+        .sheet-head .who { font-weight: 700; font-size: 14pt; }
+        .sheet-head .klasse { font-weight: 600; }
+        .sheet-head .meta { margin-left: auto; color: #444; font-size: 9pt; }
+        .map { flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+        .root {
+            flex: none; align-self: center; border: .6mm solid #000; border-radius: 3mm;
+            padding: .8mm 5mm; font-weight: 700; font-size: 1.2em; margin-bottom: 2.5mm; text-align: center;
+        }
+        .branches { column-count: var(--cols); column-gap: 3mm; }
+        .branch {
+            break-inside: avoid; page-break-inside: avoid; display: inline-block; width: 100%; box-sizing: border-box;
+            border: .35mm solid #333; border-radius: 2mm; padding: 1.2mm 2mm 1.4mm; margin: 0 0 2.5mm;
+        }
+        .sheet.flow .branch { display: block; break-inside: auto; page-break-inside: auto; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+        .sheet.flow .branch-title { break-after: avoid; }
+        .sheet.flow .branch li { break-inside: avoid; }
+        .branch.own-branch { border-style: dashed; }
+        .branch-title { font-weight: 700; border-bottom: .2mm solid #999; padding-bottom: .6mm; margin-bottom: .8mm; }
+        .branch.own-branch .branch-title { font-weight: 600; font-style: italic; }
+        .branch ul { margin: 0; padding-left: 1.1em; }
+        .branch li { margin: .3mm 0; overflow-wrap: anywhere; }
+        .branch > ul { padding-left: 1em; }
+        .sheet-list { height: auto; min-height: 0; padding: 0; }
+        .sheet-list h2 { font-size: 16pt; margin: 0 0 4mm; }
+        .sheet-list h3 { font-size: 12pt; margin: 4mm 0 1.5mm; }
+        .sheet-list ul { columns: 3; margin: 0; font-size: 11pt; }
+
+        @media print {
+            body { background: #fff; }
+            #mm-controls, #login-overlay { display: none !important; }
+            #mm-sheets { padding: 0; }
+            .sheet { margin: 0; box-shadow: none !important; }
+            .sheet:last-child { break-after: auto; page-break-after: auto; }
+            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="login-overlay" class="visible">
+        <div id="login-box">
+            <h2>Mindmaps drucken</h2>
+            <p>Bitte melden Sie sich mit Ihrem Lehrpersonen-Konto an.</p>
+            <input type="text" id="login-username" placeholder="Benutzername oder E-Mail" autocomplete="username"
+                autocapitalize="none" spellcheck="false">
+            <input type="password" id="login-password" placeholder="Passwort" autocomplete="current-password">
+            <button id="login-btn">Anmelden</button>
+            <p id="login-status"></p>
+        </div>
+    </div>
+
+    <div id="mm-controls">
+        <h1>🧠 Mindmaps drucken</h1>
+        <div class="mm-group">
+            <label for="mm-class">Klasse</label>
+            <select id="mm-class" disabled><option value="">Lade …</option></select>
+        </div>
+        <div class="mm-group">
+            <label for="mm-topic">Kapitel</label>
+            <select id="mm-topic"></select>
+            <div id="mm-units" role="group" aria-label="Einheiten"></div>
+        </div>
+        <div class="mm-group" style="min-width:320px">
+            <span class="lbl">Gewählt</span>
+            <div id="mm-chosen"></div>
+            <label for="mm-free">Andere Seite (Adresse auf lehrmittel.aburossi.ch)</label>
+            <div class="mm-actions">
+                <input type="text" id="mm-free" placeholder="https://lehrmittel.aburossi.ch/…" style="flex:1">
+                <button id="mm-free-add" type="button">+</button>
+            </div>
+        </div>
+        <div class="mm-actions">
+            <button id="mm-load" disabled>Mindmaps laden</button>
+            <button id="mm-print" disabled>🖨️ Drucken / PDF</button>
+            <button id="logout-btn" type="button">Abmelden</button>
+        </div>
+        <p id="mm-status">Klasse und Einheit wählen, dann «Mindmaps laden». Querformat A4, eine Seite pro Lernende:r und Einheit.</p>
+        <ul id="mm-warnings"></ul>
+    </div>
+
+    <main id="mm-sheets"></main>
+
+    <script src="../js/config.js" type="module"></script>
+    <script src="mindmaps.js" type="module"></script>
+</body>
+
+</html>
