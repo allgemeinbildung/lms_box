@@ -149,6 +149,18 @@ teacherMaterials/{enc(einheitId)}       // einheitId e.g. "EB-5.1.1"
 
 Both require a signed-in caller whose `students/{uid}` doc exists in `(default)` and is `active !== false`. The rubric and solution are loaded on the server from `assignments`; the client only names the field and sends the text. The model request carries no name and no uid — only the pseudonym.
 
+## Released solutions (since 13.11.2026, not deployed)
+
+Model solutions for students, released **by class and time**. The source is the content JSON itself, so `content/` stays the single source: a question may carry `loesung` (plain text, written for students — not the teacher notes in `formativ.kontext`), the assignment carries
+
+```
+loesungFreigabe: [ { klassen: ['4pk25a'], ab: '2026-11-13T17:00:00+01:00' } ]
+```
+
+Both are uploaded with the assignment to `assignments` (teacher read only) and are **not** in the whitelisted public copy. No new collection, no new upload script: `scripts/upload-assignments.mjs`.
+
+Callable `boxLoesungen { assignmentId }` (signed in, active roster doc): compares the roster `classId` / `classIds` (case-insensitive) with `klassen` and the **server clock** with `ab` (ISO time with a zone offset). Answer `{ frei: false }` and nothing else before the release; otherwise `{ frei: true, loesungen: { [subId]: { [questionId]: text } } }`, only questions with a `loesung`. The page (`js/loesungen.js`) draws a `<details>` «Musterlösung» under each question, as text. Withdrawing = remove `loesungFreigabe` or move `ab` into the future, upload again. Guests get nothing (no call). Tests: `npm run test:functions:unit`.
+
 ## Formative feedback: attempts, trail, overview
 
 Since 23.10.2026 (not deployed yet) a student may ask for feedback **twice per question** (`MAX_VERSUCHE = 2` in `functions/formativ.js`, one number for all questions). The page shows every feedback the question got, and a «trail» that shows whether the feedback was used. It is never a score.

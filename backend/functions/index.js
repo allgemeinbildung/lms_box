@@ -9,6 +9,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 const formativ = require('./formativ');
+const loesungen = require('./loesungen');
 const klassenanalyse = require('./klassenanalyse');
 
 // Set at deploy time, never in code (the repo is public).
@@ -75,7 +76,7 @@ async function caller(request) {
     if (!snap.exists || snap.get('active') === false) {
         throw new HttpsError('permission-denied', 'Kein Zugang mit diesem Konto.', { code: 'forbidden' });
     }
-    return { uid, studentInfo: { name: snap.get('name') || '' } };
+    return { uid, studentInfo: { name: snap.get('name') || '' }, roster: snap.data() };
 }
 
 function badRequest(message) {
@@ -253,6 +254,23 @@ exports.boxKlassenanalyseAuto = onDocumentWritten(
         const after = event.data?.after?.exists ? event.data.after.data() : null;
         const out = await klassenanalyse.beiDraft(after, analyseDeps());
         for (const r of out) if (r.status !== 'uebersprungen') console.log('klassenanalyse', r.status, r.code || '', r.id);
+    },
+);
+
+/*
+ * Released solutions (CONTRACT.md, «Released solutions»). The server checks the caller's
+ * roster class and its own clock against `loesungFreigabe` of `assignments/{assignment}`; before
+ * the release it answers `{ frei: false }` and nothing else. The solutions never sit in the public copy.
+ */
+exports.boxLoesungen = onCall(
+    { region: REGION, maxInstances: 10, timeoutSeconds: 30, memory: '256MiB' },
+    async (request) => {
+        const { roster } = await caller(request);
+        const { assignmentId } = request.data || {};
+        if (!assignmentId || typeof assignmentId !== 'string') throw badRequest("'boxLoesungen' braucht 'assignmentId'.");
+        checkIds({ assignmentId });
+        const snap = await boxDb.doc(`assignments/${encodeURIComponent(assignmentId)}`).get();
+        return loesungen.freigegeben(roster, snap.exists ? snap.data() : null, new Date());
     },
 );
 

@@ -3,6 +3,7 @@ import { renderSubAssignment, syncDraftToStorage, setGuestMode } from './rendere
 import { printAssignmentAnswers } from './printer.js';
 import { authenticate } from './auth.js';
 import { fetchAndRenderStudentFeedback } from './studentFeedback.js';
+import { fetchAndRenderLoesungen } from './loesungen.js';
 import { initFormativ } from './formativ.js';
 import * as storage from './storage.js';
 import { initEmbedHeight } from './embedHeight.js';
@@ -59,6 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await renderSubAssignment(assignmentData, assignmentId, subId, draftData);
         if (!guest) {
             fetchAndRenderStudentFeedback(assignmentId, subId);
+            fetchAndRenderLoesungen(assignmentId, subId);
             initFormativ(assignmentData, assignmentId, subId);
         }
 

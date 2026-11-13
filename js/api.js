@@ -195,6 +195,13 @@ export async function getReleasedFeedback(assignmentId) {
     return snap.exists() ? { found: true, data: snap.data() } : { found: false, data: null };
 }
 
+// ---- released solutions (callable function) ---------------------------------------------
+
+/** `{ frei: false }` or `{ frei: true, loesungen: { [subId]: { [questionId]: text } } }`; the server decides. */
+export async function getLoesungen(assignmentId) {
+    return call('boxLoesungen', { assignmentId });
+}
+
 // ---- formativ (callable functions) -----------------------------------------------------
 
 /** HttpsError -> ApiError: `details.code` is what the old ApiError.code carried. */
