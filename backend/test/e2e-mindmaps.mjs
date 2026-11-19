@@ -215,6 +215,7 @@ try {
         await mp.locator('#mm-units label', { hasText: '8.1 Kaufvertragsarten' }).locator('input').check();
         await mp.locator('#mm-units label', { hasText: '8.2 Schulden' }).locator('input').check();
         assert.deepEqual(await mp.locator('#mm-chosen .chip').allTextContents(), ['8.1 Kaufvertragsarten Teil 2×', '8.2 Schulden und Betreibung×']);
+        await mp.locator('#mm-style').selectOption('karten');   // steps (c)–(f) test the box view; the tree is step (g)
         await mp.locator('#mm-load').click();
         await mp.locator('#mm-print:not([disabled])').waitFor();
 
@@ -291,6 +292,30 @@ try {
             await mp.setViewportSize({ width: 1180, height: 1250 });
             await mp.screenshot({ path: join(SHOT_DIR, 'mindmaps-druck-fiktiv.png'), fullPage: false });
             await mp.locator('.sheet').nth(1).screenshot({ path: join(SHOT_DIR, 'mindmaps-druck-fiktiv-blatt.png') });
+        }
+    });
+
+    await step('(g) «Eigene Äste hervorheben»: colour only, in both views, switchable without reloading', async () => {
+        const bg = (sel) => mp.locator(sel).first().evaluate((e) => getComputedStyle(e).backgroundColor);
+        const fill = (sel) => mp.locator(sel).first().evaluate((e) => getComputedStyle(e).fill);
+        const sizes = () => mp.locator('.sheet:not(.sheet-list)').evaluateAll((ss) => ss.map((s) => `${s.dataset.pt}|${s.querySelector('.map').scrollHeight}`));
+        for (const view of ['karten', 'netz']) {
+            await mp.locator('#mm-style').selectOption(view);
+            await mp.locator('#mm-load').click();
+            await mp.locator('#mm-print:not([disabled])').waitFor();
+            const before = await sizes();
+            await mp.locator('#mm-own').check();
+            assert.equal(await mp.locator('#mm-sheets.hl').count(), 1, `${view}: class set`);
+            if (view === 'karten') {
+                assert.equal(await bg('.sheet li.own > .txt'), 'rgb(255, 229, 102)', 'own list entry marked');
+            } else {
+                assert.ok(await mp.locator('.sheet svg .own-bg').count() > 0, 'tree: own nodes carry a marker');
+                assert.equal(await fill('.sheet svg rect.own-bg'), 'rgb(255, 229, 102)', 'tree: own node marked');
+                assert.equal(await mp.locator('.sheet svg text.skel-t').first().evaluate((e) => getComputedStyle(e).fill), 'rgb(102, 102, 102)', 'tree: skeleton greyed');
+            }
+            assert.deepEqual(await sizes(), before, `${view}: highlighting changes neither type size nor height`);
+            await mp.locator('#mm-own').uncheck();
+            assert.equal(await mp.locator('#mm-sheets.hl').count(), 0, `${view}: switched off again`);
         }
     });
 

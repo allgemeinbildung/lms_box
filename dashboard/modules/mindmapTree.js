@@ -146,8 +146,11 @@ function drawMap(svg, L) {
             boxes.append(svgEl('rect', {
                 x: n.x, y: n.y - n.h / 2, width: n.w, height: n.h, rx: n.depth === 0 ? 10 : 6,
                 fill: '#fff', stroke: '#222', 'stroke-width': n.depth === 0 ? 2.2 : 1.2,
-                ...(n.own ? { 'stroke-dasharray': '4 3' } : {}),
+                ...(n.own ? { 'stroke-dasharray': '4 3', class: 'own-bg' } : {}),
             }));
+        } else if (n.own) {
+            // Marker for «Eigene Äste hervorheben» (mindmaps.html: `.hl .own-bg`): invisible unless switched on.
+            boxes.append(svgEl('rect', { x: n.x, y: n.y - n.h / 2, width: n.w, height: n.h, rx: 3, fill: 'none', class: 'own-bg' }));
         }
         const middle = n.depth <= 1;
         const tx = middle ? n.x + n.w / 2 : (n.dir > 0 ? n.x + MAP.padX : n.x + n.w - MAP.padX);
@@ -155,6 +158,7 @@ function drawMap(svg, L) {
             x: tx, 'text-anchor': middle ? 'middle' : (n.dir > 0 ? 'start' : 'end'),
             'font-size': n.depth === 0 ? MAP.font * 1.15 : MAP.font, 'font-weight': n.bold ? 700 : 400,
             ...(n.own ? { 'font-style': 'italic' } : {}), fill: '#000',
+            class: n.own ? 'own-t' : 'skel-t',
         });
         n.lines.forEach((line, i) => t.append(svgEl('tspan', { x: tx, y: n.y - n.h / 2 + MAP.padY + MAP.lh * (i + 0.78) }, line)));
         boxes.append(t);

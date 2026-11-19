@@ -22,6 +22,7 @@ const printBtn = $('mm-print');
 const statusLine = $('mm-status');
 const warningsList = $('mm-warnings');
 const sheets = $('mm-sheets');
+const ownBox = $('mm-own');             // Eigene Äste farbig hervorheben (reines CSS, kein neues Laden nötig)
 const styleSelect = $('mm-style');       // 'netz' = Mindmap als Baum, 'karten' = Kästchen
 
 const params = new URLSearchParams(location.search);
@@ -203,6 +204,7 @@ async function run() {
     updateButtons();
 }
 
+ownBox.addEventListener('change', () => sheets.classList.toggle('hl', ownBox.checked));
 loadBtn.addEventListener('click', run);
 printBtn.addEventListener('click', () => window.print());
 

@@ -72,6 +72,12 @@
         .branch ul { margin: 0; padding-left: 1.1em; }
         .branch li { margin: .3mm 0; overflow-wrap: anywhere; }
         .branch > ul { padding-left: 1em; }
+        /* «Eigene Äste hervorheben»: nur Farbe, nie Schriftgrösse oder -stärke, damit die Passung bleibt (#mm-sheets.hl) */
+        .hl .own-bg { fill: #ffe566; }
+        .hl rect.own-bg { stroke: #b38f00; }
+        .hl .skel-t { fill: #666; }
+        .hl li.own > .txt, .hl .branch.own-branch .branch-title { background: #ffe566; }
+        .hl li.teacher > .txt, .hl .branch:not(.own-branch) .branch-title { color: #666; }
         .sheet.mapview .map { display: block; }
         .sheet.mapview .map svg { width: 100%; height: 100%; display: block; }
         .sheet-list { height: auto; min-height: 0; padding: 0; }
@@ -126,6 +132,10 @@
         <div class="mm-group" style="min-width:150px">
             <label for="mm-style">Darstellung</label>
             <select id="mm-style"><option value="netz">Mindmap (Baum)</option><option value="karten">Kästchen</option></select>
+        </div>
+        <div class="mm-group" style="min-width:170px">
+            <span class="lbl">Hervorheben</span>
+            <label style="font-weight:400"><input type="checkbox" id="mm-own"> Eigene Äste hervorheben</label>
         </div>
         <div class="mm-actions">
             <button id="mm-load" disabled>Mindmaps laden</button>
